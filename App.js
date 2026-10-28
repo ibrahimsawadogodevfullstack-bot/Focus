@@ -1,125 +1,126 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, Platform } from 'react-native';
 
-const pages = [
-  {
-    id: 'bonjour',
-    label: 'Page 1',
-    title: 'Bonjour !',
-    message: 'Bienvenue dans ta premiere page Expo.',
-  },
-  {
-    id: 'salut',
-    label: 'Page 2',
-    title: 'Salut !',
-    message: 'Voici la deuxieme page pour tester React Native.',
-  },
-];
+import { CHANNEL_IDS } from './constants/channels';
+import { colors } from './constants/theme';
+import FeedScreen from './screens/FeedScreen';
+import PlayerScreen from './screens/PlayerScreen';
+import { loadFeed } from './services/feed';
+import { addSeenId, readSeenIds } from './services/storage';
 
 export default function App() {
-  const [activePageId, setActivePageId] = useState(pages[0].id);
-  const activePage = pages.find((page) => page.id === activePageId);
+  const [feed, setFeed] = useState({
+    videos: [],
+    channels: [],
+    savedAt: null,
+    fromCache: false,
+    failedChannels: [],
+    error: null,
+  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [seenIds, setSeenIds] = useState([]);
+  const [route, setRoute] = useState({ name: 'feed' });
+  const routeRef = useRef(route);
+  routeRef.current = route;
+
+  const applyFeed = useCallback((result) => {
+    setFeed({
+      videos: result.videos ?? [],
+      channels: result.channels ?? [],
+      savedAt: result.savedAt ?? null,
+      fromCache: Boolean(result.fromCache),
+      failedChannels: result.failedChannels ?? [],
+      error: result.error ?? null,
+    });
+  }, []);
+
+  const runLoad = useCallback(
+    async ({ force = false } = {}) => {
+      try {
+        const result = await loadFeed({ force });
+        applyFeed(result);
+      } catch (error) {
+        setFeed((current) => ({
+          ...current,
+          error: error?.message ?? 'Impossible de charger le flux.',
+        }));
+      }
+    },
+    [applyFeed],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const seen = await readSeenIds();
+      if (!cancelled) setSeenIds(seen);
+      await runLoad();
+      if (!cancelled) setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runLoad]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (routeRef.current.name === 'player') {
+        setRoute({ name: 'feed' });
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await runLoad({ force: true });
+    setRefreshing(false);
+  }, [runLoad]);
+
+  const handleOpen = useCallback((video, queue) => {
+    const index = Math.max(0, queue.findIndex((item) => item.videoId === video.videoId));
+    setRoute({ name: 'player', queue, index });
+  }, []);
+
+  const handleVideoChange = useCallback((video) => {
+    addSeenId(video.videoId).then((seen) => setSeenIds(seen));
+  }, []);
+
+  const channels = feed.channels.length
+    ? feed.channels
+    : CHANNEL_IDS.map((id) => ({ id, title: '' }));
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.appTitle}>Test Expo</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.greeting}>{activePage.title}</Text>
-          <Text style={styles.message}>{activePage.message}</Text>
-        </View>
-
-        <View style={styles.navigation}>
-          {pages.map((page) => {
-            const isActive = page.id === activePageId;
-
-            return (
-              <Pressable
-                key={page.id}
-                onPress={() => setActivePageId(page.id)}
-                style={[styles.button, isActive && styles.activeButton]}
-              >
-                <Text style={[styles.buttonText, isActive && styles.activeButtonText]}>
-                  {page.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-      <StatusBar style="auto" />
-    </SafeAreaView>
+    <>
+      {route.name === 'feed' ? (
+        <FeedScreen
+          videos={feed.videos}
+          channels={channels}
+          seenIds={seenIds}
+          loading={loading}
+          refreshing={refreshing}
+          error={feed.error}
+          fromCache={feed.fromCache}
+          savedAt={feed.savedAt}
+          onRefresh={handleRefresh}
+          onOpen={handleOpen}
+        />
+      ) : (
+        <PlayerScreen
+          queue={route.queue}
+          initialIndex={route.index}
+          onBack={() => setRoute({ name: 'feed' })}
+          onVideoChange={handleVideoChange}
+        />
+      )}
+      <StatusBar style="light" backgroundColor={colors.background} />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f4f7fb',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 24,
-  },
-  appTitle: {
-    color: '#1f2937',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    minHeight: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 24,
-    shadowColor: '#111827',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 4,
-  },
-  greeting: {
-    color: '#0f766e',
-    fontSize: 36,
-    fontWeight: '800',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  message: {
-    color: '#4b5563',
-    fontSize: 18,
-    lineHeight: 26,
-    textAlign: 'center',
-  },
-  navigation: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  button: {
-    minWidth: 110,
-    alignItems: 'center',
-    backgroundColor: '#e5e7eb',
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  activeButton: {
-    backgroundColor: '#0f766e',
-  },
-  buttonText: {
-    color: '#374151',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  activeButtonText: {
-    color: '#ffffff',
-  },
-});
