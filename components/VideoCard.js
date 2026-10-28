@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
 import { timeAgo } from '../utils/format';
-import { MoreIcon } from './Icons';
+import { DownloadIcon, MoreIcon } from './Icons';
 
 const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
 
@@ -12,7 +12,7 @@ const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
  * Le bouton « … » est un frère du bouton principal pour éviter un bouton
  * imbriqué dans un autre sur le web.
  */
-export default function VideoCard({ video, isNew, onPress, onMore }) {
+export default function VideoCard({ video, isNew, downloaded, onPress, onMore }) {
   const [thumbStep, setThumbStep] = useState(0);
   const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
   const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`;
@@ -38,6 +38,13 @@ export default function VideoCard({ video, isNew, onPress, onMore }) {
           <View style={styles.newBadge}>
             <View style={styles.newDot} />
             <Text style={styles.newText}>Nouveau</Text>
+          </View>
+        ) : null}
+
+        {downloaded ? (
+          <View style={styles.downloadedBadge}>
+            <DownloadIcon color={colors.text} size={11} thickness={2} />
+            <Text style={styles.newText}>Téléchargée</Text>
           </View>
         ) : null}
       </Pressable>
@@ -102,6 +109,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: spacing.sm,
     left: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    backgroundColor: 'rgba(5, 7, 14, 0.82)',
+  },
+  downloadedBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

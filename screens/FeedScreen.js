@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ActionSheet from '../components/ActionSheet';
 import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
 import VideoCard from '../components/VideoCard';
+import { DownloadIcon, TrashIcon } from '../components/Icons';
 import { colors, spacing } from '../constants/theme';
 import { withoutShorts } from '../services/filters';
 import { timeAgo } from '../utils/format';
@@ -43,12 +45,19 @@ export default function FeedScreen({
   failedChannels = [],
   hiddenShorts = 0,
   onRefresh,
+  downloads = [],
   onOpen,
+  onToggleDownload,
   onRemoveChannel,
 }) {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  const [menuVideo, setMenuVideo] = useState(null);
   const [menuChannel, setMenuChannel] = useState(null);
+
+  const menuDownloaded = Boolean(
+    menuVideo && downloads.some((video) => video.videoId === menuVideo.videoId),
+  );
 
   const activeCategory = useMemo(
     () => categories.find((category) => category.id === activeCategoryId) ?? null,
@@ -115,13 +124,10 @@ export default function FeedScreen({
             video={item}
             isNew={hasHistory && !seen.has(item.videoId)}
             onPress={() => onOpen(item, visibleVideos)}
+            downloaded={downloads.some((video) => video.videoId === item.videoId)}
             onMore={
-              onRemoveChannel
-                ? () =>
-                    setMenuChannel({
-                      id: item.channelId,
-                      title: item.channelTitle,
-                    })
+              onRemoveChannel || onToggleDownload
+                ? () => setMenuVideo(item)
                 : undefined
             }
           />
@@ -200,6 +206,50 @@ export default function FeedScreen({
         initialNumToRender={4}
         windowSize={7}
         keyboardShouldPersistTaps="handled"
+      />
+
+      <ActionSheet
+        visible={Boolean(menuVideo)}
+        title={menuVideo?.title}
+        message={menuVideo ? `${menuVideo.channelTitle} · ${timeAgo(menuVideo.publishedAt)}` : null}
+        actions={
+          menuVideo
+            ? [
+                {
+                  key: 'download',
+                  label: menuDownloaded ? 'Supprimer le téléchargement' : 'Télécharger',
+                  hint: menuDownloaded
+                    ? 'Retire la fiche de l’onglet Hors ligne'
+                    : 'Garde la fiche et la miniature pour le hors ligne',
+                  icon: <DownloadIcon color={colors.textMuted} size={17} />,
+                  onPress: () => {
+                    const video = menuVideo;
+                    setMenuVideo(null);
+                    onToggleDownload?.(video);
+                  },
+                },
+                ...(onRemoveChannel
+                  ? [
+                      {
+                        key: 'remove-channel',
+                        label: 'Retirer la chaîne',
+                        hint: 'Elle quittera ta bibliothèque et tes catégories',
+                        destructive: true,
+                        icon: <TrashIcon color={colors.danger} size={16} />,
+                        onPress: () => {
+                          setMenuChannel({
+                            id: menuVideo.channelId,
+                            title: menuVideo.channelTitle,
+                          });
+                          setMenuVideo(null);
+                        },
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+        onClose={() => setMenuVideo(null)}
       />
 
       <ConfirmSheet

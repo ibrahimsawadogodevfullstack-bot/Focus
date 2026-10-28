@@ -13,6 +13,12 @@ import FeedScreen from './screens/FeedScreen';
 import OfflineScreen from './screens/OfflineScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import StatsScreen from './screens/StatsScreen';
+import {
+  deleteDownload,
+  readDownloads,
+  saveDownload,
+  writeDownloads,
+} from './services/downloads';
 import { loadFeed } from './services/feed';
 import {
   clearOffline,
@@ -62,6 +68,7 @@ export default function App() {
   const [offline, setOffline] = useState(null);
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineProgress, setOfflineProgress] = useState(null);
+  const [downloads, setDownloads] = useState([]);
   const [tracking, setTracking] = useState(getTracking());
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -89,20 +96,28 @@ export default function App() {
     let cancelled = false;
 
     (async () => {
-      const [storedChannels, storedCategories, seen, shorts, storedOffline] =
-        await Promise.all([
-          readChannels(),
-          readCategories(),
-          readSeenIds(),
-          readShortIds(),
-          readOffline(),
-        ]);
+      const [
+        storedChannels,
+        storedCategories,
+        seen,
+        shorts,
+        storedOffline,
+        storedDownloads,
+      ] = await Promise.all([
+        readChannels(),
+        readCategories(),
+        readSeenIds(),
+        readShortIds(),
+        readOffline(),
+        readDownloads(),
+      ]);
       if (cancelled) return;
       setChannels(storedChannels);
       setCategories(storedCategories);
       setSeenIds(seen);
       setShortIds(shorts);
       setOffline(storedOffline);
+      setDownloads(storedDownloads);
       setLibraryReady(true);
     })();
 
@@ -255,6 +270,30 @@ export default function App() {
     await clearOffline();
   }, []);
 
+  // Même geste que YouTube : menu « … » d'une carte puis « Télécharger ».
+  const handleToggleDownload = useCallback(
+    async (video) => {
+      const exists = downloads.some((item) => item.videoId === video.videoId);
+      const next = exists
+        ? await deleteDownload(video.videoId)
+        : await saveDownload(video);
+      setDownloads(next);
+    },
+    [downloads],
+  );
+
+  const handleOpenDownload = useCallback(
+    (video) => {
+      const queue = downloads.length > 0 ? downloads : [video];
+      const index = Math.max(
+        0,
+        queue.findIndex((item) => item.videoId === video.videoId),
+      );
+      setRoute({ name: 'player', queue, index, from: 'offline' });
+    },
+    [downloads],
+  );
+
   const handleAddChannel = useCallback(
     async (channel) => {
       const next = [...channels, channel];
@@ -289,7 +328,13 @@ export default function App() {
         setActiveCategoryId(null);
       }
 
-      // Le cache hors ligne ne garde pas les vidéos de la chaîne retirée.
+      // Les téléchargements et le cache ne gardent pas la chaîne retirée.
+      if (downloads.some((video) => video.channelId === channelId)) {
+        const remaining = downloads.filter((video) => video.channelId !== channelId);
+        setDownloads(remaining);
+        await writeDownloads(remaining);
+      }
+
       if (offline?.videos?.length) {
         const remaining = offline.videos.filter((video) => video.channelId !== channelId);
         if (remaining.length !== offline.videos.length) {
@@ -303,7 +348,7 @@ export default function App() {
         }
       }
     },
-    [activeCategoryId, categories, channels, offline],
+    [activeCategoryId, categories, channels, downloads, offline],
   );
 
   const handleSaveCategory = useCallback(
@@ -353,6 +398,8 @@ export default function App() {
         onSelectCategory={setActiveCategoryId}
         onOpenCategories={() => setRoute({ name: 'categories' })}
         onOpenLibrary={() => setRoute({ name: 'channels' })}
+        downloads={downloads}
+        onToggleDownload={handleToggleDownload}
         onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}
         loading={loading}
@@ -410,12 +457,15 @@ export default function App() {
     screen = (
       <OfflineScreen
         offline={offline}
+        downloads={downloads}
         downloading={offlineDownloading}
         progress={offlineProgress}
         feedCount={feedVideos.length}
         onDownload={handleDownloadOffline}
         onClear={handleClearOffline}
         onOpen={handleOpen}
+        onOpenDownload={handleOpenDownload}
+        onRemoveDownload={handleToggleDownload}
       />
     );
   } else if (route.name === 'categories') {
@@ -442,8 +492,11 @@ export default function App() {
       <PlayerScreen
         queue={route.queue}
         initialIndex={route.index}
-        onBack={() => setRoute({ name: 'feed' })}
+        downloads={downloads}
+        backLabel={route.from === 'offline' ? 'Hors ligne' : 'Accueil'}
+        onBack={() => setRoute({ name: route.from === 'offline' ? 'offline' : 'feed' })}
         onVideoChange={handleVideoChange}
+        onToggleDownload={handleToggleDownload}
         onShortDetected={handleShortDetected}
       />
     );

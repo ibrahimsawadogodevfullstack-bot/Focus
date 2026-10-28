@@ -15,12 +15,15 @@ import { timeAgo } from '../utils/format';
  */
 export default function OfflineScreen({
   offline,
+  downloads = [],
   downloading,
   progress,
   feedCount,
   onDownload,
   onClear,
   onOpen,
+  onOpenDownload,
+  onRemoveDownload,
 }) {
   const [confirmClear, setConfirmClear] = useState(false);
 
@@ -37,8 +40,63 @@ export default function OfflineScreen({
       >
         <Text style={styles.title}>Hors ligne</Text>
         <Text style={styles.subtitle}>
-          Garde titres et miniatures de ton accueil en mémoire pour le consulter sans réseau.
+          Télécharge une vidéo depuis le menu « … » de l’accueil, ou garde tout ton
+          flux en cache.
         </Text>
+
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionLabel}>Téléchargées</Text>
+          <View style={styles.sectionRule} />
+          {downloads.length > 0 ? (
+            <Text style={styles.sectionCount}>{downloads.length}</Text>
+          ) : null}
+        </View>
+
+        {downloads.length === 0 ? (
+          <Text style={styles.emptyHint}>
+            Aucune vidéo téléchargée. Sur l’accueil, touche « … » puis « Télécharger ».
+          </Text>
+        ) : (
+          downloads.map((video) => (
+            <View key={video.videoId} style={styles.downloadRow}>
+              <Pressable
+                onPress={() => onOpenDownload(video)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ouvrir ${video.title}`}
+                style={({ pressed }) => [styles.downloadMain, pressed && styles.rowPressed]}
+              >
+                <Image
+                  source={{ uri: thumbnailUri(video.videoId) }}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                />
+                <View style={styles.rowTexts}>
+                  <Text style={styles.rowTitle} numberOfLines={2}>
+                    {video.title}
+                  </Text>
+                  <Text style={styles.rowMeta} numberOfLines={1}>
+                    {video.channelTitle} · {timeAgo(video.savedAt)}
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => onRemoveDownload(video)}
+                accessibilityRole="button"
+                accessibilityLabel={`Supprimer le téléchargement de ${video.title}`}
+                hitSlop={6}
+                style={({ pressed }) => [styles.remove, pressed && styles.rowPressed]}
+              >
+                <TrashIcon color={colors.textFaint} size={15} />
+              </Pressable>
+            </View>
+          ))
+        )}
+
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionLabel}>Tout l’accueil</Text>
+          <View style={styles.sectionRule} />
+        </View>
 
         <View style={styles.card}>
           <View style={styles.statsRow}>
@@ -151,16 +209,12 @@ export default function OfflineScreen({
               </Pressable>
             ))}
           </>
-        ) : (
+        ) : feedCount === 0 ? (
           <EmptyState
             title="Rien hors ligne"
-            message={
-              feedCount > 0
-                ? `Ton accueil contient ${feedCount} vidéos : lance le téléchargement pour les garder en cache.`
-                : 'Ajoute des chaînes pour pouvoir mettre ton accueil en cache.'
-            }
+            message="Ajoute des chaînes pour pouvoir mettre ton accueil en cache."
           />
-        )}
+        ) : null}
       </ScrollView>
 
       <ConfirmSheet
@@ -340,6 +394,39 @@ const styles = StyleSheet.create({
     flex: 1,
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.line,
+  },
+  sectionCount: {
+    color: colors.textMuted,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  emptyHint: {
+    color: colors.textMuted,
+    fontSize: 12.5,
+    lineHeight: 18,
+    paddingVertical: spacing.sm,
+  },
+  downloadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+  },
+  downloadMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+  },
+  remove: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   row: {
     flexDirection: 'row',

@@ -10,7 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Chevron, LockIcon, PauseIcon, PlayIcon } from '../components/Icons';
+import {
+  CheckIcon,
+  Chevron,
+  DownloadIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+} from '../components/Icons';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
 import {
@@ -39,6 +46,8 @@ function VideoPage({
   height,
   active,
   isLast,
+  downloaded,
+  onToggleDownload,
   onEnded,
   onSeen,
   onShortDetected,
@@ -321,6 +330,37 @@ function VideoPage({
           </Text>
           <Text style={styles.dot}>·</Text>
           <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
+
+          <View style={styles.metaSpacer} />
+
+          {onToggleDownload ? (
+            <Pressable
+              onPress={() => onToggleDownload(video)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                downloaded ? 'Supprimer le téléchargement' : 'Télécharger la vidéo'
+              }
+              accessibilityState={{ selected: Boolean(downloaded) }}
+              hitSlop={6}
+              style={({ pressed }) => [
+                styles.downloadChip,
+                downloaded && styles.downloadChipOn,
+                pressed && styles.ratingPressed,
+              ]}
+            >
+              {downloaded ? (
+                <CheckIcon color={colors.accentText} size={10} />
+              ) : (
+                <DownloadIcon color={colors.textMuted} size={12} thickness={2} />
+              )}
+              <Text
+                style={[styles.downloadLabel, downloaded && styles.downloadLabelOn]}
+                numberOfLines={1}
+              >
+                {downloaded ? 'Téléchargée' : 'Télécharger'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.ratingBlock}>
@@ -409,7 +449,16 @@ function VideoPage({
   );
 }
 
-export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoChange, onShortDetected }) {
+export default function PlayerScreen({
+  queue,
+  initialIndex = 0,
+  downloads = [],
+  backLabel = 'Accueil',
+  onBack,
+  onVideoChange,
+  onToggleDownload,
+  onShortDetected,
+}) {
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
   const listRef = useRef(null);
@@ -469,11 +518,13 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
-          accessibilityLabel="Retour à l’accueil"
+          accessibilityLabel={
+            backLabel === 'Accueil' ? 'Retour à l’accueil' : `Retour à l’onglet ${backLabel}`
+          }
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />
-          <Text style={styles.backLabel}>Accueil</Text>
+          <Text style={styles.backLabel}>{backLabel}</Text>
         </Pressable>
 
         <View style={styles.focusPill}>
@@ -503,6 +554,8 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
                 height={pageHeight}
                 active={itemIndex === index}
                 isLast={itemIndex === queue.length - 1}
+                downloaded={downloads.some((video) => video.videoId === item.videoId)}
+                onToggleDownload={onToggleDownload}
                 onEnded={() => goToIndex(itemIndex + 1)}
                 onSeen={onVideoChange}
                 onShortDetected={onShortDetected}
@@ -776,6 +829,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  metaSpacer: {
+    flex: 1,
+  },
+  downloadChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 26,
+    paddingHorizontal: 9,
+    borderRadius: 13,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.lineStrong,
+  },
+  downloadChipOn: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentLine,
+  },
+  downloadLabel: {
+    color: colors.textMuted,
+    fontSize: 10.5,
+    fontWeight: '600',
+  },
+  downloadLabelOn: {
+    color: colors.accentText,
+    fontWeight: '700',
   },
   avatar: {
     width: 20,

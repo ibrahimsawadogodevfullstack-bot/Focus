@@ -19,10 +19,12 @@ pas de serveur intermédiaire, pas de clé API.
 
   Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
   passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
-- **Hors ligne** : un onglet met en cache les titres, chaînes et miniatures du
-  flux pour parcourir l'accueil sans réseau. Le fichier vidéo n'est pas
-  enregistré (interdit par les CGU du lecteur) : la liste reste consultable, la
-  lecture demande une connexion.
+- **Hors ligne** : comme dans YouTube, le menu « … » d'une vidéo propose
+  « Télécharger » : sa fiche et sa miniature sont conservées et apparaissent
+  dans l'onglet Hors ligne (avec suppression possible). L'onglet permet aussi de
+  garder d'un coup les titres, chaînes et miniatures de tout le flux. Le fichier
+  vidéo, lui, n'est pas enregistré (interdit par les CGU du lecteur) : la liste
+  reste consultable, la lecture demande une connexion.
 - **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
   chaîne, insensible aux accents) et un accès à la bibliothèque ; rangée de puces
   « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
@@ -76,6 +78,7 @@ services/rssParser.js      analyse Atom (sans dépendance XML)
 services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
 services/offline.js        instantané hors ligne + préchauffage des miniatures
 services/tracking.js       temps vu, progression, révisions, auto-évaluation
+services/downloads.js      téléchargements par vidéo (fiche + miniature)
 services/stats.js          agrégats semaine/catégorie, états, synthèse
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne
@@ -86,11 +89,12 @@ components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
 components/FocusMark       logo « focus »
 components/AppBar          logo, recherche, accès bibliothèque
 components/ConfirmSheet    confirmation en feuille basse (web + mobile)
+components/ActionSheet     menu « … » (télécharger, retirer la chaîne)
 components/VideoCard       carte vidéo façon YouTube
 components/CategoryChips   puces « Tous » + catégories
 screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
 screens/ChannelsScreen     bibliothèque de chaînes (ajout/retrait)
-screens/OfflineScreen      cache hors ligne, progression, liste en cache
+screens/OfflineScreen      téléchargements, cache du flux, progression
 screens/StatsScreen        « Ma semaine », objectif, par catégorie
 screens/CategoryStatsScreen détail d'une catégorie (graphique, vidéos)
 screens/CategoriesScreen   liste des catégories
