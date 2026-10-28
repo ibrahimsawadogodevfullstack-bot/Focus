@@ -14,6 +14,7 @@ export default function AppBar({
   onChangeQuery,
   onToggleSearch,
   onOpenLibrary,
+  syncLabel = '',
 }) {
   if (searching) {
     return (
@@ -51,6 +52,14 @@ export default function AppBar({
       <View style={styles.brand}>
         <FocusMark size={20} />
         <Text style={styles.wordmark}>focus</Text>
+        {syncLabel ? (
+          <View style={styles.syncTag} accessibilityLiveRegion="polite">
+            <View style={styles.syncDot} />
+            <Text style={styles.syncText} numberOfLines={1}>
+              {syncLabel}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.actions}>
@@ -99,6 +108,30 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.9,
+  },
+  syncTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginLeft: spacing.xs,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  syncDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.accent,
+  },
+  syncText: {
+    color: colors.textMuted,
+    fontSize: 10.5,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   actions: {
     flexDirection: 'row',

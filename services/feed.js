@@ -83,13 +83,22 @@ function mergeFeeds(feeds) {
   };
 }
 
-export async function fetchFeed(channelIds = DEFAULT_CHANNEL_IDS) {
+export async function fetchFeed(channelIds = DEFAULT_CHANNEL_IDS, { onProgress } = {}) {
   const startedAt = Date.now();
+  const total = channelIds.length;
+  let done = 0;
+
+  // Chaque chaîne terminée fait avancer la barre : « 8/17 · 47 % ».
+  onProgress?.({ done, total, percent: 0 });
+
   const settled = await mapWithConcurrency(channelIds, CONCURRENCY, async (id) => {
     try {
       return { id, feed: await fetchChannel(id), error: null };
     } catch (error) {
       return { id, feed: null, error: error?.message ?? 'Erreur inconnue' };
+    } finally {
+      done += 1;
+      onProgress?.({ done, total, percent: Math.round((done / total) * 100) });
     }
   });
 
@@ -112,20 +121,26 @@ export async function fetchFeed(channelIds = DEFAULT_CHANNEL_IDS) {
   return { ...payload, fromCache: false };
 }
 
-export async function loadFeed({ channelIds = DEFAULT_CHANNEL_IDS, force = false } = {}) {
+export async function loadFeed({
+  channelIds = DEFAULT_CHANNEL_IDS,
+  force = false,
+  onProgress,
+} = {}) {
   const channelKey = [...channelIds].sort().join(',');
   const cached = await readFeedCache();
   const sameScope = cached && cached.channelKey === channelKey;
   const isFresh = cached && Date.now() - (cached.savedAt ?? 0) < CACHE_TTL_MS;
 
   if (sameScope && isFresh && !force) {
+    onProgress?.({ done: channelIds.length, total: channelIds.length, percent: 100 });
     return { ...cached, fromCache: true };
   }
 
   try {
-    return await fetchFeed(channelIds);
+    return await fetchFeed(channelIds, { onProgress });
   } catch (error) {
     if (sameScope && cached) {
+      onProgress?.({ done: channelIds.length, total: channelIds.length, percent: 100 });
       return { ...cached, fromCache: true, error: error?.message };
     }
     throw error;

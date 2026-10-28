@@ -15,6 +15,7 @@ import CategoryChips from '../components/CategoryChips';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
+import SyncBar from '../components/SyncBar';
 import VideoCard from '../components/VideoCard';
 import { DownloadIcon, TrashIcon } from '../components/Icons';
 import { colors, spacing } from '../constants/theme';
@@ -39,6 +40,7 @@ export default function FeedScreen({
   seenIds,
   loading,
   refreshing,
+  sync,
   error,
   fromCache,
   savedAt,
@@ -92,6 +94,11 @@ export default function FeedScreen({
   const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
   const isFirstLoad = loading && videos.length === 0;
 
+  const syncActive = Boolean(sync?.active);
+  const syncLabel = syncActive
+    ? `${sync.done ?? 0}/${sync.total ?? 0} · ${sync.percent ?? 0} %`
+    : '';
+
   const toggleSearch = useCallback(() => {
     setSearching((current) => {
       if (current) setQuery('');
@@ -107,7 +114,10 @@ export default function FeedScreen({
         onChangeQuery={setQuery}
         onToggleSearch={toggleSearch}
         onOpenLibrary={onOpenLibrary}
+        syncLabel={syncLabel}
       />
+
+      <SyncBar active={syncActive} percent={sync?.percent ?? 0} />
 
       <CategoryChips
         categories={categories}

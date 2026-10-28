@@ -68,6 +68,7 @@ export default function App() {
   const [offline, setOffline] = useState(null);
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineProgress, setOfflineProgress] = useState(null);
+  const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
   const [downloads, setDownloads] = useState([]);
   const [tracking, setTracking] = useState(getTracking());
   const routeRef = useRef(route);
@@ -164,17 +165,27 @@ export default function App() {
       if (ids.length === 0) {
         setFeed({ ...EMPTY_FEED, savedAt: Date.now() });
         setLoading(false);
+        setSync({ active: false, done: 0, total: 0, percent: 100 });
         return;
       }
 
+      setSync({ active: true, done: 0, total: ids.length, percent: 0 });
+
       try {
-        const result = await loadFeed({ channelIds: ids, force });
+        const result = await loadFeed({
+          channelIds: ids,
+          force,
+          onProgress: ({ done, total, percent }) =>
+            setSync({ active: true, done, total, percent }),
+        });
         applyFeed(result);
+        setSync({ active: false, done: ids.length, total: ids.length, percent: 100 });
       } catch (error) {
         setFeed((current) => ({
           ...current,
           error: error?.message ?? 'Impossible de charger le flux.',
         }));
+        setSync((current) => ({ ...current, active: false, percent: 0 }));
       }
     },
     [applyFeed, channelKey],
@@ -404,6 +415,7 @@ export default function App() {
         seenIds={seenIds}
         loading={loading}
         refreshing={refreshing}
+        sync={sync}
         error={feed.error}
         fromCache={feed.fromCache}
         savedAt={feed.savedAt}
