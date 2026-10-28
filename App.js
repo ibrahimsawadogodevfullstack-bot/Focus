@@ -9,8 +9,15 @@ import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
+import OfflineScreen from './screens/OfflineScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import { loadFeed } from './services/feed';
+import {
+  clearOffline,
+  downloadOffline,
+  readOffline,
+  writeOffline,
+} from './services/offline';
 import {
   addSeenId,
   addShortId,
@@ -32,7 +39,7 @@ const EMPTY_FEED = {
   error: null,
 };
 
-const TAB_ROUTES = new Set(['feed', 'channels', 'categories']);
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'offline']);
 
 export default function App() {
   const [feed, setFeed] = useState(EMPTY_FEED);
@@ -45,6 +52,9 @@ export default function App() {
   const [seenIds, setSeenIds] = useState([]);
   const [shortIds, setShortIds] = useState([]);
   const [route, setRoute] = useState({ name: 'feed' });
+  const [offline, setOffline] = useState(null);
+  const [offlineDownloading, setOfflineDownloading] = useState(false);
+  const [offlineProgress, setOfflineProgress] = useState(null);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -58,17 +68,20 @@ export default function App() {
     let cancelled = false;
 
     (async () => {
-      const [storedChannels, storedCategories, seen, shorts] = await Promise.all([
-        readChannels(),
-        readCategories(),
-        readSeenIds(),
-        readShortIds(),
-      ]);
+      const [storedChannels, storedCategories, seen, shorts, storedOffline] =
+        await Promise.all([
+          readChannels(),
+          readCategories(),
+          readSeenIds(),
+          readShortIds(),
+          readOffline(),
+        ]);
       if (cancelled) return;
       setChannels(storedChannels);
       setCategories(storedCategories);
       setSeenIds(seen);
       setShortIds(shorts);
+      setOffline(storedOffline);
       setLibraryReady(true);
     })();
 
@@ -194,6 +207,29 @@ export default function App() {
     return feed.videos.filter((video) => !hidden.has(video.videoId));
   }, [feed.videos, shortIds]);
 
+  const handleDownloadOffline = useCallback(async () => {
+    if (offlineDownloading || feedVideos.length === 0) return;
+
+    setOfflineDownloading(true);
+    setOfflineProgress({ done: 0, total: feedVideos.length, failed: 0 });
+    // La liste apparaît tout de suite ; les miniatures arrivent au fil de l'eau.
+    setOffline({ savedAt: Date.now(), videos: feedVideos, thumbs: 0, failed: 0 });
+    try {
+      const snapshot = await downloadOffline(feedVideos, setOfflineProgress);
+      setOffline(snapshot);
+    } catch {
+      // L'écran garde l'état précédent : rien n'est perdu.
+    } finally {
+      setOfflineDownloading(false);
+      setOfflineProgress(null);
+    }
+  }, [feedVideos, offlineDownloading]);
+
+  const handleClearOffline = useCallback(async () => {
+    setOffline(null);
+    await clearOffline();
+  }, []);
+
   const handleAddChannel = useCallback(
     async (channel) => {
       const next = [...channels, channel];
@@ -227,8 +263,22 @@ export default function App() {
       ) {
         setActiveCategoryId(null);
       }
+
+      // Le cache hors ligne ne garde pas les vidéos de la chaîne retirée.
+      if (offline?.videos?.length) {
+        const remaining = offline.videos.filter((video) => video.channelId !== channelId);
+        if (remaining.length !== offline.videos.length) {
+          const snapshot = {
+            ...offline,
+            videos: remaining,
+            thumbs: Math.min(offline.thumbs ?? 0, remaining.length),
+          };
+          setOffline(snapshot);
+          await writeOffline(snapshot);
+        }
+      }
     },
-    [activeCategoryId, categories, channels],
+    [activeCategoryId, categories, channels, offline],
   );
 
   const handleSaveCategory = useCallback(
@@ -278,6 +328,7 @@ export default function App() {
         onSelectCategory={setActiveCategoryId}
         onOpenCategories={() => setRoute({ name: 'categories' })}
         onOpenLibrary={() => setRoute({ name: 'channels' })}
+        onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}
         loading={loading}
         refreshing={refreshing}
@@ -296,6 +347,18 @@ export default function App() {
         channels={channels}
         onAddChannel={handleAddChannel}
         onRemoveChannel={handleRemoveChannel}
+      />
+    );
+  } else if (route.name === 'offline') {
+    screen = (
+      <OfflineScreen
+        offline={offline}
+        downloading={offlineDownloading}
+        progress={offlineProgress}
+        feedCount={feedVideos.length}
+        onDownload={handleDownloadOffline}
+        onClear={handleClearOffline}
+        onOpen={handleOpen}
       />
     );
   } else if (route.name === 'categories') {

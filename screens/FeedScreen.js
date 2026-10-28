@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
+import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
 import VideoCard from '../components/VideoCard';
@@ -43,9 +44,11 @@ export default function FeedScreen({
   hiddenShorts = 0,
   onRefresh,
   onOpen,
+  onRemoveChannel,
 }) {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  const [menuChannel, setMenuChannel] = useState(null);
 
   const activeCategory = useMemo(
     () => categories.find((category) => category.id === activeCategoryId) ?? null,
@@ -112,6 +115,15 @@ export default function FeedScreen({
             video={item}
             isNew={hasHistory && !seen.has(item.videoId)}
             onPress={() => onOpen(item, visibleVideos)}
+            onMore={
+              onRemoveChannel
+                ? () =>
+                    setMenuChannel({
+                      id: item.channelId,
+                      title: item.channelTitle,
+                    })
+                : undefined
+            }
           />
         )}
         ListHeaderComponent={
@@ -119,7 +131,7 @@ export default function FeedScreen({
             <View style={styles.banner}>
               <Text style={styles.bannerText}>
                 {fromCache
-                  ? 'Hors ligne : le dernier flux enregistré est affiché.'
+                  ? 'Hors ligne : la dernière liste enregistrée est affichée.'
                   : 'Certaines chaînes n’ont pas répondu.'}
               </Text>
               <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
@@ -188,6 +200,20 @@ export default function FeedScreen({
         initialNumToRender={4}
         windowSize={7}
         keyboardShouldPersistTaps="handled"
+      />
+
+      <ConfirmSheet
+        visible={Boolean(menuChannel)}
+        title="Retirer cette chaîne ?"
+        message={`« ${menuChannel?.title ?? ''} » quittera ta bibliothèque, ton accueil et tes catégories.`}
+        confirmLabel="Retirer la chaîne"
+        destructive
+        onConfirm={() => {
+          const channel = menuChannel;
+          setMenuChannel(null);
+          if (channel?.id) onRemoveChannel(channel.id);
+        }}
+        onCancel={() => setMenuChannel(null)}
       />
     </SafeAreaView>
   );

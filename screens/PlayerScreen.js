@@ -247,7 +247,7 @@ function VideoPage({
               de sortie n’est proposé : le mode focus reste actif.
             </Text>
             <Text style={styles.errorHint}>
-              {isLast ? 'Fin du flux.' : 'Glisse vers le haut pour la vidéo suivante.'}
+              {isLast ? 'Fin de la liste.' : 'Glisse vers le haut pour la vidéo suivante.'}
             </Text>
           </View>
         ) : null}
@@ -268,7 +268,7 @@ function VideoPage({
               <Text style={styles.swipeText}>Glisse vers le haut pour la suite</Text>
             </>
           ) : (
-            <Text style={styles.swipeText}>Fin du flux</Text>
+            <Text style={styles.swipeText}>Fin de la liste</Text>
           )}
         </View>
       </View>
@@ -336,11 +336,11 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
-          accessibilityLabel="Retour au flux"
+          accessibilityLabel="Retour à l’accueil"
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />
-          <Text style={styles.backLabel}>Flux</Text>
+          <Text style={styles.backLabel}>Accueil</Text>
         </Pressable>
 
         <View style={styles.focusPill}>

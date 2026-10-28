@@ -3,24 +3,28 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
 import { timeAgo } from '../utils/format';
+import { MoreIcon } from './Icons';
 
 const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
 
 /**
  * Carte vidéo façon YouTube : grande miniature, puis avatar + titre + chaîne.
+ * Le bouton « … » est un frère du bouton principal pour éviter un bouton
+ * imbriqué dans un autre sur le web.
  */
-export default function VideoCard({ video, isNew, onPress }) {
+export default function VideoCard({ video, isNew, onPress, onMore }) {
   const [thumbStep, setThumbStep] = useState(0);
   const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
+  const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`;
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <View style={styles.thumbWrap}>
+    <View style={styles.card}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={({ pressed }) => [styles.thumbWrap, pressed && styles.pressed]}
+      >
         <Image
           source={{
             uri: `https://i.ytimg.com/vi/${video.videoId}/${THUMB_STEPS[thumbStep]}.jpg`,
@@ -36,23 +40,42 @@ export default function VideoCard({ video, isNew, onPress }) {
             <Text style={styles.newText}>Nouveau</Text>
           </View>
         ) : null}
-      </View>
+      </Pressable>
 
       <View style={styles.row}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initial}</Text>
-        </View>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Ouvrir ${video.title}`}
+          style={({ pressed }) => [styles.info, pressed && styles.pressed]}
+        >
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initial}</Text>
+          </View>
 
-        <View style={styles.texts}>
-          <Text style={styles.title} numberOfLines={2}>
-            {video.title}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {video.channelTitle} · {timeAgo(video.publishedAt)}
-          </Text>
-        </View>
+          <View style={styles.texts}>
+            <Text style={styles.title} numberOfLines={2}>
+              {video.title}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {video.channelTitle} · {timeAgo(video.publishedAt)}
+            </Text>
+          </View>
+        </Pressable>
+
+        {onMore ? (
+          <Pressable
+            onPress={onMore}
+            accessibilityRole="button"
+            accessibilityLabel={`Options pour ${video.channelTitle}`}
+            hitSlop={8}
+            style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
+          >
+            <MoreIcon color={colors.textMuted} size={15} />
+          </Pressable>
+        ) : null}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -101,8 +124,14 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     paddingTop: spacing.md,
+  },
+  info: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
   },
   avatar: {
     width: 36,
@@ -135,5 +164,15 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     fontSize: 12.5,
     fontWeight: '500',
+  },
+  more: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  morePressed: {
+    backgroundColor: colors.surface,
   },
 });

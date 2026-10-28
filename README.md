@@ -19,6 +19,10 @@ pas de serveur intermédiaire, pas de clé API.
 
   Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
   passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
+- **Hors ligne** : un onglet met en cache les titres, chaînes et miniatures du
+  flux pour parcourir l'accueil sans réseau. Le fichier vidéo n'est pas
+  enregistré (interdit par les CGU du lecteur) : la liste reste consultable, la
+  lecture demande une connexion.
 - **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
   chaîne, insensible aux accents) et un accès à la bibliothèque ; rangée de puces
   « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
@@ -35,6 +39,9 @@ pas de serveur intermédiaire, pas de clé API.
 - **Cache** : flux gardé dans `AsyncStorage` (TTL 10 min, invalidé quand la
   liste des chaînes change), affichage hors ligne, titres appris puis stockés.
 - **Vidéos déjà vues** : pastille « nouveau » sur les vidéos non encore ouvertes.
+- **Gestion des chaînes** : ajout par identifiant, handle ou URL ; suppression
+  depuis l'onglet Chaînes ou directement depuis l'accueil (menu « … »), avec
+  confirmation dans les deux cas.
 
 ## Limites assumées
 
@@ -57,6 +64,7 @@ services/feedUrl.js        URL du flux Atom d'une chaîne
 services/feed.js           fetch RSS, fusion, tri, cache par périmètre
 services/rssParser.js      analyse Atom (sans dépendance XML)
 services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
+services/offline.js        instantané hors ligne + préchauffage des miniatures
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne
 services/net.js            fetch direct (mobile) ou via proxy (web)
@@ -65,10 +73,12 @@ components/YoutubePlayer   WebView verrouillée + commandes impératives
 components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
 components/FocusMark       logo « focus »
 components/AppBar          logo, recherche, accès bibliothèque
+components/ConfirmSheet    confirmation en feuille basse (web + mobile)
 components/VideoCard       carte vidéo façon YouTube
 components/CategoryChips   puces « Tous » + catégories
 screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
-screens/ChannelsScreen     bibliothèque de chaînes
+screens/ChannelsScreen     bibliothèque de chaînes (ajout/retrait)
+screens/OfflineScreen      cache hors ligne, progression, liste en cache
 screens/CategoriesScreen   liste des catégories
 screens/CategoryEditor     création/édition d'une catégorie
 screens/PlayerScreen       flux vertical paginé, contrôles, sortie bloquée

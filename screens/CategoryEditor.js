@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import ConfirmSheet from '../components/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
 
@@ -20,6 +20,7 @@ export default function CategoryEditor({ category, channels, onSave, onDelete, o
   const [query, setQuery] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const trimmedName = name.trim();
   const canSave = trimmedName.length > 0 && selected.size > 0 && !saving;
@@ -59,20 +60,7 @@ export default function CategoryEditor({ category, channels, onSave, onDelete, o
     }
   };
 
-  const confirmDelete = () => {
-    Alert.alert(
-      'Supprimer la catégorie ?',
-      `« ${category.name} » sera supprimée. Les chaînes restent dans ta bibliothèque.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => onDelete(category.id),
-        },
-      ],
-    );
-  };
+  const confirmDelete = () => setConfirmingDelete(true);
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -205,6 +193,19 @@ export default function CategoryEditor({ category, channels, onSave, onDelete, o
           </Text>
         </Pressable>
       </View>
+
+      <ConfirmSheet
+        visible={confirmingDelete}
+        title="Supprimer la catégorie ?"
+        message={`« ${category?.name ?? ''} » sera supprimée. Les chaînes restent dans ta bibliothèque.`}
+        confirmLabel="Supprimer la catégorie"
+        destructive
+        onConfirm={() => {
+          setConfirmingDelete(false);
+          onDelete(category.id);
+        }}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </SafeAreaView>
   );
 }

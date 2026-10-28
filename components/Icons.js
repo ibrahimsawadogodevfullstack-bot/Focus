@@ -270,3 +270,106 @@ export function MoreIcon({ color, size = 16 }) {
     </View>
   );
 }
+
+export function DownloadIcon({ color, size = 20, thickness = 2 }) {
+  const t = thickness;
+  const apexY = size * 0.58;
+  const length = size * 0.36;
+  const offset = length * 0.354;
+
+  const stroke = (left, top, rotate) => ({
+    position: 'absolute',
+    left,
+    top,
+    width: length,
+    height: t,
+    borderRadius: t,
+    backgroundColor: color,
+    transform: [{ rotate }],
+  });
+
+  return (
+    <View style={{ width: size, height: size }}>
+      {/* hampe */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size / 2 - t / 2,
+          top: size * 0.08,
+          width: t,
+          height: apexY - size * 0.08,
+          borderRadius: t,
+          backgroundColor: color,
+        }}
+      />
+      {/* pointe de la flèche */}
+      <View
+        style={stroke(
+          size / 2 - offset - length / 2,
+          apexY - offset - t / 2,
+          '45deg',
+        )}
+      />
+      <View
+        style={stroke(
+          size / 2 + offset - length / 2,
+          apexY - offset - t / 2,
+          '-45deg',
+        )}
+      />
+      {/* socle */}
+      <View
+        style={{
+          position: 'absolute',
+          left: size * 0.1,
+          bottom: size * 0.1,
+          width: size * 0.8,
+          height: t,
+          borderRadius: t,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
+}
+
+export function TrashIcon({ color, size = 16, thickness = 2 }) {
+  const bodyWidth = size * 0.62;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center' }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          width: size * 0.34,
+          height: thickness,
+          borderRadius: thickness,
+          backgroundColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.16,
+          width: size * 0.9,
+          height: thickness,
+          borderRadius: thickness,
+          backgroundColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.26,
+          width: bodyWidth,
+          height: size * 0.7,
+          borderWidth: thickness,
+          borderTopWidth: 0,
+          borderColor: color,
+          borderBottomLeftRadius: 3,
+          borderBottomRightRadius: 3,
+        }}
+      />
+    </View>
+  );
+}

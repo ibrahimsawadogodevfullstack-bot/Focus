@@ -2,12 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout } from '../constants/theme';
-import { FolderIcon, GridIcon, ListIcon } from './Icons';
+import { DownloadIcon, FolderIcon, GridIcon, ListIcon } from './Icons';
 
 const TABS = [
-  { key: 'feed', label: 'Flux', Icon: GridIcon },
+  { key: 'feed', label: 'Accueil', Icon: GridIcon },
   { key: 'channels', label: 'Chaînes', Icon: ListIcon },
   { key: 'categories', label: 'Catégories', Icon: FolderIcon },
+  { key: 'offline', label: 'Hors ligne', Icon: DownloadIcon },
 ];
 
 export default function TabBar({ active, onChange }) {
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
     letterSpacing: 0.1,
   },

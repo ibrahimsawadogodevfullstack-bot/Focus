@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   Pressable,
   ScrollView,
@@ -12,8 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
-import { CloseIcon } from '../components/Icons';
+import { TrashIcon } from '../components/Icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { resolveChannelInput } from '../services/channelResolver';
@@ -22,6 +22,7 @@ export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [pendingRemove, setPendingRemove] = useState(null);
 
   const canSubmit = draft.trim().length > 0 && !busy;
 
@@ -46,19 +47,10 @@ export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel
     }
   };
 
-  const confirmRemove = (channel) => {
-    Alert.alert(
-      'Retirer cette chaîne ?',
-      `« ${channel.title || channel.id} » quittera le flux et les catégories.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer',
-          style: 'destructive',
-          onPress: () => onRemoveChannel(channel.id),
-        },
-      ],
-    );
+  const handleRemove = async () => {
+    const channel = pendingRemove;
+    setPendingRemove(null);
+    if (channel) await onRemoveChannel(channel.id);
   };
 
   return (
@@ -149,12 +141,13 @@ export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel
             </View>
 
             <Pressable
-              onPress={() => confirmRemove(channel)}
+              onPress={() => setPendingRemove(channel)}
               accessibilityRole="button"
               accessibilityLabel={`Retirer ${channel.title || channel.id}`}
+              hitSlop={4}
               style={({ pressed }) => [styles.remove, pressed && styles.removePressed]}
             >
-              <CloseIcon color={colors.textMuted} size={13} />
+              <TrashIcon color={colors.danger} size={16} />
             </Pressable>
           </View>
         ))}
@@ -162,10 +155,20 @@ export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel
         {channels.length === 0 ? (
           <EmptyState
             title="Aucune chaîne"
-            message="Colle un lien YouTube ci-dessus pour composer ton flux."
+            message="Colle un lien YouTube ci-dessus pour composer ton accueil."
           />
         ) : null}
       </ScrollView>
+
+      <ConfirmSheet
+        visible={Boolean(pendingRemove)}
+        title="Retirer cette chaîne ?"
+        message={`« ${pendingRemove?.title || pendingRemove?.id || ''} » quittera ta bibliothèque, ton accueil et tes catégories.`}
+        confirmLabel="Retirer la chaîne"
+        destructive
+        onConfirm={handleRemove}
+        onCancel={() => setPendingRemove(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -292,13 +295,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   remove: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.dangerSoft,
   },
   removePressed: {
-    backgroundColor: colors.surface,
+    opacity: 0.65,
   },
 });
