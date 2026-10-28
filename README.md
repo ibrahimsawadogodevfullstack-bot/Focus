@@ -1,8 +1,9 @@
 # Focus — YouTube sans distraction
 
 Application Expo (SDK 54) qui rassemble les vidéos des chaînes que tu choisis et
-les lit **dans un lecteur verrouillé**, sans recommandations ni fil d'accueil.
-Tout passe par YouTube : pas de serveur intermédiaire, pas de clé API.
+les lit **dans un lecteur verrouillé**, sans recommandations : l'accueil ne
+montre que tes chaînes, présentées comme sur YouTube. Tout passe par YouTube :
+pas de serveur intermédiaire, pas de clé API.
 
 ## Fonctionnalités
 
@@ -18,6 +19,9 @@ Tout passe par YouTube : pas de serveur intermédiaire, pas de clé API.
 
   Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
   passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
+- **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
+  chaîne, insensible aux accents) et un accès à la bibliothèque ; rangée de puces
+  « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
 - **Catégories** : regroupements nommés de plusieurs chaînes (« Maths »,
   « Anglais », « Tech »…). Une catégorie devient un filtre du flux et peut être
   modifiée ou supprimée à tout moment ; retirer une chaîne la retire aussi des
@@ -60,11 +64,14 @@ services/playerEmbed.js    URL d'embed + pont de contrôle injecté
 components/YoutubePlayer   WebView verrouillée + commandes impératives
 components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
 components/FocusMark       logo « focus »
-components/VideoCard       carte vidéo du flux
-components/CategoryChips   filtres « Tout » + catégories
-screens/FeedScreen         flux, en-tête, filtres, pull-to-refresh
-screens/ManageScreen       chaînes + catégories (création/édition)
-screens/PlayerScreen       lecture, contrôles, à suivre, sortie confirmée
+components/AppBar          logo, recherche, accès bibliothèque
+components/VideoCard       carte vidéo façon YouTube
+components/CategoryChips   puces « Tous » + catégories
+screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
+screens/ChannelsScreen     bibliothèque de chaînes
+screens/CategoriesScreen   liste des catégories
+screens/CategoryEditor     création/édition d'une catégorie
+screens/PlayerScreen       flux vertical paginé, contrôles, sortie bloquée
 metro.config.js            proxy YouTube pour l'aperçu web (dev uniquement)
 ```
 
