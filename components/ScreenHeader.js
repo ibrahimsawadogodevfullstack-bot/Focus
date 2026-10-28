@@ -4,8 +4,8 @@ import { colors, spacing } from '../constants/theme';
 import BrandMark from './BrandMark';
 
 /**
- * En-tête d'onglet façon YouTube : la marque à gauche, le titre centré sur la
- * même ligne, puis une ligne de contexte discrète en dessous.
+ * En-tête d'onglet : la marque à gauche, le titre aligné à droite sur la même
+ * ligne, puis une ligne de contexte discrète sous le titre.
  */
 export default function ScreenHeader({ title, subtitle, right }) {
   return (
@@ -19,7 +19,7 @@ export default function ScreenHeader({ title, subtitle, right }) {
           </Text>
         </View>
 
-        <View style={styles.right}>{right}</View>
+        {right ? <View style={styles.right}>{right}</View> : null}
       </View>
 
       {subtitle ? (
@@ -45,10 +45,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   center: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    flex: 1,
+    alignItems: 'flex-end',
     justifyContent: 'center',
   },
   title: {
@@ -56,16 +54,15 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.6,
-    textAlign: 'center',
+    textAlign: 'right',
   },
   right: {
-    minWidth: 24,
     alignItems: 'flex-end',
   },
   subtitle: {
     color: colors.textFaint,
     fontSize: 12.5,
     fontWeight: '500',
-    textAlign: 'center',
+    textAlign: 'right',
   },
 });
