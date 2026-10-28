@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -11,44 +10,55 @@ import {
   View,
 } from 'react-native';
 
-import ChannelChips from '../components/ChannelChips';
-import VideoRow from '../components/VideoRow';
-import { colors, spacing } from '../constants/theme';
+import CategoryChips from '../components/CategoryChips';
+import { FocusMark } from '../components/FocusMark';
+import { SlidersIcon } from '../components/Icons';
+import VideoCard from '../components/VideoCard';
+import { colors, radius, spacing } from '../constants/theme';
 import { timeAgo } from '../utils/format';
 
 export default function FeedScreen({
   videos,
   channels,
+  categories,
+  activeCategoryId,
+  onSelectCategory,
+  onManage,
   seenIds,
   loading,
   refreshing,
   error,
   fromCache,
   savedAt,
+  failedChannels = [],
   onRefresh,
   onOpen,
 }) {
-  const [activeChannelId, setActiveChannelId] = useState(null);
+  const activeCategory = useMemo(
+    () => categories.find((category) => category.id === activeCategoryId) ?? null,
+    [categories, activeCategoryId],
+  );
 
-  const filters = useMemo(() => {
-    const titled = channels.filter((channel) => channel.title);
-    return titled.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
-  }, [channels]);
+  const scopeIds = useMemo(
+    () => (activeCategory ? new Set(activeCategory.channelIds) : null),
+    [activeCategory],
+  );
 
   const visibleVideos = useMemo(() => {
-    if (!activeChannelId) return videos;
-    return videos.filter((video) => video.channelId === activeChannelId);
-  }, [videos, activeChannelId]);
+    if (!scopeIds) return videos;
+    return videos.filter((video) => scopeIds.has(video.channelId));
+  }, [videos, scopeIds]);
 
+  const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
-  // Premier lancement : tout marquer comme nouveau serait du bruit visuel.
   const hasHistory = seenIds.length > 0;
 
   if (loading && videos.length === 0) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator color={colors.accent} size="large" />
-        <Text style={styles.loadingText}>Chargement des chaînes…</Text>
+        <FocusMark size={44} />
+        <ActivityIndicator color={colors.accent} />
+        <Text style={styles.loadingText}>Mise au point…</Text>
       </SafeAreaView>
     );
   }
@@ -59,7 +69,7 @@ export default function FeedScreen({
         data={visibleVideos}
         keyExtractor={(item) => item.videoId}
         renderItem={({ item }) => (
-          <VideoRow
+          <VideoCard
             video={item}
             isNew={hasHistory && !seen.has(item.videoId)}
             onPress={() => onOpen(item, visibleVideos)}
@@ -67,25 +77,53 @@ export default function FeedScreen({
         )}
         ListHeaderComponent={
           <View>
-            <View style={styles.hero}>
-              <Text style={styles.kicker}>MODE FOCUS</Text>
-              <Text style={styles.heroTitle}>Ton flux, sans distraction</Text>
-              <Text style={styles.heroSubtitle}>
-                {videos.length} vidéos · {filters.length} chaînes · lecture intégrée
+            <View style={styles.brandRow}>
+              <View style={styles.brand}>
+                <FocusMark size={20} />
+                <Text style={styles.wordmark}>focus</Text>
+              </View>
+
+              <Pressable
+                onPress={onManage}
+                accessibilityRole="button"
+                accessibilityLabel="Bibliothèque : chaînes et catégories"
+                style={({ pressed }) => [
+                  styles.libraryButton,
+                  pressed && styles.libraryButtonPressed,
+                ]}
+              >
+                <SlidersIcon color={colors.textMuted} size={17} />
+              </Pressable>
+            </View>
+
+            <View style={styles.titleBlock}>
+              <Text style={styles.kicker}>
+                {activeCategory ? 'CATÉGORIE' : 'FLUX'}
+              </Text>
+              <Text style={styles.title} numberOfLines={2}>
+                {activeCategory ? activeCategory.name : 'Toutes les chaînes'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {visibleVideos.length} vidéo{visibleVideos.length > 1 ? 's' : ''} ·{' '}
+                {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
+                {failedChannels.length > 0
+                  ? ` · ${failedChannels.length} en échec`
+                  : ''}
               </Text>
             </View>
 
-            <ChannelChips
-              channels={filters}
-              activeChannelId={activeChannelId}
-              onSelect={setActiveChannelId}
+            <CategoryChips
+              categories={categories}
+              activeId={activeCategoryId}
+              onSelect={onSelectCategory}
+              onManage={onManage}
             />
 
             {error ? (
               <View style={styles.banner}>
                 <Text style={styles.bannerText}>
                   {fromCache
-                    ? 'Hors ligne : dernier flux enregistré affiché.'
+                    ? 'Hors ligne — dernier flux enregistré affiché.'
                     : 'Certaines chaînes n’ont pas répondu.'}
                 </Text>
               </View>
@@ -94,23 +132,27 @@ export default function FeedScreen({
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Aucune vidéo</Text>
+            <FocusMark size={36} style={styles.emptyMark} />
+            <Text style={styles.emptyTitle}>Rien à mettre au point</Text>
             <Text style={styles.emptyText}>
-              {activeChannelId
-                ? 'Cette chaîne n’a rien publié récemment.'
-                : 'Tire vers le bas pour recharger le flux.'}
+              {activeCategory
+                ? 'Aucune vidéo récente pour cette catégorie. Ajoute-lui des chaînes.'
+                : 'Tire vers le bas pour recharger, ou ajoute des chaînes.'}
             </Text>
+            <Pressable onPress={onManage} style={styles.emptyAction}>
+              <Text style={styles.emptyActionText}>Gérer la bibliothèque</Text>
+            </Pressable>
           </View>
         }
         ListFooterComponent={
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               {savedAt
-                ? `Dernière synchronisation ${timeAgo(savedAt)}`
+                ? `Synchronisé ${timeAgo(savedAt)}`
                 : 'Jamais synchronisé'}
               {fromCache ? ' · cache local' : ''}
             </Text>
-            <Pressable onPress={onRefresh} accessibilityRole="button">
+            <Pressable onPress={onRefresh} accessibilityRole="button" hitSlop={8}>
               <Text style={styles.footerAction}>Actualiser</Text>
             </Pressable>
           </View>
@@ -126,8 +168,8 @@ export default function FeedScreen({
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={8}
-        windowSize={9}
+        initialNumToRender={6}
+        windowSize={7}
       />
     </SafeAreaView>
   );
@@ -146,16 +188,47 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingText: {
-    color: colors.textMuted,
-    fontSize: 14,
+    color: colors.textFaint,
+    fontSize: 12,
+    letterSpacing: 0.4,
   },
   listContent: {
     paddingBottom: spacing.xl,
   },
-  hero: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: Platform.OS === 'android' ? spacing.lg : spacing.sm,
-    paddingBottom: spacing.md,
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  wordmark: {
+    color: colors.text,
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.7,
+  },
+  libraryButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  libraryButtonPressed: {
+    backgroundColor: colors.surfaceAlt,
+  },
+  titleBlock: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
     gap: 4,
   },
   kicker: {
@@ -164,46 +237,72 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.6,
   },
-  heroTitle: {
+  title: {
     color: colors.text,
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: -1,
+    lineHeight: 35,
   },
-  heroSubtitle: {
-    color: colors.textMuted,
-    fontSize: 13,
+  subtitle: {
+    color: colors.textFaint,
+    fontSize: 12.5,
+    fontWeight: '500',
+    marginTop: 2,
   },
   banner: {
-    marginHorizontal: spacing.lg,
+    marginHorizontal: spacing.xl,
     marginTop: spacing.xs,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: 10,
-    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
   },
   bannerText: {
-    color: colors.text,
+    color: colors.textMuted,
     fontSize: 12,
   },
   empty: {
     alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.xs,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxl,
+    gap: spacing.sm,
+  },
+  emptyMark: {
+    opacity: 0.5,
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
   },
   emptyText: {
-    color: colors.textMuted,
+    color: colors.textFaint,
     fontSize: 13,
     textAlign: 'center',
+    lineHeight: 19,
+    maxWidth: 260,
+  },
+  emptyAction: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  emptyActionText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',
-    gap: 6,
-    paddingTop: spacing.xl,
+    gap: 4,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
   },
   footerText: {
@@ -212,7 +311,8 @@ const styles = StyleSheet.create({
   },
   footerAction: {
     color: colors.accent,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

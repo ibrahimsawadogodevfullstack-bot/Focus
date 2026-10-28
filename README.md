@@ -1,60 +1,98 @@
 # Focus — YouTube sans distraction
 
-Application Expo (SDK 54) qui suit 17 chaînes YouTube et les lit **directement
-depuis YouTube**, sans serveur intermédiaire : pas de fichiers mp4 chez nous,
-pas d'API maison.
+Application Expo (SDK 54) qui rassemble les vidéos des chaînes que tu choisis et
+les lit **dans un lecteur verrouillé**, sans recommandations ni fil d'accueil.
+Tout passe par YouTube : pas de serveur intermédiaire, pas de clé API.
 
-## Comment ça marche
+## Fonctionnalités
 
-- **Liste des vidéos** : flux Atom publics
-  (`https://www.youtube.com/feeds/videos.xml?channel_id=UC...`), sans clé API et
-  sans quota. 15 dernières vidéos par chaîne, 17 chaînes → 240 vidéos.
-- **Lecture** : lecteur YouTube officiel (IFrame API) dans une `WebView`, donc
-  dans l'application. Aucune extraction de flux, aucun téléchargement.
-- **Cache** : le flux fusionné est gardé dans `AsyncStorage` (TTL 10 min) pour
-  un démarrage instantané et un affichage hors ligne.
-- **Mode focus** : la WebView refuse toute navigation hors du lecteur
-  (`onShouldStartLoadWithRequest` + `setSupportMultipleWindows={false}`), les
-  vidéos liées sont limitées à la chaîne (`rel=0`), et la fin de vidéo enchaîne
-  automatiquement sans écran de recommandations. Sortir vers YouTube demande une
-  confirmation explicite.
+- **Flux fusionné** : flux Atom publics
+  (`https://www.youtube.com/feeds/videos.xml?channel_id=UC...`), 15 dernières
+  vidéos par chaîne, tri par date. 17 chaînes fournies au premier lancement.
+- **Bibliothèque personnelle** : ajout d'une chaîne par
+  - identifiant brut `UC…` (24 caractères),
+  - `@handle`,
+  - URL de chaîne (`/channel/UC…`, `/c/…`, `/user/…`, `/@handle`, y compris les
+    onglets `/videos`, `/about`…),
+  - URL de vidéo (`youtu.be/…`, `watch?v=…`), résolue via oEmbed.
+
+  Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
+  passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
+- **Catégories** : regroupements nommés de plusieurs chaînes (« Maths »,
+  « Anglais », « Tech »…). Une catégorie devient un filtre du flux et peut être
+  modifiée ou supprimée à tout moment ; retirer une chaîne la retire aussi des
+  catégories.
+- **Lecture** : page `youtube.com/embed/…` dans une `WebView`, avec un
+  `Referer` neutre (YouTube refuse la lecture avec un referer YouTube : erreurs
+  152/153). Les commandes de l'interface (lecture, ±10 s, progression) pilotent
+  le lecteur via un pont JavaScript injecté. La navigation hors du lecteur est
+  bloquée, la fin de vidéo enchaîne sur la suivante, et toute sortie vers
+  YouTube demande une confirmation.
+- **Cache** : flux gardé dans `AsyncStorage` (TTL 10 min, invalidé quand la
+  liste des chaînes change), affichage hors ligne, titres appris puis stockés.
+- **Vidéos déjà vues** : pastille « nouveau » sur les vidéos non encore ouvertes.
 
 ## Limites assumées
 
-- Les vidéos dont l'intégration est désactivée (ou âge/region-restreintes) ne
+- Les vidéos dont l'intégration est désactivée (ou âge/région restreintes) ne
   peuvent pas être lues dans l'app : un message propose de les ouvrir dans
   YouTube en connaissance de cause.
 - On ne masque ni le logo YouTube, ni les publicités, ni les contrôles du
   lecteur : c'est interdit par les conditions d'utilisation de l'embed.
-- Le flux RSS ne donne ni durée ni distinction Shorts/vidéos longues. Pour ça il
-  faudrait passer à la YouTube Data API v3 avec une clé restreinte (et donc un
-  dev build, une clé ne pouvant pas être verrouillée depuis Expo Go).
+- Le flux RSS ne donne ni durée ni distinction Shorts/vidéos longues.
+- L'ajout par `@handle` dépend du HTML public de YouTube ; l'identifiant `UC…`
+  reste la méthode la plus fiable.
 
 ## Structure
 
 ```
-App.js                    navigation (flux ↔ lecteur) + chargement du flux
-constants/channels.js     les 17 channel IDs
-constants/theme.js        palette et espacements
-services/feed.js          fetch RSS, fusion, tri, cache
-services/rssParser.js     analyse Atom (sans dépendance XML)
-services/storage.js       AsyncStorage : cache du flux, vidéos déjà vues
-services/playerHtml.js    document du lecteur + API window.__yt
-components/YoutubePlayer  WebView verrouillée + commandes impératives
-components/VideoRow       ligne de vidéo
-components/ChannelChips   filtre par chaîne
-screens/FeedScreen        flux + filtres + pull-to-refresh
-screens/PlayerScreen      lecture, contrôles, à suivre, sortie confirmée
+App.js                     état (bibliothèque, catégories, route) + chargement
+constants/channels.js      chaînes par défaut et leurs titres
+constants/theme.js         jetons de design (couleurs, espacements, rayons)
+services/feedUrl.js        URL du flux Atom d'une chaîne
+services/feed.js           fetch RSS, fusion, tri, cache par périmètre
+services/rssParser.js      analyse Atom (sans dépendance XML)
+services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
+services/channelResolver.js résolution identifiant / @handle / URL / vidéo
+services/channelCandidates.js extraction des UC… depuis une page de chaîne
+services/playerEmbed.js    URL d'embed + pont de contrôle injecté
+components/YoutubePlayer   WebView verrouillée + commandes impératives
+components/FocusMark       logo « focus »
+components/VideoCard       carte vidéo du flux
+components/CategoryChips   filtres « Tout » + catégories
+screens/FeedScreen         flux, en-tête, filtres, pull-to-refresh
+screens/ManageScreen       chaînes + catégories (création/édition)
+screens/PlayerScreen       lecture, contrôles, à suivre, sortie confirmée
 ```
 
 ## Lancer
 
 ```sh
-npm start          # puis scanner le QR avec Expo Go
-npm run android    # ou ouvre un émulateur/appareil Android
+npm install
+npm start          # Expo Go, ou
+npm run android    # appareil/émulateur connecté
 ```
+
+## Construire l'APK
+
+```sh
+npx expo prebuild -p android --clean
+echo "sdk.dir=$HOME/Android/sdk" > android/local.properties
+cd android && ./gradlew app:assembleRelease \
+  -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+```
+
+L'APK est produit dans `android/app/build/outputs/apk/release/`.
 
 ## Vérifications
 
-- `npx expo export --platform android` : le bundle passe.
-- Parser testé sur les 17 flux réels : 17/17 chaînes, 240 vidéos, ~1,2 s.
+- `npx expo export --platform android` : bundle Metro OK.
+- Résolveur de chaînes testé sur YouTube réel : identifiant, `/channel/UC…`,
+  `@handle`, `/@handle/videos`, `/c/…`, `/user/…`, `youtu.be/…` et
+  `watch?v=…` → identifiant + titre corrects ; entrées invalides → message
+  explicite.
+- Interface vérifiée en rendu réel (react-native-web + Chrome) : flux, ajout
+  d'une chaîne par `@handle`, création d'une catégorie, filtrage du flux,
+  écran de lecture.
+- Lecteur vérifié dans Chrome/Blink : `ready` (durée), `play`, `seekTo(60)`,
+  pause, progression, détection d'erreur d'intégration.

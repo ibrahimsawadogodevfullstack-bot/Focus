@@ -1,11 +1,17 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { buildPlayerHtml } from '../services/playerHtml';
+import {
+  APP_ORIGIN,
+  buildEmbedUrl,
+  PLAYER_BRIDGE_SCRIPT,
+} from '../services/playerEmbed';
 
-// Seuls le document du lecteur et le contexte YouTube sont autorisés.
-const ALLOWED_URL = /^(https:\/\/www\.youtube\.com(\/.*)?|about:blank)$/;
+// Seule la page de lecture YouTube (et l'écran de consentement éventuel)
+// peut être chargée : toute autre navigation est refusée.
+const ALLOWED_URL =
+  /^(https:\/\/www\.youtube\.com\/embed\/.*|https:\/\/consent\.youtube\.com\/.*|https:\/\/www\.youtube-nocookie\.com\/.*|about:blank)$/;
 
 const YoutubePlayer = forwardRef(function YoutubePlayer(
   { videoId, startSeconds = 0, onEvent, style },
@@ -13,40 +19,52 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
 ) {
   const webViewRef = useRef(null);
   const initialVideoId = useRef(videoId).current;
-  const html = useMemo(
-    () => buildPlayerHtml({ videoId: initialVideoId, startSeconds }),
-    [initialVideoId, startSeconds],
-  );
 
-  const run = (js) => {
+  // La page n'est chargée qu'une fois : changer de vidéo passe par l'API du
+  // lecteur (loadVideoById), sans recharger la WebView.
+  const embedUrl = useRef(
+    buildEmbedUrl({ videoId: initialVideoId, startSeconds }),
+  ).current;
+
+  const run = useCallback((js) => {
     webViewRef.current?.injectJavaScript(`${js}; true;`);
-  };
+  }, []);
 
-  // Changer de vidéo recharge le lecteur sans reconstruire la WebView.
+  const installBridge = useCallback(() => {
+    run(PLAYER_BRIDGE_SCRIPT);
+  }, [run]);
+
   useEffect(() => {
     if (videoId && videoId !== initialVideoId) {
-      webViewRef.current?.injectJavaScript(
-        `window.__yt && window.__yt.load(${JSON.stringify(videoId)}); true;`,
-      );
+      run(`window.__yt && window.__yt.load(${JSON.stringify(videoId)})`);
     }
-  }, [videoId, initialVideoId]);
+  }, [videoId, initialVideoId, run]);
 
-  useImperativeHandle(ref, () => ({
-    play: () => run('window.__yt && window.__yt.play()'),
-    pause: () => run('window.__yt && window.__yt.pause()'),
-    toggle: () => run('window.__yt && window.__yt.toggle()'),
-    seekTo: (seconds) => run(`window.__yt && window.__yt.seekTo(${Number(seconds) || 0})`),
-    seekBy: (delta) => run(`window.__yt && window.__yt.seekBy(${Number(delta) || 0})`),
-    setRate: (rate) => run(`window.__yt && window.__yt.setRate(${Number(rate) || 1})`),
-  }));
+  useImperativeHandle(
+    ref,
+    () => ({
+      play: () => run('window.__yt && window.__yt.play()'),
+      pause: () => run('window.__yt && window.__yt.pause()'),
+      toggle: () => run('window.__yt && window.__yt.toggle()'),
+      seekTo: (seconds) =>
+        run(`window.__yt && window.__yt.seekTo(${Number(seconds) || 0})`),
+      seekBy: (delta) =>
+        run(`window.__yt && window.__yt.seekBy(${Number(delta) || 0})`),
+      setRate: (rate) =>
+        run(`window.__yt && window.__yt.setRate(${Number(rate) || 1})`),
+    }),
+    [run],
+  );
 
   const handleShouldStartLoad = (request) => {
     const { url } = request;
-    // Le "Watch on YouTube" et les vignettes de fin pointent vers youtube.com/watch :
-    // on refuse la navigation, l'utilisateur reste dans l'application.
-    if (ALLOWED_URL.test(url) && !/\/watch(\?|$)/.test(url)) {
+
+    if (ALLOWED_URL.test(url)) {
       return true;
     }
+
+    // « Regarder sur YouTube » et les liens de fin essaient de sortir du
+    // lecteur : on refuse, l'utilisateur reste dans l'application.
     onEvent?.({ type: 'exitBlocked', href: url });
     return false;
   };
@@ -56,9 +74,20 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
       <WebView
         ref={webViewRef}
         style={styles.webview}
-        source={{ html, baseUrl: 'https://www.youtube.com' }}
-        originWhitelist={['https://www.youtube.com', 'about:blank']}
+        source={{
+          uri: embedUrl,
+          // YouTube exige un référent : sans lui, erreur 152/153.
+          headers: { Referer: `${APP_ORIGIN}/` },
+        }}
+        originWhitelist={[
+          'https://www.youtube.com',
+          'https://consent.youtube.com',
+          'https://www.youtube-nocookie.com',
+          'about:blank',
+        ]}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
+        injectedJavaScriptBeforeContentLoaded={PLAYER_BRIDGE_SCRIPT}
+        onLoadEnd={installBridge}
         javaScriptEnabled
         domStorageEnabled
         allowsInlineMediaPlayback
@@ -77,6 +106,12 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
           }
         }}
         onError={() => onEvent?.({ type: 'error', code: 'webview' })}
+        onHttpError={(event) =>
+          onEvent?.({
+            type: 'error',
+            code: event.nativeEvent.statusCode || 'http',
+          })
+        }
       />
     </View>
   );
