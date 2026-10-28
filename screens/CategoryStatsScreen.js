@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import BrandMark from '../components/BrandMark';
 import { Chevron } from '../components/Icons';
+import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import {
   categoryVideos,
@@ -77,11 +77,10 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <BrandMark style={styles.brand} />
-        <Text style={styles.title}>{category.name}</Text>
-        <Text style={styles.subtitle}>
-          Dernière activité : {lastActivityLabel(stats.lastAt)}
-        </Text>
+        <ScreenHeader
+          title={category.name}
+          subtitle={`Dernière activité : ${lastActivityLabel(stats.lastAt)}`}
+        />
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Cette semaine</Text>
@@ -234,24 +233,9 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
   },
-  brand: {
-    marginBottom: spacing.md,
-  },
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-  },
-  subtitle: {
-    marginTop: 2,
-    color: colors.textFaint,
-    fontSize: 12.5,
-    fontWeight: '500',
   },
   card: {
     marginTop: spacing.lg,

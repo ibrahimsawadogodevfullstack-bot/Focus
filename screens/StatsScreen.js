@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import BrandMark from '../components/BrandMark';
 import { Chevron } from '../components/Icons';
+import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { formatEffort, insightFor, summarize } from '../services/stats';
 
@@ -19,9 +19,7 @@ export default function StatsScreen({ tracking, categories, videos, onOpenCatego
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <BrandMark style={styles.brand} />
-        <Text style={styles.title}>Ma semaine</Text>
-        <Text style={styles.range}>{summary.weekLabel}</Text>
+        <ScreenHeader title="Ma semaine" subtitle={summary.weekLabel} />
 
         <View style={styles.cards}>
           <StatCard value={`${summary.activeDays}/7`} label="jours actifs" />
@@ -138,25 +136,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  brand: {
-    marginBottom: spacing.md,
-  },
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxxl,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-  },
-  range: {
-    marginTop: 2,
-    color: colors.textFaint,
-    fontSize: 12.5,
-    fontWeight: '500',
   },
   cards: {
     flexDirection: 'row',

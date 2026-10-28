@@ -1,18 +1,21 @@
+import { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../constants/theme';
 
 /** Avatar de chaîne : la vraie photo YouTube, sinon l'initiale en secours. */
 export default function ChannelAvatar({ uri, name, size = 40 }) {
+  const [failed, setFailed] = useState(false);
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   const circle = { width: size, height: size, borderRadius: size / 2 };
 
-  if (uri) {
+  if (uri && !failed) {
     return (
       <Image
         source={{ uri }}
         style={[styles.image, circle]}
         resizeMode="cover"
+        onError={() => setFailed(true)}
         accessibilityIgnoresInvertColors
       />
     );

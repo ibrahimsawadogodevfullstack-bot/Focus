@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import BrandMark from '../components/BrandMark';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import { DownloadIcon, TrashIcon } from '../components/Icons';
+import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { thumbnailUri } from '../services/offline';
 import { timeAgo } from '../utils/format';
@@ -39,12 +39,10 @@ export default function OfflineScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <BrandMark style={styles.brand} />
-        <Text style={styles.title}>Hors ligne</Text>
-        <Text style={styles.subtitle}>
-          Télécharge une vidéo depuis le menu « … » de l’accueil, ou garde tout ton
-          flux en cache.
-        </Text>
+        <ScreenHeader
+          title="Hors ligne"
+          subtitle="Télécharge une vidéo depuis le menu « … » de l’accueil, ou garde tout ton flux en cache."
+        />
 
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>Téléchargées</Text>
@@ -240,25 +238,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  brand: {
-    marginBottom: spacing.md,
-  },
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: spacing.xxxl,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-  },
-  subtitle: {
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
   },
   card: {
     marginTop: spacing.lg,
