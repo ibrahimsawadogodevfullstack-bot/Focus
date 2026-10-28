@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "youtube-filter",
-    "slug": "youtube-filter",
+    "name": "youtube-filter-v2",
+    "slug": "youtube-filter-v2",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
