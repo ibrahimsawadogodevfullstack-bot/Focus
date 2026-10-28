@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  FlatList,
   Image,
+  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,34 +15,35 @@ import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
 import { formatClock, timeAgo } from '../utils/format';
 
-export default function PlayerScreen({
-  queue,
-  initialIndex = 0,
-  onBack,
-  onVideoChange,
+const thumbnail = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+// Une page = une vidéo plein écran. Le lecteur n'est monté que pour la page
+// visible ; les autres affichent la miniature (une seule WebView à la fois).
+function VideoPage({
+  video,
+  height,
+  active,
+  isLast,
+  onEnded,
+  onSeen,
   onShortDetected,
 }) {
   const insets = useSafeAreaInsets();
-  const [index, setIndex] = useState(initialIndex);
+  const playerRef = useRef(null);
+  const trackRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [errorCode, setErrorCode] = useState(null);
   const [trackWidth, setTrackWidth] = useState(0);
+  const [errorCode, setErrorCode] = useState(null);
   const [blocked, setBlocked] = useState(false);
   const [shortNotice, setShortNotice] = useState(false);
-  const playerRef = useRef(null);
-  const trackRef = useRef(null);
-  const flaggedShorts = useRef(new Set());
-
-  const video = queue[index];
-  const nextVideo = queue[index + 1];
+  const flaggedShort = useRef(false);
 
   useEffect(() => {
-    if (video) onVideoChange?.(video);
-  }, [video, onVideoChange]);
+    if (active) onSeen?.(video);
+  }, [active, onSeen, video]);
 
-  // Signal visuel bref quand une sortie vers YouTube est interceptée.
   useEffect(() => {
     if (!blocked) return undefined;
     const timer = setTimeout(() => setBlocked(false), 2600);
@@ -54,42 +56,26 @@ export default function PlayerScreen({
     return () => clearTimeout(timer);
   }, [shortNotice]);
 
-  const goToIndex = useCallback(
-    (nextIndex) => {
-      if (nextIndex < 0 || nextIndex >= queue.length) return;
-      setErrorCode(null);
-      setTime(0);
-      setDuration(0);
-      setIsPlaying(false);
-      setIndex(nextIndex);
-    },
-    [queue.length],
-  );
-
   const handleEvent = useCallback(
     (event) => {
       switch (event.type) {
         case 'state':
           setIsPlaying(event.state === 'playing');
-          if (event.state === 'ended' && nextVideo) {
-            goToIndex(index + 1);
-          }
+          if (event.state === 'ended') onEnded?.();
           break;
         case 'progress':
           setTime(event.currentTime ?? 0);
           if (event.duration) {
             setDuration(event.duration);
-            const id = video?.videoId;
             // Un format très court est presque toujours un Short : on le
             // signale et il disparaîtra du flux aux prochains chargements.
             if (
               event.duration > 0 &&
               event.duration <= 65 &&
-              id &&
-              !flaggedShorts.current.has(id)
+              !flaggedShort.current
             ) {
-              flaggedShorts.current.add(id);
-              onShortDetected?.(id);
+              flaggedShort.current = true;
+              onShortDetected?.(video.videoId);
               setShortNotice(true);
             }
           }
@@ -107,7 +93,7 @@ export default function PlayerScreen({
           break;
       }
     },
-    [goToIndex, index, nextVideo, onShortDetected, video],
+    [onEnded, onShortDetected, video.videoId],
   );
 
   const seekToRatio = (ratio) => {
@@ -138,67 +124,34 @@ export default function PlayerScreen({
     }
 
     if (node && typeof node.measure === 'function') {
-      node.measure((x, y, width, height, originX) => {
+      node.measure((x, y, width, heightValue, originX) => {
         if (width > 0) seekToRatio((pageX - originX) / width);
       });
     }
   };
 
-  if (!video) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <Text style={styles.empty}>Vidéo introuvable.</Text>
-      </SafeAreaView>
-    );
-  }
-
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
   const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
-  const upNext = queue.slice(index + 1, index + 4);
+  const notice = blocked ? 'Sortie bloquée — tu restes dans Focus' : null;
+  const shortPill = shortNotice ? 'Short masqué' : null;
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Retour au flux"
-          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
-        >
-          <Chevron direction="left" color={colors.text} size={9} thickness={2} />
-          <Text style={styles.backLabel}>Flux</Text>
-        </Pressable>
-
-        <View style={[styles.focusPill, blocked && styles.focusPillBlocked]}>
-          <LockIcon color={blocked ? colors.danger : colors.accentText} size={10} />
-          <Text style={[styles.focusText, blocked && styles.focusTextBlocked]} numberOfLines={1}>
-            {blocked ? 'Sortie bloquée' : shortNotice ? 'Short masqué' : 'Mode focus'}
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={() => goToIndex(index + 1)}
-          disabled={!nextVideo}
-          accessibilityRole="button"
-          accessibilityLabel="Vidéo suivante"
-          style={({ pressed }) => [
-            styles.next,
-            !nextVideo && styles.nextDisabled,
-            pressed && styles.nextPressed,
-          ]}
-        >
-          <Text style={styles.nextLabel}>Suivant</Text>
-          <Chevron direction="right" color={colors.textMuted} size={8} thickness={2} />
-        </Pressable>
-      </View>
-
+    <View style={[styles.page, { height }]}>
       <View style={styles.playerWrap}>
-        <YoutubePlayer
-          ref={playerRef}
-          videoId={video.videoId}
-          onEvent={handleEvent}
-          style={styles.player}
-        />
+        {active ? (
+          <YoutubePlayer
+            ref={playerRef}
+            videoId={video.videoId}
+            onEvent={handleEvent}
+            style={styles.player}
+          />
+        ) : (
+          <Image
+            source={{ uri: thumbnail(video.videoId) }}
+            style={styles.poster}
+            resizeMode="cover"
+          />
+        )}
       </View>
 
       <View style={styles.controls}>
@@ -231,6 +184,7 @@ export default function PlayerScreen({
         <View style={styles.buttons}>
           <Pressable
             onPress={() => playerRef.current?.seekBy(-10)}
+            disabled={!active}
             accessibilityRole="button"
             accessibilityLabel="Reculer de dix secondes"
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
@@ -240,6 +194,7 @@ export default function PlayerScreen({
 
           <Pressable
             onPress={() => playerRef.current?.toggle()}
+            disabled={!active}
             accessibilityRole="button"
             accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
             style={({ pressed }) => [styles.play, pressed && styles.playPressed]}
@@ -249,6 +204,7 @@ export default function PlayerScreen({
 
           <Pressable
             onPress={() => playerRef.current?.seekBy(10)}
+            disabled={!active}
             accessibilityRole="button"
             accessibilityLabel="Avancer de dix secondes"
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
@@ -258,11 +214,10 @@ export default function PlayerScreen({
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.details, { paddingBottom: spacing.xxl + insets.bottom }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.title}>{video.title}</Text>
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>
+          {video.title}
+        </Text>
 
         <View style={styles.metaRow}>
           <View style={styles.avatar}>
@@ -275,6 +230,15 @@ export default function PlayerScreen({
           <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
         </View>
 
+        {notice || shortPill ? (
+          <View style={[styles.notice, blocked && styles.noticeBlocked]}>
+            <LockIcon color={blocked ? colors.danger : colors.accentText} size={10} />
+            <Text style={[styles.noticeText, blocked && styles.noticeTextBlocked]}>
+              {notice || shortPill}
+            </Text>
+          </View>
+        ) : null}
+
         {errorCode ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorTitle}>Lecture intégrée indisponible</Text>
@@ -282,62 +246,154 @@ export default function PlayerScreen({
               Le propriétaire refuse l’intégration, ou la vidéo n’est plus disponible. Aucun lien
               de sortie n’est proposé : le mode focus reste actif.
             </Text>
-            <Pressable
-              onPress={() => (nextVideo ? goToIndex(index + 1) : onBack())}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.errorAction, pressed && styles.errorActionPressed]}
-            >
-              <Text style={styles.errorActionText}>
-                {nextVideo ? 'Passer à la vidéo suivante' : 'Retour au flux'}
-              </Text>
-            </Pressable>
+            <Text style={styles.errorHint}>
+              {isLast ? 'Fin du flux.' : 'Glisse vers le haut pour la vidéo suivante.'}
+            </Text>
           </View>
         ) : null}
+      </View>
 
-        {upNext.length > 0 ? (
-          <View style={styles.upNext}>
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>À suivre</Text>
-              <Text style={styles.sectionCount}>
-                {index + 1} / {queue.length}
-              </Text>
-            </View>
-
-            {upNext.map((item, offset) => (
-              <Pressable
-                key={item.videoId}
-                onPress={() => goToIndex(index + 1 + offset)}
-                accessibilityRole="button"
-                accessibilityLabel={`Lire ${item.title}`}
-                style={({ pressed }) => [styles.nextRow, pressed && styles.nextRowPressed]}
-              >
-                <Image
-                  source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg` }}
-                  style={styles.nextThumb}
-                  resizeMode="cover"
-                />
-                <View style={styles.nextTexts}>
-                  <Text style={styles.nextTitle} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.nextChannel} numberOfLines={1}>
-                    {item.channelTitle}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-
-            <Text style={styles.hint}>Enchaînement automatique en fin de vidéo.</Text>
-          </View>
-        ) : null}
-
+      <View style={[styles.pageFoot, { paddingBottom: spacing.md + insets.bottom }]}>
         <View style={styles.lockNote}>
           <LockIcon color={colors.textFaint} size={10} />
           <Text style={styles.lockNoteText}>
             Lecteur YouTube officiel. Les sorties vers YouTube sont bloquées.
           </Text>
         </View>
-      </ScrollView>
+
+        <View style={styles.swipeRow}>
+          {!isLast ? (
+            <>
+              <Chevron direction="up" color={colors.accentText} size={8} thickness={2} />
+              <Text style={styles.swipeText}>Glisse vers le haut pour la suite</Text>
+            </>
+          ) : (
+            <Text style={styles.swipeText}>Fin du flux</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoChange, onShortDetected }) {
+  const [index, setIndex] = useState(initialIndex);
+  const [pageHeight, setPageHeight] = useState(0);
+  const listRef = useRef(null);
+  const snapTimer = useRef(null);
+
+  const goToIndex = useCallback(
+    (target) => {
+      if (target < 0 || target >= queue.length || !pageHeight) return;
+      setIndex(target);
+      listRef.current?.scrollToOffset({ offset: target * pageHeight, animated: true });
+    },
+    [pageHeight, queue.length],
+  );
+
+  const handleScroll = useCallback(
+    (event) => {
+      if (!pageHeight) return;
+      const offset = event.nativeEvent.contentOffset.y;
+      const next = Math.min(
+        queue.length - 1,
+        Math.max(0, Math.round(offset / pageHeight)),
+      );
+
+      setIndex((current) => (current === next ? current : next));
+
+      // Le web ne gère pas l'aimantation des pages : on recale après le geste.
+      if (Platform.OS !== 'web') return;
+      if (snapTimer.current) clearTimeout(snapTimer.current);
+      snapTimer.current = setTimeout(() => {
+        const target = Math.round(offset / pageHeight) * pageHeight;
+        if (Math.abs(offset - target) > 2) {
+          listRef.current?.scrollToOffset({ offset: target, animated: true });
+        }
+      }, 160);
+    },
+    [pageHeight, queue.length],
+  );
+
+  useEffect(
+    () => () => {
+      if (snapTimer.current) clearTimeout(snapTimer.current);
+    },
+    [],
+  );
+
+  if (!queue || queue.length === 0) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <Text style={styles.empty}>Vidéo introuvable.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={['top']} style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable
+          onPress={onBack}
+          accessibilityRole="button"
+          accessibilityLabel="Retour au flux"
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+        >
+          <Chevron direction="left" color={colors.text} size={9} thickness={2} />
+          <Text style={styles.backLabel}>Flux</Text>
+        </Pressable>
+
+        <View style={styles.focusPill}>
+          <LockIcon color={colors.accentText} size={10} />
+          <Text style={styles.focusText} numberOfLines={1}>
+            Mode focus
+          </Text>
+        </View>
+
+        <Text style={styles.counter}>
+          {index + 1} / {queue.length}
+        </Text>
+      </View>
+
+      <View
+        style={styles.listWrap}
+        onLayout={(event) => setPageHeight(event.nativeEvent.layout.height)}
+      >
+        {pageHeight > 0 ? (
+          <FlatList
+            ref={listRef}
+            data={queue}
+            keyExtractor={(item) => item.videoId}
+            renderItem={({ item, index: itemIndex }) => (
+              <VideoPage
+                video={item}
+                height={pageHeight}
+                active={itemIndex === index}
+                isLast={itemIndex === queue.length - 1}
+                onEnded={() => goToIndex(itemIndex + 1)}
+                onSeen={onVideoChange}
+                onShortDetected={onShortDetected}
+              />
+            )}
+            getItemLayout={(_, itemIndex) => ({
+              length: pageHeight,
+              offset: pageHeight * itemIndex,
+              index: itemIndex,
+            })}
+            initialScrollIndex={Math.min(initialIndex, queue.length - 1)}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            windowSize={3}
+            pagingEnabled
+            snapToInterval={pageHeight}
+            decelerationRate="fast"
+            disableIntervalMomentum
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          />
+        ) : null}
+      </View>
     </SafeAreaView>
   );
 }
@@ -369,23 +425,13 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '600',
   },
-  next: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    height: 44,
-    paddingLeft: spacing.md,
-  },
-  nextPressed: {
-    opacity: 0.6,
-  },
-  nextDisabled: {
-    opacity: 0.28,
-  },
-  nextLabel: {
-    color: colors.text,
-    fontSize: 14.5,
+  counter: {
+    color: colors.textFaint,
+    fontSize: 12.5,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    minWidth: 64,
+    textAlign: 'right',
   },
   focusPill: {
     flexDirection: 'row',
@@ -399,18 +445,18 @@ const styles = StyleSheet.create({
     borderColor: colors.accentLine,
     maxWidth: 150,
   },
-  focusPillBlocked: {
-    backgroundColor: colors.dangerSoft,
-    borderColor: colors.danger,
-  },
   focusText: {
     color: colors.accentText,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.1,
   },
-  focusTextBlocked: {
-    color: colors.danger,
+  listWrap: {
+    flex: 1,
+  },
+  page: {
+    width: '100%',
+    backgroundColor: colors.bg,
   },
   playerWrap: {
     width: '100%',
@@ -419,6 +465,33 @@ const styles = StyleSheet.create({
   },
   player: {
     flex: 1,
+  },
+  poster: {
+    width: '100%',
+    height: '100%',
+  },
+  notice: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    paddingHorizontal: spacing.md,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.accentLine,
+  },
+  noticeBlocked: {
+    borderColor: colors.danger,
+  },
+  noticeText: {
+    color: colors.accentText,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  noticeTextBlocked: {
+    color: colors.danger,
   },
   controls: {
     paddingHorizontal: spacing.xl,
@@ -498,7 +571,7 @@ const styles = StyleSheet.create({
   playPressed: {
     opacity: 0.85,
   },
-  details: {
+  info: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -507,10 +580,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
-    lineHeight: 27,
-    letterSpacing: -0.5,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   metaRow: {
     flexDirection: 'row',
@@ -563,93 +636,43 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 18,
   },
-  errorAction: {
-    alignSelf: 'flex-start',
-    marginTop: 2,
-    paddingHorizontal: spacing.lg,
-    height: 40,
-    justifyContent: 'center',
-    borderRadius: radius.sm,
-    backgroundColor: colors.accentSoft,
-  },
-  errorActionPressed: {
-    opacity: 0.7,
-  },
-  errorActionText: {
-    color: colors.accentText,
-    fontSize: 12.5,
-    fontWeight: '700',
-  },
-  upNext: {
-    marginTop: spacing.xl,
-    gap: spacing.sm,
-  },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  sectionLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  sectionCount: {
+  errorHint: {
     color: colors.textFaint,
     fontSize: 11.5,
-    fontVariant: ['tabular-nums'],
   },
-  nextRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  pageFoot: {
+    marginTop: 'auto',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     gap: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-  },
-  nextRowPressed: {
-    backgroundColor: colors.surface,
-  },
-  nextThumb: {
-    width: 96,
-    height: 54,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceAlt,
-  },
-  nextTexts: {
-    flex: 1,
-    gap: 4,
-  },
-  nextTitle: {
-    color: colors.text,
-    fontSize: 13.5,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  nextChannel: {
-    color: colors.textFaint,
-    fontSize: 11.5,
-  },
-  hint: {
-    color: colors.textFaint,
-    fontSize: 11.5,
-    marginTop: spacing.xs,
   },
   lockNote: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: spacing.xl,
   },
   lockNoteText: {
     flex: 1,
     color: colors.textFaint,
+    fontSize: 10.5,
+    lineHeight: 15,
+  },
+  swipeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    height: 26,
+  },
+  swipeText: {
+    color: colors.accentText,
     fontSize: 11.5,
-    lineHeight: 16,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   empty: {
     color: colors.textMuted,
-    margin: spacing.xl,
+    fontSize: 14,
+    padding: spacing.xl,
   },
 });

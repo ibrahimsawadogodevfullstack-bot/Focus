@@ -113,6 +113,9 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
         bounces={false}
         scrollEnabled={false}
         overScrollMode="never"
+        // Laisse le geste vertical remonter au flux quand le lecteur ne
+        // consomme pas le défilement (navigation de vidéo en vidéo).
+        nestedScrollEnabled
         onMessage={(event) => {
           try {
             onEvent?.(JSON.parse(event.nativeEvent.data));
