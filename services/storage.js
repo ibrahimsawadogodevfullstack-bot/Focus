@@ -6,7 +6,9 @@ const FEED_KEY = 'focus.feed.v1';
 const SEEN_KEY = 'focus.seen.v1';
 const CHANNELS_KEY = 'focus.channels.v2';
 const CATEGORIES_KEY = 'focus.categories.v1';
+const SHORTS_KEY = 'focus.shorts.v1';
 const SEEN_LIMIT = 2000;
+const SHORTS_LIMIT = 400;
 
 const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
 
@@ -50,8 +52,31 @@ export async function addSeenId(videoId) {
   return next;
 }
 
-function sanitizeChannels(value) {
-  if (!Array.isArray(value)) return null;
+/** Vidéos repérées comme « Shorts » à la lecture (durée très courte). */
+export async function readShortIds() {
+  try {
+    const raw = await AsyncStorage.getItem(SHORTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addShortId(videoId) {
+  if (!videoId) return [];
+  const current = await readShortIds();
+  if (current.includes(videoId)) return current;
+  const next = [videoId, ...current].slice(0, SHORTS_LIMIT);
+  try {
+    await AsyncStorage.setItem(SHORTS_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+  return next;
+}
+
+function sanitizeChannels(value) {  if (!Array.isArray(value)) return null;
 
   const byId = new Map();
   for (const entry of value) {

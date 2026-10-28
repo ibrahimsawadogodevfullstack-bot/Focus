@@ -1,28 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Linking,
+  Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FocusMark } from '../components/FocusMark';
-import { PauseIcon, PlayIcon } from '../components/Icons';
+import { Chevron, LockIcon, PauseIcon, PlayIcon } from '../components/Icons';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
 import { formatClock, timeAgo } from '../utils/format';
 
-export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoChange }) {
+export default function PlayerScreen({
+  queue,
+  initialIndex = 0,
+  onBack,
+  onVideoChange,
+  onShortDetected,
+}) {
+  const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [errorCode, setErrorCode] = useState(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [blocked, setBlocked] = useState(false);
+  const [shortNotice, setShortNotice] = useState(false);
   const playerRef = useRef(null);
+  const flaggedShorts = useRef(new Set());
 
   const video = queue[index];
   const nextVideo = queue[index + 1];
@@ -30,6 +39,19 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
   useEffect(() => {
     if (video) onVideoChange?.(video);
   }, [video, onVideoChange]);
+
+  // Signal visuel bref quand une sortie vers YouTube est interceptée.
+  useEffect(() => {
+    if (!blocked) return undefined;
+    const timer = setTimeout(() => setBlocked(false), 2600);
+    return () => clearTimeout(timer);
+  }, [blocked]);
+
+  useEffect(() => {
+    if (!shortNotice) return undefined;
+    const timer = setTimeout(() => setShortNotice(false), 3200);
+    return () => clearTimeout(timer);
+  }, [shortNotice]);
 
   const goToIndex = useCallback(
     (nextIndex) => {
@@ -54,7 +76,22 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
           break;
         case 'progress':
           setTime(event.currentTime ?? 0);
-          if (event.duration) setDuration(event.duration);
+          if (event.duration) {
+            setDuration(event.duration);
+            const id = video?.videoId;
+            // Un format très court est presque toujours un Short : on le
+            // signale et il disparaîtra du flux aux prochains chargements.
+            if (
+              event.duration > 0 &&
+              event.duration <= 65 &&
+              id &&
+              !flaggedShorts.current.has(id)
+            ) {
+              flaggedShorts.current.add(id);
+              onShortDetected?.(id);
+              setShortNotice(true);
+            }
+          }
           break;
         case 'ready':
           if (event.duration) setDuration(event.duration);
@@ -62,31 +99,31 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
         case 'error':
           setErrorCode(event.code);
           break;
+        case 'exitBlocked':
+          setBlocked(true);
+          break;
         default:
           break;
       }
     },
-    [goToIndex, index, nextVideo],
+    [goToIndex, index, nextVideo, onShortDetected, video],
   );
 
-  const confirmLeave = () => {
-    Alert.alert(
-      'Ouvrir dans YouTube ?',
-      'La vidéo s’ouvrira dans YouTube, avec les recommandations et l’interface complète.',
-      [
-        { text: 'Rester', style: 'cancel' },
-        {
-          text: 'Ouvrir YouTube',
-          style: 'destructive',
-          onPress: () => Linking.openURL(video.url),
-        },
-      ],
-    );
+  const seekToRatio = (ratio) => {
+    if (!duration) return;
+    const target = Math.min(duration, Math.max(0, ratio * duration));
+    setTime(target);
+    playerRef.current?.seekTo(target);
+  };
+
+  const handleTrackPress = (event) => {
+    if (!trackWidth) return;
+    seekToRatio(event.nativeEvent.locationX / trackWidth);
   };
 
   if (!video) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.screen}>
         <Text style={styles.empty}>Vidéo introuvable.</Text>
       </SafeAreaView>
     );
@@ -94,24 +131,26 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
   const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
+  const upNext = queue.slice(index + 1, index + 4);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <View style={styles.header}>
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
           accessibilityLabel="Retour au flux"
-          hitSlop={12}
-          style={styles.back}
+          style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
-          <Text style={styles.backIcon}>‹</Text>
+          <Chevron direction="left" color={colors.text} size={9} thickness={2} />
           <Text style={styles.backLabel}>Flux</Text>
         </Pressable>
 
-        <View style={styles.focusPill}>
-          <FocusMark size={14} />
-          <Text style={styles.focusText}>FOCUS</Text>
+        <View style={[styles.focusPill, blocked && styles.focusPillBlocked]}>
+          <LockIcon color={blocked ? colors.danger : colors.accentText} size={10} />
+          <Text style={[styles.focusText, blocked && styles.focusTextBlocked]} numberOfLines={1}>
+            {blocked ? 'Sortie bloquée' : shortNotice ? 'Short masqué' : 'Mode focus'}
+          </Text>
         </View>
 
         <Pressable
@@ -119,11 +158,14 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
           disabled={!nextVideo}
           accessibilityRole="button"
           accessibilityLabel="Vidéo suivante"
-          hitSlop={12}
-          style={[styles.next, !nextVideo && styles.nextDisabled]}
+          style={({ pressed }) => [
+            styles.next,
+            !nextVideo && styles.nextDisabled,
+            pressed && styles.nextPressed,
+          ]}
         >
-          <Text style={styles.nextText}>Suivant</Text>
-          <Text style={styles.nextIcon}>›</Text>
+          <Text style={styles.nextLabel}>Suivant</Text>
+          <Chevron direction="right" color={colors.textMuted} size={8} thickness={2} />
         </Pressable>
       </View>
 
@@ -136,46 +178,66 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
         />
       </View>
 
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { flex: progressRatio }]} />
-        <View style={{ flex: 1 - progressRatio }} />
-      </View>
-
-      <View style={styles.timeRow}>
-        <Text style={styles.timeText}>{formatClock(time)}</Text>
-        <Text style={styles.timeText}>{duration ? formatClock(duration) : '—:—'}</Text>
-      </View>
-
       <View style={styles.controls}>
         <Pressable
-          onPress={() => playerRef.current?.seekBy(-10)}
-          accessibilityRole="button"
-          accessibilityLabel="Reculer de dix secondes"
-          style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          onPress={handleTrackPress}
+          onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Progression de la vidéo"
+          accessibilityValue={{
+            min: 0,
+            max: Math.round(duration),
+            now: Math.round(time),
+            text: `${formatClock(time)} sur ${formatClock(duration)}`,
+          }}
+          style={styles.trackHit}
         >
-          <Text style={styles.roundText}>−10</Text>
+          <View style={styles.track}>
+            <View style={[styles.trackFill, { width: `${progressRatio * 100}%` }]}>
+              <View style={styles.trackThumb} />
+            </View>
+          </View>
         </Pressable>
 
-        <Pressable
-          onPress={() => playerRef.current?.toggle()}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
-          style={({ pressed }) => [styles.playButton, pressed && styles.playPressed]}
-        >
-          {isPlaying ? <PauseIcon size={15} /> : <PlayIcon size={18} />}
-        </Pressable>
+        <View style={styles.timeRow}>
+          <Text style={styles.timeText}>{formatClock(time)}</Text>
+          <Text style={styles.timeText}>{duration ? formatClock(duration) : '—:—'}</Text>
+        </View>
 
-        <Pressable
-          onPress={() => playerRef.current?.seekBy(10)}
-          accessibilityRole="button"
-          accessibilityLabel="Avancer de dix secondes"
-          style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
-        >
-          <Text style={styles.roundText}>+10</Text>
-        </Pressable>
+        <View style={styles.buttons}>
+          <Pressable
+            onPress={() => playerRef.current?.seekBy(-10)}
+            accessibilityRole="button"
+            accessibilityLabel="Reculer de dix secondes"
+            style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          >
+            <Text style={styles.roundText}>−10</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => playerRef.current?.toggle()}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
+            style={({ pressed }) => [styles.play, pressed && styles.playPressed]}
+          >
+            {isPlaying ? <PauseIcon size={17} /> : <PlayIcon size={19} />}
+          </Pressable>
+
+          <Pressable
+            onPress={() => playerRef.current?.seekBy(10)}
+            accessibilityRole="button"
+            accessibilityLabel="Avancer de dix secondes"
+            style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          >
+            <Text style={styles.roundText}>+10</Text>
+          </Pressable>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.details} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.details, { paddingBottom: spacing.xxl + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>{video.title}</Text>
 
         <View style={styles.metaRow}>
@@ -186,124 +248,145 @@ export default function PlayerScreen({ queue, initialIndex = 0, onBack, onVideoC
             {video.channelTitle}
           </Text>
           <Text style={styles.dot}>·</Text>
-          <Text style={styles.time}>{timeAgo(video.publishedAt)}</Text>
+          <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
         </View>
 
         {errorCode ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorTitle}>Lecture intégrée indisponible</Text>
             <Text style={styles.errorText}>
-              Le propriétaire refuse l’intégration, ou la vidéo n’est plus
-              disponible. Tu peux l’ouvrir dans YouTube — tu quitteras le mode
-              focus.
+              Le propriétaire refuse l’intégration, ou la vidéo n’est plus disponible. Aucun lien
+              de sortie n’est proposé : le mode focus reste actif.
             </Text>
-            <Pressable onPress={confirmLeave} style={styles.errorAction}>
-              <Text style={styles.errorActionText}>Ouvrir dans YouTube</Text>
+            <Pressable
+              onPress={() => (nextVideo ? goToIndex(index + 1) : onBack())}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.errorAction, pressed && styles.errorActionPressed]}
+            >
+              <Text style={styles.errorActionText}>
+                {nextVideo ? 'Passer à la vidéo suivante' : 'Retour au flux'}
+              </Text>
             </Pressable>
           </View>
         ) : null}
 
-        {queue.length > 1 ? (
+        {upNext.length > 0 ? (
           <View style={styles.upNext}>
-            <Text style={styles.sectionTitle}>À suivre</Text>
-            <Text style={styles.sectionHint}>
-              {index + 1} / {queue.length} · enchaînement automatique
-            </Text>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionLabel}>À suivre</Text>
+              <Text style={styles.sectionCount}>
+                {index + 1} / {queue.length}
+              </Text>
+            </View>
 
-            {queue.slice(index + 1, index + 4).map((item, offset) => (
+            {upNext.map((item, offset) => (
               <Pressable
                 key={item.videoId}
                 onPress={() => goToIndex(index + 1 + offset)}
+                accessibilityRole="button"
+                accessibilityLabel={`Lire ${item.title}`}
                 style={({ pressed }) => [styles.nextRow, pressed && styles.nextRowPressed]}
               >
-                <Text style={styles.nextIndex}>{String(index + 2 + offset).padStart(2, '0')}</Text>
-                <View style={styles.nextMeta}>
+                <Image
+                  source={{ uri: `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg` }}
+                  style={styles.nextThumb}
+                  resizeMode="cover"
+                />
+                <View style={styles.nextTexts}>
                   <Text style={styles.nextTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
-                  <Text style={styles.nextChannel}>{item.channelTitle}</Text>
+                  <Text style={styles.nextChannel} numberOfLines={1}>
+                    {item.channelTitle}
+                  </Text>
                 </View>
               </Pressable>
             ))}
+
+            <Text style={styles.hint}>Enchaînement automatique en fin de vidéo.</Text>
           </View>
         ) : null}
 
-        <Pressable onPress={confirmLeave} style={styles.leaveButton}>
-          <Text style={styles.leaveText}>Ouvrir dans YouTube</Text>
-        </Pressable>
+        <View style={styles.lockNote}>
+          <LockIcon color={colors.textFaint} size={10} />
+          <Text style={styles.lockNoteText}>
+            Lecteur YouTube officiel. Les sorties vers YouTube sont bloquées.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    height: 54,
   },
   back: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    minWidth: 68,
-    paddingVertical: 6,
+    gap: 7,
+    height: 44,
+    paddingRight: spacing.md,
   },
-  backIcon: {
-    color: colors.text,
-    fontSize: 26,
-    lineHeight: 28,
-    marginTop: -2,
+  backPressed: {
+    opacity: 0.6,
   },
   backLabel: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 14.5,
+    fontWeight: '600',
+  },
+  next: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    height: 44,
+    paddingLeft: spacing.md,
+  },
+  nextPressed: {
+    opacity: 0.6,
+  },
+  nextDisabled: {
+    opacity: 0.28,
+  },
+  nextLabel: {
+    color: colors.text,
+    fontSize: 14.5,
     fontWeight: '600',
   },
   focusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    height: 28,
+    paddingHorizontal: spacing.md,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderColor: colors.accentLine,
+    maxWidth: 150,
+  },
+  focusPillBlocked: {
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
   },
   focusText: {
-    color: colors.textMuted,
-    fontSize: 9.5,
-    fontWeight: '800',
-    letterSpacing: 1.4,
+    color: colors.accentText,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
-  next: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    minWidth: 68,
-    justifyContent: 'flex-end',
-    paddingVertical: 6,
-  },
-  nextDisabled: {
-    opacity: 0.25,
-  },
-  nextText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  nextIcon: {
-    color: colors.textMuted,
-    fontSize: 20,
-    lineHeight: 22,
-    marginTop: -1,
+  focusTextBlocked: {
+    color: colors.danger,
   },
   playerWrap: {
     width: '100%',
@@ -313,56 +396,77 @@ const styles = StyleSheet.create({
   player: {
     flex: 1,
   },
-  progressTrack: {
-    flexDirection: 'row',
-    height: 2,
-    backgroundColor: colors.surfaceAlt,
+  controls: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
   },
-  progressFill: {
+  trackHit: {
+    height: 30,
+    justifyContent: 'center',
+  },
+  track: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.surfaceAlt,
+    overflow: 'visible',
+  },
+  trackFill: {
+    height: 3,
+    borderRadius: 2,
     backgroundColor: colors.accent,
+    justifyContent: 'center',
+  },
+  trackThumb: {
+    position: 'absolute',
+    right: -5,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.bg,
   },
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
   },
   timeText: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: 11.5,
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
-    letterSpacing: 0.3,
   },
-  controls: {
+  buttons: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.lg,
+    gap: spacing.xl,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.lg,
   },
   round: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.line,
   },
   roundPressed: {
     backgroundColor: colors.surfaceAlt,
   },
   roundText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  playButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+  play: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
@@ -371,8 +475,10 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   details: {
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
     gap: spacing.sm,
   },
   title: {
@@ -380,24 +486,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 27,
-    letterSpacing: -0.4,
+    letterSpacing: -0.5,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: spacing.xs,
   },
   avatar: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: colors.accent,
+    color: colors.accentText,
     fontSize: 10,
     fontWeight: '800',
   },
@@ -411,18 +516,18 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     fontSize: 12,
   },
-  time: {
+  meta: {
     color: colors.textFaint,
     fontSize: 12,
   },
   errorCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
+    marginTop: spacing.md,
     padding: spacing.lg,
     gap: spacing.sm,
-    marginTop: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
   },
   errorTitle: {
     color: colors.text,
@@ -436,74 +541,88 @@ const styles = StyleSheet.create({
   },
   errorAction: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     marginTop: 2,
+    paddingHorizontal: spacing.lg,
+    height: 40,
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.accentSoft,
+  },
+  errorActionPressed: {
+    opacity: 0.7,
   },
   errorActionText: {
-    color: colors.accent,
+    color: colors.accentText,
     fontSize: 12.5,
     fontWeight: '700',
   },
   upNext: {
-    marginTop: spacing.lg,
-    gap: spacing.xs,
+    marginTop: spacing.xl,
+    gap: spacing.sm,
   },
-  sectionTitle: {
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  sectionLabel: {
     color: colors.textMuted,
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
-  sectionHint: {
+  sectionCount: {
     color: colors.textFaint,
     fontSize: 11.5,
-    marginBottom: spacing.xs,
+    fontVariant: ['tabular-nums'],
   },
   nextRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
   },
   nextRowPressed: {
-    opacity: 0.7,
+    backgroundColor: colors.surface,
   },
-  nextIndex: {
-    color: colors.textFaint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    paddingTop: 2,
-    fontVariant: ['tabular-nums'],
+  nextThumb: {
+    width: 96,
+    height: 54,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
   },
-  nextMeta: {
+  nextTexts: {
     flex: 1,
-    gap: 3,
+    gap: 4,
   },
   nextTitle: {
     color: colors.text,
     fontSize: 13.5,
     fontWeight: '600',
-    lineHeight: 19,
+    lineHeight: 18,
   },
   nextChannel: {
     color: colors.textFaint,
     fontSize: 11.5,
   },
-  leaveButton: {
-    marginTop: spacing.lg,
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
-  },
-  leaveText: {
+  hint: {
     color: colors.textFaint,
-    fontSize: 12,
-    textDecorationLine: 'underline',
+    fontSize: 11.5,
+    marginTop: spacing.xs,
+  },
+  lockNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.xl,
+  },
+  lockNoteText: {
+    flex: 1,
+    color: colors.textFaint,
+    fontSize: 11.5,
+    lineHeight: 16,
   },
   empty: {
     color: colors.textMuted,

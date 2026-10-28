@@ -23,7 +23,8 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
   // La page n'est chargée qu'une fois : changer de vidéo passe par l'API du
   // lecteur (loadVideoById), sans recharger la WebView.
   const embedUrl = useRef(
-    buildEmbedUrl({ videoId: initialVideoId, startSeconds }),
+    // Lecture immédiate : on évite l'écran d'attente YouTube et ses suggestions.
+    buildEmbedUrl({ videoId: initialVideoId, startSeconds, autoplay: true }),
   ).current;
 
   const run = useCallback((js) => {
@@ -69,6 +70,19 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
     return false;
   };
 
+  // Filet de sécurité : si une navigation a malgré tout abouti hors du lecteur
+  // (iframe, redirection), on recharge la page d'intégration.
+  const handleNavigationChange = (state) => {
+    const { url } = state;
+    if (!url || url === 'about:blank' || ALLOWED_URL.test(url)) return;
+
+    onEvent?.({ type: 'exitBlocked', href: url });
+    webViewRef.current?.stopLoading();
+    webViewRef.current?.injectJavaScript(
+      `window.location.replace(${JSON.stringify(embedUrl)}); true;`,
+    );
+  };
+
   return (
     <View style={style}>
       <WebView
@@ -86,6 +100,7 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
           'about:blank',
         ]}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
+        onNavigationStateChange={handleNavigationChange}
         injectedJavaScriptBeforeContentLoaded={PLAYER_BRIDGE_SCRIPT}
         onLoadEnd={installBridge}
         javaScriptEnabled

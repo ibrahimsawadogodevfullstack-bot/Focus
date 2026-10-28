@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
+import { PlusIcon } from './Icons';
 
 export default function CategoryChips({ categories, activeId, onSelect, onManage }) {
   return (
@@ -10,6 +11,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       contentContainerStyle={styles.content}
     >
       <Chip label="Tout" active={activeId === null} onPress={() => onSelect(null)} />
+
       {categories.map((category) => (
         <Chip
           key={category.id}
@@ -23,11 +25,10 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       <Pressable
         onPress={onManage}
         accessibilityRole="button"
-        accessibilityLabel="Gérer les chaînes et les catégories"
-        style={({ pressed }) => [styles.manage, pressed && styles.managePressed]}
+        accessibilityLabel="Gérer les catégories"
+        style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
       >
-        <Text style={styles.managePlus}>＋</Text>
-        <Text style={styles.manageText}>Gérer</Text>
+        <PlusIcon color={colors.accentText} size={14} />
       </Pressable>
     </ScrollView>
   );
@@ -59,22 +60,21 @@ function Chip({ label, count, active, onPress }) {
 
 const styles = StyleSheet.create({
   content: {
+    alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    alignItems: 'center',
+    paddingVertical: spacing.sm,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
+    height: 38,
+    paddingHorizontal: 15,
     borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    height: 36,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
     maxWidth: 220,
   },
   chipPressed: {
@@ -96,8 +96,8 @@ const styles = StyleSheet.create({
   countPill: {
     minWidth: 18,
     height: 18,
-    borderRadius: 9,
     paddingHorizontal: 5,
+    borderRadius: 9,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
@@ -113,29 +113,17 @@ const styles = StyleSheet.create({
   countTextActive: {
     color: colors.onAccent,
   },
-  manage: {
-    flexDirection: 'row',
+  add: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    gap: 4,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderStyle: 'dashed',
-  },
-  managePressed: {
+    justifyContent: 'center',
     backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.lineStrong,
   },
-  managePlus: {
-    color: colors.textMuted,
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: -1,
-  },
-  manageText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
+  addPressed: {
+    backgroundColor: colors.surfaceAlt,
   },
 });

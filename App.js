@@ -1,17 +1,23 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform } from 'react-native';
+import { BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import TabBar from './components/TabBar';
 import { colors } from './constants/theme';
+import CategoriesScreen from './screens/CategoriesScreen';
+import CategoryEditor from './screens/CategoryEditor';
+import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
-import ManageScreen from './screens/ManageScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import { loadFeed } from './services/feed';
 import {
   addSeenId,
+  addShortId,
   readCategories,
   readChannels,
   readSeenIds,
+  readShortIds,
   writeCategories,
   writeChannels,
 } from './services/storage';
@@ -22,8 +28,11 @@ const EMPTY_FEED = {
   savedAt: null,
   fromCache: false,
   failedChannels: [],
+  hiddenShorts: 0,
   error: null,
 };
+
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories']);
 
 export default function App() {
   const [feed, setFeed] = useState(EMPTY_FEED);
@@ -34,6 +43,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [seenIds, setSeenIds] = useState([]);
+  const [shortIds, setShortIds] = useState([]);
   const [route, setRoute] = useState({ name: 'feed' });
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -48,15 +58,17 @@ export default function App() {
     let cancelled = false;
 
     (async () => {
-      const [storedChannels, storedCategories, seen] = await Promise.all([
+      const [storedChannels, storedCategories, seen, shorts] = await Promise.all([
         readChannels(),
         readCategories(),
         readSeenIds(),
+        readShortIds(),
       ]);
       if (cancelled) return;
       setChannels(storedChannels);
       setCategories(storedCategories);
       setSeenIds(seen);
+      setShortIds(shorts);
       setLibraryReady(true);
     })();
 
@@ -72,6 +84,7 @@ export default function App() {
       savedAt: result.savedAt ?? null,
       fromCache: Boolean(result.fromCache),
       failedChannels: result.failedChannels ?? [],
+      hiddenShorts: result.hiddenShorts ?? 0,
       error: result.error ?? null,
     });
 
@@ -135,7 +148,16 @@ export default function App() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (routeRef.current.name !== 'feed') {
+      const current = routeRef.current.name;
+      if (current === 'player') {
+        setRoute({ name: 'feed' });
+        return true;
+      }
+      if (current === 'editor') {
+        setRoute({ name: 'categories' });
+        return true;
+      }
+      if (current !== 'feed') {
         setRoute({ name: 'feed' });
         return true;
       }
@@ -150,6 +172,8 @@ export default function App() {
     setRefreshing(false);
   }, [runLoad]);
 
+  const handleOpenTab = useCallback((name) => setRoute({ name }), []);
+
   const handleOpen = useCallback((video, queue) => {
     const index = Math.max(0, queue.findIndex((item) => item.videoId === video.videoId));
     setRoute({ name: 'player', queue, index });
@@ -158,6 +182,17 @@ export default function App() {
   const handleVideoChange = useCallback((video) => {
     addSeenId(video.videoId).then((seen) => setSeenIds(seen));
   }, []);
+
+  const handleShortDetected = useCallback((videoId) => {
+    addShortId(videoId).then((ids) => setShortIds(ids));
+  }, []);
+
+  // Les formats courts déjà repérés ne réapparaissent pas dans le flux.
+  const feedVideos = useMemo(() => {
+    if (shortIds.length === 0) return feed.videos;
+    const hidden = new Set(shortIds);
+    return feed.videos.filter((video) => !hidden.has(video.videoId));
+  }, [feed.videos, shortIds]);
 
   const handleAddChannel = useCallback(
     async (channel) => {
@@ -212,6 +247,7 @@ export default function App() {
       await writeCategories(next);
 
       if (!id) setActiveCategoryId(category.id);
+      setRoute({ name: 'categories' });
     },
     [categories],
   );
@@ -223,49 +259,92 @@ export default function App() {
       await writeCategories(next);
 
       if (activeCategoryId === categoryId) setActiveCategoryId(null);
+      setRoute({ name: 'categories' });
     },
     [activeCategoryId, categories],
   );
 
+  const showTabBar = TAB_ROUTES.has(route.name);
+
+  let screen = null;
+
+  if (route.name === 'feed') {
+    screen = (
+      <FeedScreen
+        videos={feedVideos}
+        channels={channels}
+        categories={categories}
+        activeCategoryId={activeCategoryId}
+        onSelectCategory={setActiveCategoryId}
+        onOpenCategories={() => setRoute({ name: 'categories' })}
+        seenIds={seenIds}
+        loading={loading}
+        refreshing={refreshing}
+        error={feed.error}
+        fromCache={feed.fromCache}
+        savedAt={feed.savedAt}
+        failedChannels={feed.failedChannels}
+        hiddenShorts={feed.hiddenShorts}
+        onRefresh={handleRefresh}
+        onOpen={handleOpen}
+      />
+    );
+  } else if (route.name === 'channels') {
+    screen = (
+      <ChannelsScreen
+        channels={channels}
+        onAddChannel={handleAddChannel}
+        onRemoveChannel={handleRemoveChannel}
+      />
+    );
+  } else if (route.name === 'categories') {
+    screen = (
+      <CategoriesScreen
+        categories={categories}
+        channels={channels}
+        onCreate={() => setRoute({ name: 'editor', category: null })}
+        onEdit={(category) => setRoute({ name: 'editor', category })}
+      />
+    );
+  } else if (route.name === 'editor') {
+    screen = (
+      <CategoryEditor
+        category={route.category}
+        channels={channels}
+        onSave={handleSaveCategory}
+        onDelete={handleDeleteCategory}
+        onClose={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else {
+    screen = (
+      <PlayerScreen
+        queue={route.queue}
+        initialIndex={route.index}
+        onBack={() => setRoute({ name: 'feed' })}
+        onVideoChange={handleVideoChange}
+        onShortDetected={handleShortDetected}
+      />
+    );
+  }
+
   return (
-    <>
-      {route.name === 'feed' ? (
-        <FeedScreen
-          videos={feed.videos}
-          channels={channels}
-          categories={categories}
-          activeCategoryId={activeCategoryId}
-          onSelectCategory={setActiveCategoryId}
-          onManage={() => setRoute({ name: 'manage' })}
-          seenIds={seenIds}
-          loading={loading}
-          refreshing={refreshing}
-          error={feed.error}
-          fromCache={feed.fromCache}
-          savedAt={feed.savedAt}
-          failedChannels={feed.failedChannels}
-          onRefresh={handleRefresh}
-          onOpen={handleOpen}
-        />
-      ) : route.name === 'manage' ? (
-        <ManageScreen
-          channels={channels}
-          categories={categories}
-          onBack={() => setRoute({ name: 'feed' })}
-          onAddChannel={handleAddChannel}
-          onRemoveChannel={handleRemoveChannel}
-          onSaveCategory={handleSaveCategory}
-          onDeleteCategory={handleDeleteCategory}
-        />
-      ) : (
-        <PlayerScreen
-          queue={route.queue}
-          initialIndex={route.index}
-          onBack={() => setRoute({ name: 'feed' })}
-          onVideoChange={handleVideoChange}
-        />
-      )}
-      <StatusBar style="light" backgroundColor={colors.background} />
-    </>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <View style={styles.body}>{screen}</View>
+        {showTabBar ? <TabBar active={route.name} onChange={handleOpenTab} /> : null}
+        <StatusBar style="light" />
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  body: {
+    flex: 1,
+  },
+});

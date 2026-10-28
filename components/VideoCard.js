@@ -1,5 +1,5 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
 import { timeAgo } from '../utils/format';
@@ -14,7 +14,7 @@ export default function VideoCard({ video, isNew, onPress }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${video.title} — ${video.channelTitle}`}
+      accessibilityLabel={`${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.thumbWrap}>
@@ -24,15 +24,8 @@ export default function VideoCard({ video, isNew, onPress }) {
           }}
           style={styles.thumb}
           resizeMode="cover"
-          onError={() =>
-            setThumbStep((step) => Math.min(step + 1, THUMB_STEPS.length - 1))
-          }
+          onError={() => setThumbStep((step) => Math.min(step + 1, THUMB_STEPS.length - 1))}
         />
-        {isNew ? (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>NOUVEAU</Text>
-          </View>
-        ) : null}
       </View>
 
       <Text style={styles.title} numberOfLines={2}>
@@ -46,8 +39,15 @@ export default function VideoCard({ video, isNew, onPress }) {
         <Text style={styles.channel} numberOfLines={1}>
           {video.channelTitle}
         </Text>
-        <Text style={styles.dot}>·</Text>
+        <Text style={styles.separator}>·</Text>
         <Text style={styles.time}>{timeAgo(video.publishedAt)}</Text>
+
+        {isNew ? (
+          <View style={styles.newTag}>
+            <View style={styles.newDot} />
+            <Text style={styles.newText}>Nouveau</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -56,10 +56,10 @@ export default function VideoCard({ video, isNew, onPress }) {
 const styles = StyleSheet.create({
   card: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   pressed: {
-    opacity: 0.72,
+    opacity: 0.75,
   },
   thumbWrap: {
     width: '100%',
@@ -68,33 +68,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surfaceAlt,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(244, 241, 234, 0.08)',
+    borderColor: 'rgba(233, 241, 255, 0.08)',
   },
   thumb: {
     width: '100%',
     height: '100%',
-  },
-  badge: {
-    position: 'absolute',
-    top: spacing.sm,
-    left: spacing.sm,
-    backgroundColor: colors.accent,
-    borderRadius: radius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  badgeText: {
-    color: colors.onAccent,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
   },
   title: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     lineHeight: 22,
-    letterSpacing: -0.2,
+    letterSpacing: -0.25,
     marginTop: spacing.md,
   },
   metaRow: {
@@ -104,15 +89,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   avatar: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.lineStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: colors.accent,
+    color: colors.accentText,
     fontSize: 10,
     fontWeight: '800',
   },
@@ -122,12 +109,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flexShrink: 1,
   },
-  dot: {
+  separator: {
     color: colors.textFaint,
     fontSize: 12,
   },
   time: {
     color: colors.textFaint,
     fontSize: 12,
+  },
+  newTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginLeft: 'auto',
+  },
+  newDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.accent,
+  },
+  newText: {
+    color: colors.accentText,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
 });

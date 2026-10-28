@@ -1,21 +1,47 @@
 import { useMemo } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
-  SafeAreaView,
+  SectionList,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
-import { FocusMark } from '../components/FocusMark';
-import { SlidersIcon } from '../components/Icons';
+import EmptyState from '../components/EmptyState';
+import FeedSkeleton from '../components/FeedSkeleton';
 import VideoCard from '../components/VideoCard';
-import { colors, radius, spacing } from '../constants/theme';
-import { timeAgo } from '../utils/format';
+import { colors, spacing } from '../constants/theme';
+import { withoutShorts } from '../services/filters';
+import { formatDateShort, startOfDay, timeAgo } from '../utils/format';
+
+const DAY = 24 * 60 * 60 * 1000;
+const BUCKETS = [
+  { key: 'today', title: "Aujourd'hui" },
+  { key: 'yesterday', title: 'Hier' },
+  { key: 'week', title: 'Cette semaine' },
+  { key: 'older', title: 'Plus ancien' },
+];
+
+function buildSections(videos) {
+  const today = startOfDay(Date.now());
+  const groups = { today: [], yesterday: [], week: [], older: [] };
+
+  for (const video of videos) {
+    const published = video.publishedAt ?? 0;
+    if (published >= today) groups.today.push(video);
+    else if (published >= today - DAY) groups.yesterday.push(video);
+    else if (published >= today - 6 * DAY) groups.week.push(video);
+    else groups.older.push(video);
+  }
+
+  return BUCKETS.map((bucket) => ({ ...bucket, data: groups[bucket.key] })).filter(
+    (section) => section.data.length > 0,
+  );
+}
 
 export default function FeedScreen({
   videos,
@@ -23,7 +49,7 @@ export default function FeedScreen({
   categories,
   activeCategoryId,
   onSelectCategory,
-  onManage,
+  onOpenCategories,
   seenIds,
   loading,
   refreshing,
@@ -31,6 +57,7 @@ export default function FeedScreen({
   fromCache,
   savedAt,
   failedChannels = [],
+  hiddenShorts = 0,
   onRefresh,
   onOpen,
 }) {
@@ -44,29 +71,26 @@ export default function FeedScreen({
     [activeCategory],
   );
 
-  const visibleVideos = useMemo(() => {
-    if (!scopeIds) return videos;
-    return videos.filter((video) => scopeIds.has(video.channelId));
-  }, [videos, scopeIds]);
+  // Double filtre : les caches anciens peuvent encore contenir des Shorts.
+  const cleanVideos = useMemo(() => withoutShorts(videos), [videos]);
 
-  const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
+  const visibleVideos = useMemo(() => {
+    if (!scopeIds) return cleanVideos;
+    return cleanVideos.filter((video) => scopeIds.has(video.channelId));
+  }, [cleanVideos, scopeIds]);
+
+  const sections = useMemo(() => buildSections(visibleVideos), [visibleVideos]);
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
-
-  if (loading && videos.length === 0) {
-    return (
-      <SafeAreaView style={styles.center}>
-        <FocusMark size={44} />
-        <ActivityIndicator color={colors.accent} />
-        <Text style={styles.loadingText}>Mise au point…</Text>
-      </SafeAreaView>
-    );
-  }
+  const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
+  const isFirstLoad = loading && videos.length === 0;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={visibleVideos}
+    <SafeAreaView edges={['top']} style={styles.screen}>
+      <AppBar right={<Text style={styles.date}>{formatDateShort()}</Text>} />
+
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.videoId}
         renderItem={({ item }) => (
           <VideoCard
@@ -75,40 +99,22 @@ export default function FeedScreen({
             onPress={() => onOpen(item, visibleVideos)}
           />
         )}
+        renderSectionHeader={({ section }) => (
+          <View style={styles.dayHeader}>
+            <Text style={styles.dayText}>{section.title}</Text>
+            <View style={styles.dayRule} />
+          </View>
+        )}
         ListHeaderComponent={
           <View>
-            <View style={styles.brandRow}>
-              <View style={styles.brand}>
-                <FocusMark size={20} />
-                <Text style={styles.wordmark}>focus</Text>
-              </View>
-
-              <Pressable
-                onPress={onManage}
-                accessibilityRole="button"
-                accessibilityLabel="Bibliothèque : chaînes et catégories"
-                style={({ pressed }) => [
-                  styles.libraryButton,
-                  pressed && styles.libraryButtonPressed,
-                ]}
-              >
-                <SlidersIcon color={colors.textMuted} size={17} />
-              </Pressable>
-            </View>
-
             <View style={styles.titleBlock}>
-              <Text style={styles.kicker}>
-                {activeCategory ? 'CATÉGORIE' : 'FLUX'}
-              </Text>
               <Text style={styles.title} numberOfLines={2}>
-                {activeCategory ? activeCategory.name : 'Toutes les chaînes'}
+                {activeCategory ? activeCategory.name : 'Tout le flux'}
               </Text>
               <Text style={styles.subtitle}>
                 {visibleVideos.length} vidéo{visibleVideos.length > 1 ? 's' : ''} ·{' '}
                 {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
-                {failedChannels.length > 0
-                  ? ` · ${failedChannels.length} en échec`
-                  : ''}
+                {failedChannels.length > 0 ? ` · ${failedChannels.length} en échec` : ''}
               </Text>
             </View>
 
@@ -116,46 +122,56 @@ export default function FeedScreen({
               categories={categories}
               activeId={activeCategoryId}
               onSelect={onSelectCategory}
-              onManage={onManage}
+              onManage={onOpenCategories}
             />
 
             {error ? (
               <View style={styles.banner}>
                 <Text style={styles.bannerText}>
                   {fromCache
-                    ? 'Hors ligne — dernier flux enregistré affiché.'
+                    ? 'Hors ligne : le dernier flux enregistré est affiché.'
                     : 'Certaines chaînes n’ont pas répondu.'}
                 </Text>
+                <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
+                  <Text style={styles.bannerAction}>Réessayer</Text>
+                </Pressable>
               </View>
             ) : null}
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <FocusMark size={36} style={styles.emptyMark} />
-            <Text style={styles.emptyTitle}>Rien à mettre au point</Text>
-            <Text style={styles.emptyText}>
-              {activeCategory
-                ? 'Aucune vidéo récente pour cette catégorie. Ajoute-lui des chaînes.'
-                : 'Tire vers le bas pour recharger, ou ajoute des chaînes.'}
-            </Text>
-            <Pressable onPress={onManage} style={styles.emptyAction}>
-              <Text style={styles.emptyActionText}>Gérer la bibliothèque</Text>
-            </Pressable>
-          </View>
+          isFirstLoad ? (
+            <FeedSkeleton />
+          ) : (
+            <EmptyState
+              title={activeCategory ? 'Catégorie vide' : 'Rien à afficher'}
+              message={
+                activeCategory
+                  ? 'Aucune vidéo récente pour ces chaînes. Ajoute-en une à la catégorie.'
+                  : 'Tire vers le bas pour actualiser, ou ajoute des chaînes à ta bibliothèque.'
+              }
+              actionLabel={activeCategory ? 'Modifier la catégorie' : 'Gérer mes chaînes'}
+              onAction={onOpenCategories}
+            />
+          )
         }
         ListFooterComponent={
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              {savedAt
-                ? `Synchronisé ${timeAgo(savedAt)}`
-                : 'Jamais synchronisé'}
-              {fromCache ? ' · cache local' : ''}
-            </Text>
-            <Pressable onPress={onRefresh} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.footerAction}>Actualiser</Text>
-            </Pressable>
-          </View>
+          visibleVideos.length > 0 ? (
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                {savedAt ? `Synchronisé ${timeAgo(savedAt)}` : 'Jamais synchronisé'}
+                {fromCache ? ' · cache local' : ''}
+                {hiddenShorts > 0 ? ` · ${hiddenShorts} Shorts masqués` : ''}
+              </Text>
+              <Pressable
+                onPress={onRefresh}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
+              >
+                <Text style={styles.footerAction}>Actualiser</Text>
+              </Pressable>
+            </View>
+          ) : null
         }
         refreshControl={
           <RefreshControl
@@ -166,9 +182,10 @@ export default function FeedScreen({
             progressBackgroundColor={colors.surface}
           />
         }
-        contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled
         showsVerticalScrollIndicator={false}
-        initialNumToRender={6}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={4}
         windowSize={7}
       />
     </SafeAreaView>
@@ -176,143 +193,107 @@ export default function FeedScreen({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: spacing.md,
-  },
-  loadingText: {
+  date: {
     color: colors.textFaint,
     fontSize: 12,
-    letterSpacing: 0.4,
+    fontWeight: '500',
   },
   listContent: {
     paddingBottom: spacing.xl,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-  },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  wordmark: {
-    color: colors.text,
-    fontSize: 19,
-    fontWeight: '800',
-    letterSpacing: -0.7,
-  },
-  libraryButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  libraryButtonPressed: {
-    backgroundColor: colors.surfaceAlt,
-  },
   titleBlock: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
-    gap: 4,
-  },
-  kicker: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.6,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: 5,
   },
   title: {
     color: colors.text,
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: -1,
-    lineHeight: 35,
+    letterSpacing: -1.1,
+    lineHeight: 37,
   },
   subtitle: {
     color: colors.textFaint,
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '500',
-    marginTop: 2,
   },
-  banner: {
-    marginHorizontal: spacing.xl,
-    marginTop: spacing.xs,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.bg,
   },
-  bannerText: {
+  dayText: {
     color: colors.textMuted,
     fontSize: 12,
-  },
-  empty: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    gap: spacing.sm,
-  },
-  emptyMark: {
-    opacity: 0.5,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  emptyText: {
-    color: colors.textFaint,
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
-    maxWidth: 260,
+  dayRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.line,
   },
-  emptyAction: {
-    marginTop: spacing.sm,
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    borderRadius: 14,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.line,
   },
-  emptyActionText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '600',
+  bannerText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  bannerAction: {
+    color: colors.accentText,
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   footer: {
     alignItems: 'center',
-    gap: 4,
-    paddingTop: spacing.lg,
+    gap: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.lg,
   },
   footerText: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: 11.5,
+  },
+  footerButton: {
+    height: 44,
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'center',
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  footerButtonPressed: {
+    backgroundColor: colors.surfaceAlt,
   },
   footerAction: {
-    color: colors.accent,
-    fontSize: 12,
+    color: colors.accentText,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.2,
   },
 });

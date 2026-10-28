@@ -1,26 +1,34 @@
-// Système visuel « focus » : scène sombre, texte ivoire, un seul accent rouge.
-// Tout écran doit passer par ces jetons, jamais par une couleur littérale.
+// Système visuel « focus » — bleu optique sur scène nuit.
+//
+// Une seule couleur d'accent (azure), des surfaces bleu-nuit, et des filets
+// fins pour structurer l'information. Aucune couleur littérale dans les écrans.
 
 export const colors = {
-  background: '#07080A',
-  surface: '#101217',
-  surfaceAlt: '#171A21',
-  elevated: '#1C2028',
-  border: '#232830',
-  borderStrong: '#333A46',
+  // Scène
+  bg: '#05070E',
+  surface: '#0A1120',
+  surfaceAlt: '#0F1829',
+  raised: '#142034',
 
-  text: '#F4F1EA',
-  textMuted: '#99A1AD',
-  textFaint: '#646C78',
+  // Filets
+  line: '#1A2740',
+  lineStrong: '#26375A',
 
-  accent: '#FF4438',
-  accentSoft: 'rgba(255, 68, 56, 0.14)',
+  // Texte
+  text: '#E9F1FF',
+  textMuted: '#9AAECF',
+  textFaint: '#7186A8',
+
+  // Accent
+  accent: '#2F7BFF',
+  accentText: '#7FAFFF',
+  accentSoft: 'rgba(47, 123, 255, 0.14)',
+  accentLine: 'rgba(47, 123, 255, 0.32)',
   onAccent: '#FFFFFF',
 
-  new: '#3DDC97',
-  newInk: '#052A1C',
-
-  overlay: 'rgba(7, 8, 10, 0.72)',
+  // Sémantique
+  danger: '#FF7A8F',
+  dangerSoft: 'rgba(255, 122, 143, 0.12)',
 };
 
 export const spacing = {
@@ -28,45 +36,58 @@ export const spacing = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
-  xxl: 32,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
 };
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 22,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
   pill: 999,
 };
 
+// Échelle typographique : 11 / 12 / 13 / 15 / 17 / 22 / 32.
 export const type = {
   display: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: -0.9,
+    letterSpacing: -1.1,
+    color: colors.text,
+  },
+  headline: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.6,
     color: colors.text,
   },
   title: {
     fontSize: 17,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
     color: colors.text,
   },
   body: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
     color: colors.text,
   },
-  caption: {
-    fontSize: 12,
+  meta: {
+    fontSize: 12.5,
     fontWeight: '500',
     color: colors.textMuted,
   },
-  kicker: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    color: colors.accent,
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
+};
+
+export const layout = {
+  gutter: 20,
+  hit: 44,
+  tabBar: 56,
 };
