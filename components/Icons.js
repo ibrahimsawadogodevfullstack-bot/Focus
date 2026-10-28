@@ -227,3 +227,46 @@ export function PauseIcon({ color = '#fff', size = 15 }) {
     </View>
   );
 }
+
+export function SearchIcon({ color, size = 18, thickness = 2 }) {
+  const circle = Math.round(size * 0.66);
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          width: circle,
+          height: circle,
+          borderRadius: circle / 2,
+          borderWidth: thickness,
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          right: 0,
+          bottom: 0,
+          width: size * 0.42,
+          height: thickness,
+          borderRadius: thickness,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+        }}
+      />
+    </View>
+  );
+}
+
+export function MoreIcon({ color, size = 16 }) {
+  const dot = Math.max(2.5, size * 0.2);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'space-between' }}>
+      {[0, 1, 2].map((key) => (
+        <View
+          key={key}
+          style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }}
+        />
+      ))}
+    </View>
+  );
+}

@@ -277,6 +277,7 @@ export default function App() {
         activeCategoryId={activeCategoryId}
         onSelectCategory={setActiveCategoryId}
         onOpenCategories={() => setRoute({ name: 'categories' })}
+        onOpenLibrary={() => setRoute({ name: 'channels' })}
         seenIds={seenIds}
         loading={loading}
         refreshing={refreshing}

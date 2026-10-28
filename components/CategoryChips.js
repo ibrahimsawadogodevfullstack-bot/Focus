@@ -1,22 +1,23 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '../constants/theme';
+import { colors, spacing } from '../constants/theme';
 import { PlusIcon } from './Icons';
 
+/** Filtres de catégories, dans l'esprit des puces de la page d'accueil YouTube. */
 export default function CategoryChips({ categories, activeId, onSelect, onManage }) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       contentContainerStyle={styles.content}
     >
-      <Chip label="Tout" active={activeId === null} onPress={() => onSelect(null)} />
+      <Chip label="Tous" active={activeId === null} onPress={() => onSelect(null)} />
 
       {categories.map((category) => (
         <Chip
           key={category.id}
           label={category.name}
-          count={category.channelIds.length}
           active={activeId === category.id}
           onPress={() => onSelect(category.id)}
         />
@@ -28,13 +29,13 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
         accessibilityLabel="Gérer les catégories"
         style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
       >
-        <PlusIcon color={colors.accentText} size={14} />
+        <PlusIcon color={colors.textMuted} size={13} />
       </Pressable>
     </ScrollView>
   );
 }
 
-function Chip({ label, count, active, onPress }) {
+function Chip({ label, active, onPress }) {
   return (
     <Pressable
       onPress={onPress}
@@ -49,79 +50,55 @@ function Chip({ label, count, active, onPress }) {
       <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
         {label}
       </Text>
-      {typeof count === 'number' ? (
-        <View style={[styles.countPill, active && styles.countPillActive]}>
-          <Text style={[styles.countText, active && styles.countTextActive]}>{count}</Text>
-        </View>
-      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  // Hauteur fixe : une ScrollView horizontale dans une colonne flex se
+  // comprime sinon (surtout sur le web).
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 56,
+  },
   content: {
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    height: 56,
   },
   chip: {
-    flexDirection: 'row',
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 6,
-    height: 38,
-    paddingHorizontal: 15,
-    borderRadius: radius.pill,
+    justifyContent: 'center',
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
     maxWidth: 220,
   },
   chipPressed: {
     backgroundColor: colors.surfaceAlt,
   },
   chipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+    backgroundColor: colors.text,
   },
   label: {
-    color: colors.textMuted,
+    color: colors.text,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: -0.1,
   },
   labelActive: {
-    color: colors.onAccent,
-  },
-  countPill: {
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: 9,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countPillActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-  },
-  countText: {
-    color: colors.textFaint,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  countTextActive: {
-    color: colors.onAccent,
+    color: colors.bg,
   },
   add: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.lineStrong,
   },
   addPressed: {
     backgroundColor: colors.surfaceAlt,

@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  FlatList,
   Pressable,
   RefreshControl,
-  SectionList,
   StyleSheet,
   Text,
   View,
@@ -16,32 +16,14 @@ import FeedSkeleton from '../components/FeedSkeleton';
 import VideoCard from '../components/VideoCard';
 import { colors, spacing } from '../constants/theme';
 import { withoutShorts } from '../services/filters';
-import { formatDateShort, startOfDay, timeAgo } from '../utils/format';
+import { timeAgo } from '../utils/format';
 
-const DAY = 24 * 60 * 60 * 1000;
-const BUCKETS = [
-  { key: 'today', title: "Aujourd'hui" },
-  { key: 'yesterday', title: 'Hier' },
-  { key: 'week', title: 'Cette semaine' },
-  { key: 'older', title: 'Plus ancien' },
-];
-
-function buildSections(videos) {
-  const today = startOfDay(Date.now());
-  const groups = { today: [], yesterday: [], week: [], older: [] };
-
-  for (const video of videos) {
-    const published = video.publishedAt ?? 0;
-    if (published >= today) groups.today.push(video);
-    else if (published >= today - DAY) groups.yesterday.push(video);
-    else if (published >= today - 6 * DAY) groups.week.push(video);
-    else groups.older.push(video);
-  }
-
-  return BUCKETS.map((bucket) => ({ ...bucket, data: groups[bucket.key] })).filter(
-    (section) => section.data.length > 0,
-  );
-}
+const normalize = (value) =>
+  (value || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 export default function FeedScreen({
   videos,
@@ -50,6 +32,7 @@ export default function FeedScreen({
   activeCategoryId,
   onSelectCategory,
   onOpenCategories,
+  onOpenLibrary,
   seenIds,
   loading,
   refreshing,
@@ -61,6 +44,9 @@ export default function FeedScreen({
   onRefresh,
   onOpen,
 }) {
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+
   const activeCategory = useMemo(
     () => categories.find((category) => category.id === activeCategoryId) ?? null,
     [categories, activeCategoryId],
@@ -74,23 +60,52 @@ export default function FeedScreen({
   // Double filtre : les caches anciens peuvent encore contenir des Shorts.
   const cleanVideos = useMemo(() => withoutShorts(videos), [videos]);
 
-  const visibleVideos = useMemo(() => {
+  const scopedVideos = useMemo(() => {
     if (!scopeIds) return cleanVideos;
     return cleanVideos.filter((video) => scopeIds.has(video.channelId));
   }, [cleanVideos, scopeIds]);
 
-  const sections = useMemo(() => buildSections(visibleVideos), [visibleVideos]);
+  const visibleVideos = useMemo(() => {
+    const needle = normalize(query.trim());
+    if (!needle) return scopedVideos;
+    return scopedVideos.filter(
+      (video) =>
+        normalize(video.title).includes(needle) ||
+        normalize(video.channelTitle).includes(needle),
+    );
+  }, [query, scopedVideos]);
+
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
   const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
   const isFirstLoad = loading && videos.length === 0;
 
+  const toggleSearch = useCallback(() => {
+    setSearching((current) => {
+      if (current) setQuery('');
+      return !current;
+    });
+  }, []);
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <AppBar right={<Text style={styles.date}>{formatDateShort()}</Text>} />
+      <AppBar
+        searching={searching}
+        query={query}
+        onChangeQuery={setQuery}
+        onToggleSearch={toggleSearch}
+        onOpenLibrary={onOpenLibrary}
+      />
 
-      <SectionList
-        sections={sections}
+      <CategoryChips
+        categories={categories}
+        activeId={activeCategoryId}
+        onSelect={onSelectCategory}
+        onManage={onOpenCategories}
+      />
+
+      <FlatList
+        data={visibleVideos}
         keyExtractor={(item) => item.videoId}
         renderItem={({ item }) => (
           <VideoCard
@@ -99,49 +114,30 @@ export default function FeedScreen({
             onPress={() => onOpen(item, visibleVideos)}
           />
         )}
-        renderSectionHeader={({ section }) => (
-          <View style={styles.dayHeader}>
-            <Text style={styles.dayText}>{section.title}</Text>
-            <View style={styles.dayRule} />
-          </View>
-        )}
         ListHeaderComponent={
-          <View>
-            <View style={styles.titleBlock}>
-              <Text style={styles.title} numberOfLines={2}>
-                {activeCategory ? activeCategory.name : 'Tout le flux'}
+          error ? (
+            <View style={styles.banner}>
+              <Text style={styles.bannerText}>
+                {fromCache
+                  ? 'Hors ligne : le dernier flux enregistré est affiché.'
+                  : 'Certaines chaînes n’ont pas répondu.'}
               </Text>
-              <Text style={styles.subtitle}>
-                {visibleVideos.length} vidéo{visibleVideos.length > 1 ? 's' : ''} ·{' '}
-                {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
-                {failedChannels.length > 0 ? ` · ${failedChannels.length} en échec` : ''}
-              </Text>
+              <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
+                <Text style={styles.bannerAction}>Réessayer</Text>
+              </Pressable>
             </View>
-
-            <CategoryChips
-              categories={categories}
-              activeId={activeCategoryId}
-              onSelect={onSelectCategory}
-              onManage={onOpenCategories}
-            />
-
-            {error ? (
-              <View style={styles.banner}>
-                <Text style={styles.bannerText}>
-                  {fromCache
-                    ? 'Hors ligne : le dernier flux enregistré est affiché.'
-                    : 'Certaines chaînes n’ont pas répondu.'}
-                </Text>
-                <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
-                  <Text style={styles.bannerAction}>Réessayer</Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
+          ) : null
         }
         ListEmptyComponent={
           isFirstLoad ? (
             <FeedSkeleton />
+          ) : query.trim() ? (
+            <EmptyState
+              title="Aucun résultat"
+              message={`Aucune vidéo ne correspond à « ${query.trim()} ».`}
+              actionLabel="Effacer la recherche"
+              onAction={toggleSearch}
+            />
           ) : (
             <EmptyState
               title={activeCategory ? 'Catégorie vide' : 'Rien à afficher'}
@@ -158,6 +154,11 @@ export default function FeedScreen({
         ListFooterComponent={
           visibleVideos.length > 0 ? (
             <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                {visibleVideos.length} vidéo{visibleVideos.length > 1 ? 's' : ''} ·{' '}
+                {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
+                {failedChannels.length > 0 ? ` · ${failedChannels.length} en échec` : ''}
+              </Text>
               <Text style={styles.footerText}>
                 {savedAt ? `Synchronisé ${timeAgo(savedAt)}` : 'Jamais synchronisé'}
                 {fromCache ? ' · cache local' : ''}
@@ -182,11 +183,11 @@ export default function FeedScreen({
             progressBackgroundColor={colors.surface}
           />
         }
-        stickySectionHeadersEnabled
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         initialNumToRender={4}
         windowSize={7}
+        keyboardShouldPersistTaps="handled"
       />
     </SafeAreaView>
   );
@@ -197,63 +198,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  date: {
-    color: colors.textFaint,
-    fontSize: 12,
-    fontWeight: '500',
-  },
   listContent: {
+    paddingTop: spacing.xs,
     paddingBottom: spacing.xl,
-  },
-  titleBlock: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    gap: 5,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -1.1,
-    lineHeight: 37,
-  },
-  subtitle: {
-    color: colors.textFaint,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  dayHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: colors.bg,
-  },
-  dayText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  dayRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.line,
+    flexGrow: 1,
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginHorizontal: spacing.xl,
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
@@ -280,6 +239,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
   footerButton: {
+    marginTop: spacing.xs,
     height: 44,
     paddingHorizontal: spacing.xl,
     justifyContent: 'center',
