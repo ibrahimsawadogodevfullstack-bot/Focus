@@ -7,6 +7,7 @@
 
 import { feedUrl } from './feedUrl';
 import { extractCandidates } from './channelCandidates';
+import { netFetch } from './net';
 import { parseFeed } from './rssParser';
 
 const REQUEST_TIMEOUT_MS = 15000;
@@ -23,7 +24,7 @@ async function fetchWithTimeout(url, headers) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { signal: controller.signal, headers });
+    const response = await netFetch(url, { signal: controller.signal, headers });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
   } finally {

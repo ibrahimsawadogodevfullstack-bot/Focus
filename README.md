@@ -55,14 +55,17 @@ services/rssParser.js      analyse Atom (sans dépendance XML)
 services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne
+services/net.js            fetch direct (mobile) ou via proxy (web)
 services/playerEmbed.js    URL d'embed + pont de contrôle injecté
 components/YoutubePlayer   WebView verrouillée + commandes impératives
+components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
 components/FocusMark       logo « focus »
 components/VideoCard       carte vidéo du flux
 components/CategoryChips   filtres « Tout » + catégories
 screens/FeedScreen         flux, en-tête, filtres, pull-to-refresh
 screens/ManageScreen       chaînes + catégories (création/édition)
 screens/PlayerScreen       lecture, contrôles, à suivre, sortie confirmée
+metro.config.js            proxy YouTube pour l'aperçu web (dev uniquement)
 ```
 
 ## Lancer
@@ -72,6 +75,23 @@ npm install
 npm start          # Expo Go, ou
 npm run android    # appareil/émulateur connecté
 ```
+
+## Aperçu web (localhost)
+
+```sh
+npm run web        # http://localhost:8081
+```
+
+Le navigateur interdit les appels vers `youtube.com` (CORS), ce qui n'arrive
+jamais sur mobile. Pour pouvoir tester le flux, l'ajout de chaînes et la
+lecture depuis un navigateur, `metro.config.js` expose un proxy de développement
+(`/__youtube`) qui relaie les flux RSS, les pages de chaîne, oEmbed et l'API du
+lecteur. `services/net.js` bascule automatiquement dessus quand
+`Platform.OS === 'web'` ; sur Android/iOS, les requêtes partent directement chez
+YouTube. Sur le web, le lecteur est une vraie iframe YouTube pilotée par
+l'IFrame API (`components/YoutubePlayer.web.js`).
+
+Ce proxy et le lecteur web ne font pas partie du build mobile.
 
 ## Construire l'APK
 

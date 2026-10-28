@@ -1,5 +1,6 @@
 import { DEFAULT_CHANNEL_IDS } from '../constants/channels';
 import { feedUrl } from './feedUrl';
+import { netFetch } from './net';
 import { parseFeed } from './rssParser';
 import { readFeedCache, writeFeedCache } from './storage';
 
@@ -13,7 +14,7 @@ async function fetchWithTimeout(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    const response = await netFetch(url, {
       signal: controller.signal,
       headers: { Accept: 'application/atom+xml, application/xml, text/xml' },
     });
