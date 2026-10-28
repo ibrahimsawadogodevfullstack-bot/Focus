@@ -31,6 +31,7 @@ export default function PlayerScreen({
   const [blocked, setBlocked] = useState(false);
   const [shortNotice, setShortNotice] = useState(false);
   const playerRef = useRef(null);
+  const trackRef = useRef(null);
   const flaggedShorts = useRef(new Set());
 
   const video = queue[index];
@@ -116,9 +117,31 @@ export default function PlayerScreen({
     playerRef.current?.seekTo(target);
   };
 
+  // Clic sur la barre de progression. Sur mobile la position est relative au
+  // doigt (locationX) ; sur le web elle est relative à la page (pageX), donc on
+  // mesure la piste dans le DOM.
   const handleTrackPress = (event) => {
-    if (!trackWidth) return;
-    seekToRatio(event.nativeEvent.locationX / trackWidth);
+    const { locationX, pageX } = event.nativeEvent ?? {};
+    const node = trackRef.current;
+
+    if (typeof locationX === 'number' && Number.isFinite(locationX) && trackWidth > 0) {
+      seekToRatio(locationX / trackWidth);
+      return;
+    }
+
+    if (typeof pageX !== 'number') return;
+
+    if (node && typeof node.getBoundingClientRect === 'function') {
+      const rect = node.getBoundingClientRect();
+      if (rect.width > 0) seekToRatio((pageX - rect.left) / rect.width);
+      return;
+    }
+
+    if (node && typeof node.measure === 'function') {
+      node.measure((x, y, width, height, originX) => {
+        if (width > 0) seekToRatio((pageX - originX) / width);
+      });
+    }
   };
 
   if (!video) {
@@ -180,6 +203,7 @@ export default function PlayerScreen({
 
       <View style={styles.controls}>
         <Pressable
+          ref={trackRef}
           onPress={handleTrackPress}
           onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
           accessibilityRole="adjustable"
