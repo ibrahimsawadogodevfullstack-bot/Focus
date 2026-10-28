@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import BrandMark from '../components/BrandMark';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import { DownloadIcon, TrashIcon } from '../components/Icons';
@@ -38,6 +39,7 @@ export default function OfflineScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <BrandMark style={styles.brand} />
         <Text style={styles.title}>Hors ligne</Text>
         <Text style={styles.subtitle}>
           Télécharge une vidéo depuis le menu « … » de l’accueil, ou garde tout ton
@@ -237,6 +239,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  brand: {
+    marginBottom: spacing.md,
   },
   content: {
     paddingHorizontal: spacing.xl,

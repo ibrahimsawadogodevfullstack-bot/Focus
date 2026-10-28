@@ -1,31 +1,42 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../constants/theme';
+import BrandMark from './BrandMark';
 
-/** En-tête d'onglet : un titre, une ligne de contexte, une action optionnelle. */
+/** En-tête d'onglet : la marque, puis un titre, un contexte, une action. */
 export default function ScreenHeader({ title, subtitle, right }) {
   return (
     <View style={styles.wrap}>
-      <View style={styles.texts}>
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <BrandMark style={styles.brand} />
+
+      <View style={styles.head}>
+        <View style={styles.texts}>
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </View>
+        {right ? <View style={styles.action}>{right}</View> : null}
       </View>
-      {right ? <View style={styles.action}>{right}</View> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
+  },
+  brand: {
+    marginBottom: spacing.xs,
+  },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   texts: {
     flex: 1,

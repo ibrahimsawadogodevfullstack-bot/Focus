@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import BrandMark from '../components/BrandMark';
 import { Chevron } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
 import {
@@ -76,6 +77,7 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <BrandMark style={styles.brand} />
         <Text style={styles.title}>{category.name}</Text>
         <Text style={styles.subtitle}>
           Dernière activité : {lastActivityLabel(stats.lastAt)}
@@ -231,6 +233,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  brand: {
+    marginBottom: spacing.md,
   },
   content: {
     paddingHorizontal: spacing.lg,

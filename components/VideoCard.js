@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
+import ChannelAvatar from './ChannelAvatar';
 import { timeAgo } from '../utils/format';
 import { DownloadIcon, MoreIcon } from './Icons';
 
@@ -12,9 +13,8 @@ const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
  * Le bouton « … » est un frère du bouton principal pour éviter un bouton
  * imbriqué dans un autre sur le web.
  */
-export default function VideoCard({ video, isNew, downloaded, onPress, onMore }) {
+export default function VideoCard({ video, isNew, downloaded, channelAvatar, onPress, onMore }) {
   const [thumbStep, setThumbStep] = useState(0);
-  const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
   const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`;
 
   return (
@@ -56,9 +56,7 @@ export default function VideoCard({ video, isNew, downloaded, onPress, onMore })
           accessibilityLabel={`Ouvrir ${video.title}`}
           style={({ pressed }) => [styles.info, pressed && styles.pressed]}
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
+          <ChannelAvatar uri={channelAvatar} name={video.channelTitle} size={36} />
 
           <View style={styles.texts}>
             <Text style={styles.title} numberOfLines={2}>
@@ -151,21 +149,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     gap: spacing.md,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.lineStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: colors.accentText,
-    fontSize: 14,
-    fontWeight: '800',
   },
   texts: {
     flex: 1,

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ChannelAvatar from '../components/ChannelAvatar';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import { TrashIcon } from '../components/Icons';
@@ -18,7 +19,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { resolveChannelInput } from '../services/channelResolver';
 
-export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel }) {
+export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, onRemoveChannel }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -125,11 +126,11 @@ export default function ChannelsScreen({ channels, onAddChannel, onRemoveChannel
 
         {channels.map((channel) => (
           <View key={channel.id} style={styles.row}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(channel.title || channel.id).trim().charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            <ChannelAvatar
+              uri={avatars[channel.id]}
+              name={channel.title || channel.id}
+              size={40}
+            />
 
             <View style={styles.rowTexts}>
               <Text style={styles.rowTitle} numberOfLines={1}>
@@ -264,21 +265,6 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.xl,
     paddingRight: spacing.md,
     paddingVertical: 9,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.lineStrong,
-  },
-  avatarText: {
-    color: colors.accentText,
-    fontSize: 15,
-    fontWeight: '800',
   },
   rowTexts: {
     flex: 1,

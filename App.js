@@ -26,6 +26,7 @@ import {
   readOffline,
   writeOffline,
 } from './services/offline';
+import { resolveChannelAvatars } from './services/channelAvatars';
 import {
   getTracking,
   initTracking,
@@ -70,6 +71,7 @@ export default function App() {
   const [offlineProgress, setOfflineProgress] = useState(null);
   const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
   const [downloads, setDownloads] = useState([]);
+  const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -127,8 +129,28 @@ export default function App() {
     };
   }, []);
 
-  const applyFeed = useCallback((result) => {
-    setFeed({
+  // Avatars des chaînes : cache local d'abord, puis récupération progressive.
+  useEffect(() => {
+    if (!libraryReady) return undefined;
+    const ids = channelKey ? channelKey.split(',') : [];
+    if (ids.length === 0) {
+      setAvatars({});
+      return undefined;
+    }
+
+    let active = true;
+    resolveChannelAvatars(ids, {
+      onResolved: (found) => {
+        if (active) setAvatars((current) => ({ ...current, ...found }));
+      },
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [libraryReady, channelKey]);
+
+  const applyFeed = useCallback((result) => {    setFeed({
       videos: result.videos ?? [],
       channels: result.channels ?? [],
       savedAt: result.savedAt ?? null,
@@ -413,6 +435,7 @@ export default function App() {
         onToggleDownload={handleToggleDownload}
         onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}
+        avatars={avatars}
         loading={loading}
         refreshing={refreshing}
         sync={sync}
@@ -429,6 +452,7 @@ export default function App() {
     screen = (
       <ChannelsScreen
         channels={channels}
+        avatars={avatars}
         onAddChannel={handleAddChannel}
         onRemoveChannel={handleRemoveChannel}
       />

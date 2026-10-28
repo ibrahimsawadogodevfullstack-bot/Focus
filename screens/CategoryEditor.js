@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import BrandMark from '../components/BrandMark';
 import ConfirmSheet from '../components/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
@@ -78,7 +79,7 @@ export default function CategoryEditor({ category, channels, onSave, onDelete, o
           {category ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
         </Text>
 
-        <View style={styles.headerSpacer} />
+        <BrandMark size={15} textSize={15} style={styles.headerBrand} />
       </View>
 
       <ScrollView
@@ -242,8 +243,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
   },
-  headerSpacer: {
-    width: 44,
+  headerBrand: {
+    marginLeft: 'auto',
   },
   content: {
     paddingHorizontal: spacing.xl,

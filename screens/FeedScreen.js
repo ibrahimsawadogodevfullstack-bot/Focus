@@ -38,6 +38,7 @@ export default function FeedScreen({
   onOpenCategories,
   onOpenLibrary,
   seenIds,
+  avatars = {},
   loading,
   refreshing,
   sync,
@@ -135,6 +136,7 @@ export default function FeedScreen({
             isNew={hasHistory && !seen.has(item.videoId)}
             onPress={() => onOpen(item, visibleVideos)}
             downloaded={downloads.some((video) => video.videoId === item.videoId)}
+            channelAvatar={avatars[item.channelId]}
             onMore={
               onRemoveChannel || onToggleDownload
                 ? () => setMenuVideo(item)

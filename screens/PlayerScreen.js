@@ -18,6 +18,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from '../components/Icons';
+import { FocusMark } from '../components/FocusMark';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
 import {
@@ -528,7 +529,7 @@ export default function PlayerScreen({
         </Pressable>
 
         <View style={styles.focusPill}>
-          <LockIcon color={colors.accentText} size={10} />
+          <FocusMark size={12} />
           <Text style={styles.focusText} numberOfLines={1}>
             Mode focus
           </Text>
