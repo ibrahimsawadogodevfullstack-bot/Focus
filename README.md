@@ -39,6 +39,13 @@ pas de serveur intermédiaire, pas de clé API.
 - **Cache** : flux gardé dans `AsyncStorage` (TTL 10 min, invalidé quand la
   liste des chaînes change), affichage hors ligne, titres appris puis stockés.
 - **Vidéos déjà vues** : pastille « nouveau » sur les vidéos non encore ouvertes.
+- **Suivi et statistiques** : onglet Stats « Ma semaine » (jours actifs, temps
+  effectif, vidéos finies, objectif hebdomadaire) puis, par catégorie, le temps
+  de la semaine, la progression et un état (« À l'aise », « 2 à revoir »,
+  « Négligé »). Le détail d'une catégorie montre le graphique jour par jour,
+  l'avancement et les vidéos suivies. Dans le lecteur, une auto-évaluation
+  (« Pas vraiment / À peu près / Bien compris ») et la détection des passages
+  revus alimentent la synthèse.
 - **Gestion des chaînes** : ajout par identifiant, handle ou URL ; suppression
   depuis l'onglet Chaînes ou directement depuis l'accueil (menu « … »), avec
   confirmation dans les deux cas.
@@ -51,6 +58,9 @@ pas de serveur intermédiaire, pas de clé API.
 - On ne masque ni le logo YouTube, ni les publicités, ni les contrôles du
   lecteur : c'est interdit par les conditions d'utilisation de l'embed.
 - Le flux RSS ne donne ni durée ni distinction Shorts/vidéos longues.
+- Les statistiques sont locales (AsyncStorage) : temps réellement joué,
+  vidéos terminées quand elles atteignent la fin, passages revus = retours en
+  arrière de plus de 3 secondes. Rien n'est envoyé sur un serveur.
 - L'ajout par `@handle` dépend du HTML public de YouTube ; l'identifiant `UC…`
   reste la méthode la plus fiable.
 
@@ -65,6 +75,8 @@ services/feed.js           fetch RSS, fusion, tri, cache par périmètre
 services/rssParser.js      analyse Atom (sans dépendance XML)
 services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
 services/offline.js        instantané hors ligne + préchauffage des miniatures
+services/tracking.js       temps vu, progression, révisions, auto-évaluation
+services/stats.js          agrégats semaine/catégorie, états, synthèse
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne
 services/net.js            fetch direct (mobile) ou via proxy (web)
@@ -79,6 +91,8 @@ components/CategoryChips   puces « Tous » + catégories
 screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
 screens/ChannelsScreen     bibliothèque de chaînes (ajout/retrait)
 screens/OfflineScreen      cache hors ligne, progression, liste en cache
+screens/StatsScreen        « Ma semaine », objectif, par catégorie
+screens/CategoryStatsScreen détail d'une catégorie (graphique, vidéos)
 screens/CategoriesScreen   liste des catégories
 screens/CategoryEditor     création/édition d'une catégorie
 screens/PlayerScreen       flux vertical paginé, contrôles, sortie bloquée

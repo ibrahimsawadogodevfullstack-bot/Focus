@@ -29,6 +29,10 @@ export const colors = {
   // Sémantique
   danger: '#FF7A8F',
   dangerSoft: 'rgba(255, 122, 143, 0.12)',
+  success: '#5BD99B',
+  successSoft: 'rgba(91, 217, 155, 0.13)',
+  warn: '#FFC46B',
+  warnSoft: 'rgba(255, 196, 107, 0.13)',
 };
 
 export const spacing = {

@@ -7,10 +7,12 @@ import TabBar from './components/TabBar';
 import { colors } from './constants/theme';
 import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
+import CategoryStatsScreen from './screens/CategoryStatsScreen';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
 import OfflineScreen from './screens/OfflineScreen';
 import PlayerScreen from './screens/PlayerScreen';
+import StatsScreen from './screens/StatsScreen';
 import { loadFeed } from './services/feed';
 import {
   clearOffline,
@@ -18,6 +20,11 @@ import {
   readOffline,
   writeOffline,
 } from './services/offline';
+import {
+  getTracking,
+  initTracking,
+  subscribeTracking,
+} from './services/tracking';
 import {
   addSeenId,
   addShortId,
@@ -39,7 +46,7 @@ const EMPTY_FEED = {
   error: null,
 };
 
-const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'offline']);
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'offline', 'stats']);
 
 export default function App() {
   const [feed, setFeed] = useState(EMPTY_FEED);
@@ -55,6 +62,7 @@ export default function App() {
   const [offline, setOffline] = useState(null);
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineProgress, setOfflineProgress] = useState(null);
+  const [tracking, setTracking] = useState(getTracking());
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -62,6 +70,19 @@ export default function App() {
     () => channels.map((channel) => channel.id).join(','),
     [channels],
   );
+
+  // Suivi de lecture : temps effectif, progression, révisions.
+  useEffect(() => {
+    let active = true;
+    initTracking().then((value) => {
+      if (active) setTracking(value);
+    });
+    const unsubscribe = subscribeTracking((value) => setTracking(value));
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Bibliothèque locale : chaînes et catégories personnalisées.
   useEffect(() => {
@@ -168,6 +189,10 @@ export default function App() {
       }
       if (current === 'editor') {
         setRoute({ name: 'categories' });
+        return true;
+      }
+      if (current === 'categoryStats') {
+        setRoute({ name: 'stats' });
         return true;
       }
       if (current !== 'feed') {
@@ -347,6 +372,38 @@ export default function App() {
         channels={channels}
         onAddChannel={handleAddChannel}
         onRemoveChannel={handleRemoveChannel}
+      />
+    );
+  } else if (route.name === 'stats') {
+    screen = (
+      <StatsScreen
+        tracking={tracking}
+        categories={categories}
+        videos={feedVideos}
+        onOpenCategory={(categoryId) =>
+          setRoute({ name: 'categoryStats', categoryId })
+        }
+        onOpenCategories={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else if (route.name === 'categoryStats') {
+    const category = categories.find((item) => item.id === route.categoryId);
+    screen = category ? (
+      <CategoryStatsScreen
+        category={category}
+        tracking={tracking}
+        categories={categories}
+        videos={feedVideos}
+        onBack={() => setRoute({ name: 'stats' })}
+        onOpen={handleOpen}
+      />
+    ) : (
+      <StatsScreen
+        tracking={tracking}
+        categories={categories}
+        videos={feedVideos}
+        onOpenCategory={(categoryId) => setRoute({ name: 'categoryStats', categoryId })}
+        onOpenCategories={() => setRoute({ name: 'categories' })}
       />
     );
   } else if (route.name === 'offline') {

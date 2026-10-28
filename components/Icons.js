@@ -373,3 +373,36 @@ export function TrashIcon({ color, size = 16, thickness = 2 }) {
     </View>
   );
 }
+
+export function StatsIcon({ color, size = 20, thickness = 2.5 }) {
+  const bars = [
+    { height: 0.42, offset: 0 },
+    { height: 0.68, offset: 0.29 },
+    { height: 1, offset: 0.58 },
+  ];
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        paddingHorizontal: 1,
+        paddingBottom: size * 0.06,
+      }}
+    >
+      {bars.map((bar, index) => (
+        <View
+          key={index}
+          style={{
+            width: size * 0.18,
+            height: size * 0.82 * bar.height,
+            borderRadius: thickness / 2,
+            backgroundColor: color,
+          }}
+        />
+      ))}
+    </View>
+  );
+}

@@ -13,9 +13,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Chevron, LockIcon, PauseIcon, PlayIcon } from '../components/Icons';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
+import {
+  getTracking,
+  markOpened,
+  setRating,
+  trackPlayback,
+  trackReplay,
+} from '../services/tracking';
 import { formatClock, timeAgo } from '../utils/format';
 
 const thumbnail = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+const RATINGS = [
+  { key: 'fragile', label: 'Pas vraiment', hint: 'à revoir' },
+  { key: 'moyen', label: 'À peu près', hint: 'fragile' },
+  { key: 'solide', label: 'Bien compris', hint: 'solide' },
+];
+
+const FLUSH_EVERY = 5;
 
 // Une page = une vidéo plein écran. Le lecteur n'est monté que pour la page
 // visible ; les autres affichent la miniature (une seule WebView à la fois).
@@ -38,10 +53,54 @@ function VideoPage({
   const [errorCode, setErrorCode] = useState(null);
   const [blocked, setBlocked] = useState(false);
   const [shortNotice, setShortNotice] = useState(false);
+  const [rating, setRatingState] = useState(
+    () => getTracking().videos?.[video.videoId]?.rating ?? null,
+  );
+  const [replays, setReplays] = useState(
+    () => getTracking().videos?.[video.videoId]?.replays ?? 0,
+  );
+  const [lastReplayAt, setLastReplayAt] = useState(
+    () => getTracking().videos?.[video.videoId]?.lastReplayAt ?? null,
+  );
   const flaggedShort = useRef(false);
+  const lastTimeRef = useRef(null);
+  const durationRef = useRef(0);
+  const playingRef = useRef(false);
+  const pendingRef = useRef(0);
+
+  const flush = useCallback(
+    (completed = false) => {
+      const seconds = pendingRef.current;
+      if (seconds <= 0 && !completed) return;
+      pendingRef.current = 0;
+      trackPlayback({
+        video,
+        seconds,
+        position: lastTimeRef.current ?? 0,
+        duration: durationRef.current,
+        completed,
+      });
+    },
+    [video],
+  );
+
+  // Sauvegarde du temps vu quand on quitte la page.
+  useEffect(() => () => flush(false), [flush]);
 
   useEffect(() => {
-    if (active) onSeen?.(video);
+    // Le lecteur n'est monté que sur la page visible : on solde le temps vu
+    // en quittant la page, et on repart de zéro quand on y revient.
+    if (!active) {
+      flush(false);
+      playingRef.current = false;
+    }
+    lastTimeRef.current = null;
+  }, [active, flush]);
+
+  useEffect(() => {
+    if (!active) return;
+    onSeen?.(video);
+    markOpened(video);
   }, [active, onSeen, video]);
 
   useEffect(() => {
@@ -59,12 +118,37 @@ function VideoPage({
   const handleEvent = useCallback(
     (event) => {
       switch (event.type) {
-        case 'state':
-          setIsPlaying(event.state === 'playing');
-          if (event.state === 'ended') onEnded?.();
+        case 'state': {
+          const playing = event.state === 'playing';
+          playingRef.current = playing;
+          setIsPlaying(playing);
+          if (event.state === 'paused' || event.state === 'ended') flush(false);
+          if (event.state === 'ended') {
+            flush(true);
+            onEnded?.();
+          }
           break;
-        case 'progress':
-          setTime(event.currentTime ?? 0);
+        }
+        case 'progress': {
+          const current = event.currentTime ?? 0;
+          const previous = lastTimeRef.current;
+
+          if (previous !== null) {
+            const delta = current - previous;
+            if (delta <= -3) {
+              // Retour en arrière volontaire : passage revu (le saut peut
+              // arriver pendant un « buffering », d'où le test hors lecture).
+              trackReplay(video, current);
+              setReplays((value) => value + 1);
+              setLastReplayAt(Math.round(current));
+            } else if (playingRef.current && delta > 0 && delta < 2.5) {
+              pendingRef.current += delta;
+              if (pendingRef.current >= FLUSH_EVERY) flush(false);
+            }
+          }
+
+          lastTimeRef.current = current;
+          setTime(current);
           if (event.duration) {
             setDuration(event.duration);
             // Un format très court est presque toujours un Short : on le
@@ -80,8 +164,12 @@ function VideoPage({
             }
           }
           break;
+        }
         case 'ready':
-          if (event.duration) setDuration(event.duration);
+          if (event.duration) {
+            durationRef.current = event.duration;
+            setDuration(event.duration);
+          }
           break;
         case 'error':
           setErrorCode(event.code);
@@ -93,7 +181,7 @@ function VideoPage({
           break;
       }
     },
-    [onEnded, onShortDetected, video.videoId],
+    [flush, onEnded, onShortDetected, video],
   );
 
   const seekToRatio = (ratio) => {
@@ -128,6 +216,11 @@ function VideoPage({
         if (width > 0) seekToRatio((pageX - originX) / width);
       });
     }
+  };
+
+  const handleRate = (nextRating) => {
+    setRatingState(nextRating);
+    setRating(video, nextRating);
   };
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
@@ -228,6 +321,46 @@ function VideoPage({
           </Text>
           <Text style={styles.dot}>·</Text>
           <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
+        </View>
+
+        <View style={styles.ratingBlock}>
+          <Text style={styles.ratingQuestion}>Tu as compris cette vidéo ?</Text>
+          <View style={styles.ratingRow}>
+            {RATINGS.map((option) => {
+              const selected = rating === option.key;
+              const tone =
+                option.key === 'fragile'
+                  ? styles.ratingFragile
+                  : option.key === 'solide'
+                    ? styles.ratingSolide
+                    : styles.ratingMoyen;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => handleRate(option.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${option.label} — ${option.hint}`}
+                  style={({ pressed }) => [
+                    styles.ratingChip,
+                    selected && tone,
+                    pressed && styles.ratingPressed,
+                  ]}
+                >
+                  <Text style={[styles.ratingLabel, selected && styles.ratingLabelActive]}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {rating === 'solide' && replays >= 2 ? (
+            <Text style={styles.ratingInsight}>
+              Tu as indiqué bien comprendre, mais tu as revu le passage à{' '}
+              {formatClock(lastReplayAt ?? 0)} {replays} fois.
+            </Text>
+          ) : null}
         </View>
 
         {notice || shortPill ? (
@@ -584,6 +717,60 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 26,
     letterSpacing: -0.4,
+  },
+  ratingBlock: {
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  ratingQuestion: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  ratingChip: {
+    flex: 1,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    paddingHorizontal: 4,
+  },
+  ratingPressed: {
+    opacity: 0.7,
+  },
+  ratingFragile: {
+    backgroundColor: colors.warnSoft,
+    borderColor: colors.warn,
+  },
+  ratingMoyen: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentLine,
+  },
+  ratingSolide: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+  },
+  ratingLabel: {
+    color: colors.textMuted,
+    fontSize: 11.5,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  ratingLabelActive: {
+    color: colors.text,
+    fontWeight: '700',
+  },
+  ratingInsight: {
+    color: colors.textFaint,
+    fontSize: 11.5,
+    lineHeight: 16,
   },
   metaRow: {
     flexDirection: 'row',

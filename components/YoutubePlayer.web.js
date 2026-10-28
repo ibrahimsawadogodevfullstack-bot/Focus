@@ -43,6 +43,7 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
   const readyRef = useRef(false);
   const lastStateRef = useRef(null);
   const timeRef = useRef(0);
+  const durationRef = useRef(0);
   const initialVideoId = useRef(videoId).current;
   eventRef.current = onEvent;
 
@@ -95,16 +96,22 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
           });
         }
 
+        // En lecture, YouTube n'envoie souvent que `currentTime` : la durée
+        // vient de l'initialisation, on la garde en mémoire.
         if (typeof info.duration === 'number' && info.duration > 0) {
-          if (typeof info.currentTime === 'number') timeRef.current = info.currentTime;
+          durationRef.current = info.duration;
+        }
+
+        if (typeof info.currentTime === 'number' && durationRef.current > 0) {
+          timeRef.current = info.currentTime;
           eventRef.current?.({
             type: 'progress',
-            currentTime: info.currentTime ?? 0,
-            duration: info.duration,
+            currentTime: info.currentTime,
+            duration: durationRef.current,
           });
           if (!readyRef.current) {
             readyRef.current = true;
-            eventRef.current?.({ type: 'ready', duration: info.duration });
+            eventRef.current?.({ type: 'ready', duration: durationRef.current });
           }
         }
         return;
