@@ -10,11 +10,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BrandMark from '../components/BrandMark';
+import ChannelAvatar from '../components/ChannelAvatar';
 import ConfirmSheet from '../components/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
 
-export default function CategoryEditor({ category, channels, onSave, onDelete, onClose }) {
+export default function CategoryEditor({ category, channels, avatars = {}, onSave, onDelete, onClose }) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(category?.name ?? '');
   const [selected, setSelected] = useState(() => new Set(category?.channelIds ?? []));
@@ -141,11 +142,11 @@ export default function CategoryEditor({ category, channels, onSave, onDelete, o
                   {active ? <CheckIcon color={colors.onAccent} size={11} /> : null}
                 </View>
 
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {(channel.title || channel.id).trim().charAt(0).toUpperCase()}
-                  </Text>
-                </View>
+                <ChannelAvatar
+                  uri={avatars[channel.id]}
+                  name={channel.title || channel.id}
+                  size={30}
+                />
 
                 <Text style={[styles.rowTitle, active && styles.rowTitleActive]} numberOfLines={1}>
                   {channel.title || channel.id}
@@ -324,14 +325,6 @@ const styles = StyleSheet.create({
   checkActive: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
   },
   avatarText: {
     color: colors.accentText,

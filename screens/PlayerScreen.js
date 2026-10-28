@@ -18,6 +18,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from '../components/Icons';
+import ChannelAvatar from '../components/ChannelAvatar';
 import { FocusMark } from '../components/FocusMark';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
@@ -234,7 +235,6 @@ function VideoPage({
   };
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
-  const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
   const notice = blocked ? 'Sortie bloquée — tu restes dans Focus' : null;
   const shortPill = shortNotice ? 'Short masqué' : null;
 
@@ -323,9 +323,11 @@ function VideoPage({
         </Text>
 
         <View style={styles.metaRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
+          <ChannelAvatar
+            uri={avatars[video.channelId]}
+            name={video.channelTitle}
+            size={20}
+          />
           <Text style={styles.channel} numberOfLines={1}>
             {video.channelTitle}
           </Text>
@@ -455,6 +457,7 @@ export default function PlayerScreen({
   initialIndex = 0,
   downloads = [],
   backLabel = 'Accueil',
+  avatars = {},
   onBack,
   onVideoChange,
   onToggleDownload,
@@ -857,14 +860,6 @@ const styles = StyleSheet.create({
   downloadLabelOn: {
     color: colors.accentText,
     fontWeight: '700',
-  },
-  avatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   avatarText: {
     color: colors.accentText,

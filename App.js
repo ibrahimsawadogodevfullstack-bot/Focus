@@ -518,6 +518,7 @@ export default function App() {
       <CategoryEditor
         category={route.category}
         channels={channels}
+        avatars={avatars}
         onSave={handleSaveCategory}
         onDelete={handleDeleteCategory}
         onClose={() => setRoute({ name: 'categories' })}
@@ -529,6 +530,7 @@ export default function App() {
         queue={route.queue}
         initialIndex={route.index}
         downloads={downloads}
+        avatars={avatars}
         backLabel={route.from === 'offline' ? 'Hors ligne' : 'Accueil'}
         onBack={() => setRoute({ name: route.from === 'offline' ? 'offline' : 'feed' })}
         onVideoChange={handleVideoChange}
