@@ -145,7 +145,7 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
       frame.remove();
       frameRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Montage unique : le lecteur n'est créé qu'une fois.
   }, []);
 
   useEffect(() => {
