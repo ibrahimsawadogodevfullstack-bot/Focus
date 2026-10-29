@@ -25,8 +25,15 @@ pas de serveur intermédiaire, pas de clé API.
   progression en pourcentage pendant l'enregistrement, puis un badge
   « Téléchargée ». L'onglet permet aussi de
   garder d'un coup les titres, chaînes et miniatures de tout le flux. Le fichier
-  vidéo, lui, n'est pas enregistré (interdit par les CGU du lecteur) : la liste
-  reste consultable, la lecture demande une connexion.
+  vidéo YouTube, lui, n'est pas enregistré (interdit par les CGU du lecteur) :
+  la fiche reste consultable, sa lecture demande une connexion.
+- **Lecture locale hors ligne** : l'onglet Hors ligne accepte aussi les vidéos
+  présentes sur l'appareil (« Importer une vidéo »). Le fichier est copié dans
+  le dossier privé de l'app (il survit au nettoyage du cache du sélecteur), sa
+  taille et sa durée s'affichent, et un lecteur maison le lit sans réseau :
+  lecture/pause, ±10 s, avancement tapable, vitesses 1× à 2×, suppression avec
+  confirmation. Aucun téléchargement YouTube n'est effectué : l'app ne lit que
+  les fichiers fournis par l'utilisateur.
 - **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
   chaîne, insensible aux accents) et un accès à la bibliothèque ; rangée de puces
   « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
@@ -81,6 +88,7 @@ services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
 services/offline.js        instantané hors ligne + préchauffage des miniatures
 services/tracking.js       temps vu, progression, révisions, auto-évaluation
 services/downloads.js      téléchargements par vidéo (fiche + miniature)
+services/localVideos.js    import, copie, suppression et taille des vidéos locales
 services/stats.js          agrégats semaine/catégorie, états, synthèse
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne

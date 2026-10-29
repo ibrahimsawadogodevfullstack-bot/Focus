@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, View } from 'react-native';
@@ -11,6 +12,7 @@ import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
+import LocalPlayerScreen from './screens/LocalPlayerScreen';
 import OfflineScreen from './screens/OfflineScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import StatsScreen from './screens/StatsScreen';
@@ -22,6 +24,12 @@ import {
 } from './services/downloads';
 import { saveCrash } from './services/crashLog';
 import { loadFeed } from './services/feed';
+import {
+  deleteLocalVideo,
+  importLocalVideos,
+  readLocalVideos,
+  updateLocalDuration,
+} from './services/localVideos';
 import {
   clearOffline,
   downloadOffline,
@@ -74,6 +82,8 @@ export default function App() {
   const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
   const [downloads, setDownloads] = useState([]);
   const [downloadProgress, setDownloadProgress] = useState({});
+  const [localVideos, setLocalVideos] = useState([]);
+  const [importingLocal, setImportingLocal] = useState(false);
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const [crash, setCrash] = useState(null);
@@ -126,6 +136,7 @@ export default function App() {
         shorts,
         storedOffline,
         storedDownloads,
+        storedLocalVideos,
       ] = await Promise.all([
         readChannels(),
         readCategories(),
@@ -133,6 +144,7 @@ export default function App() {
         readShortIds(),
         readOffline(),
         readDownloads(),
+        readLocalVideos(),
       ]);
       if (cancelled) return;
       setChannels(storedChannels);
@@ -141,6 +153,7 @@ export default function App() {
       setShortIds(shorts);
       setOffline(storedOffline);
       setDownloads(storedDownloads);
+      setLocalVideos(storedLocalVideos);
       setLibraryReady(true);
     })();
 
@@ -263,6 +276,10 @@ export default function App() {
         setRoute({ name: 'stats' });
         return true;
       }
+      if (current === 'localPlayer') {
+        setRoute({ name: 'offline' });
+        return true;
+      }
       if (current !== 'feed') {
         setRoute({ name: 'feed' });
         return true;
@@ -373,6 +390,38 @@ export default function App() {
     },
     [downloadProgress, downloads],
   );
+
+  // Lecture hors ligne : fichiers vidéo de l'appareil (aucun téléchargement
+  // YouTube : le lecteur local ne lit que ce que l'utilisateur fournit).
+  const handleImportLocal = useCallback(async () => {
+    if (importingLocal) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'video/*',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      setImportingLocal(true);
+      const next = await importLocalVideos(result.assets);
+      setLocalVideos(next);
+    } catch {
+      // Sélecteur indisponible : la liste reste inchangée.
+    } finally {
+      setImportingLocal(false);
+    }
+  }, [importingLocal]);
+
+  const handleDeleteLocal = useCallback(async (video) => {
+    const next = await deleteLocalVideo(video);
+    setLocalVideos(next);
+  }, []);
+
+  const handleLocalDuration = useCallback(async (id, duration) => {
+    if (!id || !duration) return;
+    const next = await updateLocalDuration(id, duration);
+    setLocalVideos(next);
+  }, []);
 
   const handleOpenDownload = useCallback(
     (video) => {
@@ -562,6 +611,11 @@ export default function App() {
         onOpen={handleOpen}
         onOpenDownload={handleOpenDownload}
         onRemoveDownload={handleToggleDownload}
+        localVideos={localVideos}
+        importing={importingLocal}
+        onImportLocal={handleImportLocal}
+        onOpenLocal={(video) => setRoute({ name: 'localPlayer', entry: video })}
+        onDeleteLocal={handleDeleteLocal}
       />
     );
   } else if (route.name === 'categories') {
@@ -582,6 +636,14 @@ export default function App() {
         onSave={handleSaveCategory}
         onDelete={handleDeleteCategory}
         onClose={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else if (route.name === 'localPlayer') {
+    screen = (
+      <LocalPlayerScreen
+        entry={route.entry}
+        onBack={() => setRoute({ name: 'offline' })}
+        onDuration={handleLocalDuration}
       />
     );
   } else {
