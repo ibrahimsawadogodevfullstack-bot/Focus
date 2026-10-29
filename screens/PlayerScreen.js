@@ -49,6 +49,7 @@ function VideoPage({
   active,
   isLast,
   downloaded,
+  avatars,
   onToggleDownload,
   onEnded,
   onSeen,
@@ -558,6 +559,7 @@ export default function PlayerScreen({
                 height={pageHeight}
                 active={itemIndex === index}
                 isLast={itemIndex === queue.length - 1}
+                avatars={avatars}
                 downloaded={downloads.some((video) => video.videoId === item.videoId)}
                 onToggleDownload={onToggleDownload}
                 onEnded={() => goToIndex(itemIndex + 1)}
