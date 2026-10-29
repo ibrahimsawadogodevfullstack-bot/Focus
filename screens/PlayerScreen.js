@@ -50,6 +50,8 @@ function VideoPage({
   isLast,
   downloaded,
   avatars,
+  // Pourcentage de téléchargement en cours (0–100), undefined si inactif.
+  downloadPercent,
   onToggleDownload,
   onEnded,
   onSeen,
@@ -687,9 +689,12 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: colors.bg,
   },
+  // Le lecteur prend toute la hauteur laissée par les contrôles : les vidéos
+  // verticales (Shorts) occupent ainsi l'écran comme dans l'app YouTube.
   playerWrap: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    flex: 1,
+    minHeight: 180,
     backgroundColor: '#000',
   },
   player: {
