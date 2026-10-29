@@ -11,6 +11,10 @@ const BASE_PARAMS = [
   'cc_load_policy=0',
   'fs=1',
   'enablejsapi=1',
+  // L'application fournit ses propres contrôles : on masque la barre de
+  // lecture YouTube pour ne pas en avoir deux.
+  'controls=0',
+  'disablekb=1',
   `origin=${encodeURIComponent(APP_ORIGIN)}`,
 ];
 
@@ -37,6 +41,27 @@ export const PLAYER_BRIDGE_SCRIPT = `
 (function () {
   if (window.__ytInstalled) return;
   window.__ytInstalled = true;
+
+  // Habillage : on ne garde que l'image de la vidéo. Titre, partage, cartes,
+  // suggestions de fin et contrôles YouTube disparaissent — l'application
+  // affiche sa propre barre. Le logo YouTube reste (obligation d'affichage).
+  var FOCUS_CSS = [
+    '.ytp-chrome-top,.ytp-chrome-bottom,.ytp-gradient-top,.ytp-gradient-bottom{display:none !important}',
+    '.ytp-cards-teaser,.ytp-ce-element,.ytp-endscreen-content,.ytp-pause-overlay,.ytp-suggested-action,.ytp-share-button{display:none !important}'
+  ].join('');
+
+  function injectStyle() {
+    if (document.getElementById('__focus_style')) return;
+    var root = document.head || document.documentElement;
+    if (!root) return;
+    var style = document.createElement('style');
+    style.id = '__focus_style';
+    style.textContent = FOCUS_CSS;
+    root.appendChild(style);
+  }
+
+  injectStyle();
+  document.addEventListener('DOMContentLoaded', injectStyle);
 
   var STATES = {
     '-1': 'unstarted',
