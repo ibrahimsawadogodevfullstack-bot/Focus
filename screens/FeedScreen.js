@@ -5,9 +5,10 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ActionSheet from '../components/ActionSheet';
 import AppBar from '../components/AppBar';
@@ -15,12 +16,16 @@ import CategoryChips from '../components/CategoryChips';
 import ConfirmSheet from '../components/ConfirmSheet';
 import EmptyState from '../components/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
+import ShortsShelf from '../components/ShortsShelf';
 import SyncBar from '../components/SyncBar';
 import VideoCard from '../components/VideoCard';
 import { DownloadIcon, TrashIcon } from '../components/Icons';
-import { colors, spacing } from '../constants/theme';
-import { withoutShorts } from '../services/filters';
+import { colors, layout, spacing } from '../constants/theme';
+import { splitByFormat } from '../services/filters';
 import { timeAgo } from '../utils/format';
+
+const GUTTER = spacing.lg; // 16 px
+const GAP = spacing.lg; // 16 px
 
 const normalize = (value) =>
   (value || '')
@@ -28,6 +33,13 @@ const normalize = (value) =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+
+/** Colonnes de la grille selon la largeur utile de l'écran. */
+function columnsFor(width) {
+  if (width < 600) return 1;
+  if (width < 1024) return 2;
+  return 3;
+}
 
 export default function FeedScreen({
   videos,
@@ -46,18 +58,27 @@ export default function FeedScreen({
   fromCache,
   savedAt,
   failedChannels = [],
-  hiddenShorts = 0,
   onRefresh,
   downloads = [],
-  downloadProgress = {},
+  savingIds = {},
   onOpen,
   onToggleDownload,
   onRemoveChannel,
+  shortsPosition = 'after-first-row',
 }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [menuVideo, setMenuVideo] = useState(null);
   const [menuChannel, setMenuChannel] = useState(null);
+
+  const columns = columnsFor(windowWidth);
+  const cardWidth = Math.max(
+    0,
+    (windowWidth - 2 * GUTTER - (columns - 1) * GAP) / columns,
+  );
 
   const menuDownloaded = Boolean(
     menuVideo && downloads.some((video) => video.videoId === menuVideo.videoId),
@@ -73,13 +94,10 @@ export default function FeedScreen({
     [activeCategory],
   );
 
-  // Double filtre : les caches anciens peuvent encore contenir des Shorts.
-  const cleanVideos = useMemo(() => withoutShorts(videos), [videos]);
-
   const scopedVideos = useMemo(() => {
-    if (!scopeIds) return cleanVideos;
-    return cleanVideos.filter((video) => scopeIds.has(video.channelId));
-  }, [cleanVideos, scopeIds]);
+    if (!scopeIds) return videos;
+    return videos.filter((video) => scopeIds.has(video.channelId));
+  }, [videos, scopeIds]);
 
   const visibleVideos = useMemo(() => {
     const needle = normalize(query.trim());
@@ -91,6 +109,28 @@ export default function FeedScreen({
     );
   }, [query, scopedVideos]);
 
+  // Les deux flux ne se mélangent jamais : les Shorts vont dans leur rangée,
+  // les vidéos longues dans la grille.
+  const { shorts, long } = useMemo(() => splitByFormat(visibleVideos), [visibleVideos]);
+
+  // Grille construite en lignes explicites : largeurs strictement égales, et
+  // insertion possible de la rangée Shorts à n'importe quelle frontière.
+  const rows = useMemo(() => {
+    const list = [];
+    for (let index = 0; index < long.length; index += columns) {
+      list.push({
+        type: 'row',
+        key: `row-${columns}-${index}`,
+        videos: long.slice(index, index + columns),
+      });
+    }
+    if (shorts.length > 0) {
+      const at = shortsPosition === 'top' ? 0 : Math.min(1, list.length);
+      list.splice(at, 0, { type: 'shorts', key: `shorts-${columns}` });
+    }
+    return list;
+  }, [long, shorts, columns, shortsPosition]);
+
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
   const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
@@ -101,12 +141,66 @@ export default function FeedScreen({
     ? `${sync.done ?? 0}/${sync.total ?? 0} · ${sync.percent ?? 0} %`
     : '';
 
+  // La barre d'onglets est en flux, sous la liste : sa hauteur exacte est
+  // retirée de la zone visible (padding top 6 + onglets + zone sûre).
+  const tabBarHeight = 6 + layout.tabBar + Math.max(insets.bottom, 6);
+
   const toggleSearch = useCallback(() => {
     setSearching((current) => {
       if (current) setQuery('');
       return !current;
     });
   }, []);
+
+  const renderItem = useCallback(
+    ({ item }) => {
+      if (item.type === 'shorts') {
+        return (
+          <ShortsShelf
+            videos={shorts}
+            seen={seen}
+            hasHistory={hasHistory}
+            onOpen={onOpen}
+          />
+        );
+      }
+
+      return (
+        <View style={styles.gridRow}>
+          {item.videos.map((video) => (
+            <VideoCard
+              key={video.videoId}
+              width={cardWidth}
+              video={video}
+              isNew={hasHistory && !seen.has(video.videoId)}
+              onPress={() => onOpen(video, long)}
+              downloaded={downloads.some((entry) => entry.videoId === video.videoId)}
+              saving={Boolean(savingIds[video.videoId])}
+              channelAvatar={avatars[video.channelId]}
+              onMore={
+                onRemoveChannel || onToggleDownload
+                  ? () => setMenuVideo(video)
+                  : undefined
+              }
+            />
+          ))}
+        </View>
+      );
+    },
+    [
+      avatars,
+      cardWidth,
+      downloads,
+      hasHistory,
+      long,
+      onOpen,
+      onRemoveChannel,
+      onToggleDownload,
+      savingIds,
+      seen,
+      shorts,
+    ],
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -129,23 +223,10 @@ export default function FeedScreen({
       />
 
       <FlatList
-        data={visibleVideos}
-        keyExtractor={(item) => item.videoId}
-        renderItem={({ item }) => (
-          <VideoCard
-            video={item}
-            isNew={hasHistory && !seen.has(item.videoId)}
-            onPress={() => onOpen(item, visibleVideos)}
-            downloaded={downloads.some((video) => video.videoId === item.videoId)}
-            downloadPercent={downloadProgress[item.videoId]}
-            channelAvatar={avatars[item.channelId]}
-            onMore={
-              onRemoveChannel || onToggleDownload
-                ? () => setMenuVideo(item)
-                : undefined
-            }
-          />
-        )}
+        data={rows}
+        keyExtractor={(item) => item.key}
+        extraData={`${columns}-${cardWidth}-${shortsPosition}`}
+        renderItem={renderItem}
         ListHeaderComponent={
           error ? (
             <View style={styles.banner}>
@@ -162,7 +243,12 @@ export default function FeedScreen({
         }
         ListEmptyComponent={
           isFirstLoad ? (
-            <FeedSkeleton />
+            <FeedSkeleton
+              columns={columns}
+              cardWidth={cardWidth}
+              rows={2}
+              withShorts={shortsPosition === 'top'}
+            />
           ) : query.trim() ? (
             <EmptyState
               title="Aucun résultat"
@@ -187,14 +273,17 @@ export default function FeedScreen({
           visibleVideos.length > 0 ? (
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                {visibleVideos.length} vidéo{visibleVideos.length > 1 ? 's' : ''} ·{' '}
+                {long.length} vidéo{long.length > 1 ? 's' : ''}
+                {shorts.length > 0
+                  ? ` · ${shorts.length} Short${shorts.length > 1 ? 's' : ''}`
+                  : ''}
+                {' · '}
                 {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
                 {failedChannels.length > 0 ? ` · ${failedChannels.length} en échec` : ''}
               </Text>
               <Text style={styles.footerText}>
                 {savedAt ? `Synchronisé ${timeAgo(savedAt)}` : 'Jamais synchronisé'}
                 {fromCache ? ' · cache local' : ''}
-                {hiddenShorts > 0 ? ` · ${hiddenShorts} Shorts masqués` : ''}
               </Text>
               <Pressable
                 onPress={onRefresh}
@@ -216,7 +305,10 @@ export default function FeedScreen({
           />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabBarHeight + spacing.lg },
+        ]}
         initialNumToRender={4}
         windowSize={7}
         keyboardShouldPersistTaps="handled"
@@ -231,7 +323,7 @@ export default function FeedScreen({
             ? [
                 {
                   key: 'download',
-                  label: menuDownloaded ? 'Supprimer le téléchargement' : 'Télécharger',
+                  label: menuDownloaded ? 'Retirer l’enregistrement' : 'Enregistrer hors ligne',
                   hint: menuDownloaded
                     ? 'Retire la fiche de l’onglet Hors ligne'
                     : 'Garde la fiche et la miniature pour le hors ligne',
@@ -290,15 +382,20 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: spacing.xs,
-    paddingBottom: spacing.xl,
     flexGrow: 1,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: GAP,
+    paddingHorizontal: GUTTER,
+    alignItems: 'flex-start',
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginHorizontal: spacing.md,
+    marginHorizontal: GUTTER,
     marginBottom: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

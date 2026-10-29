@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { DAY_MS, dayKey } from '../utils/date.js';
+
 const KEY = 'focus.tracking.v1';
+
+// Bornes de rétention : au-delà, les entrées les plus anciennes sont retirées.
+// Sans cela, `videos` et `days` grossissent indéfiniment et AsyncStorage finit
+// par refuser les écritures, silencieusement.
+const MAX_VIDEOS = 800;
+const MAX_DAY_AGE = 365;
 
 const EMPTY = {
   videos: {},
@@ -28,12 +36,7 @@ function parse(raw) {
   }
 }
 
-export function dayKey(timestamp = Date.now()) {
-  const date = new Date(timestamp);
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-}
+export { dayKey };
 
 export async function initTracking() {
   if (state) return state;
@@ -42,6 +45,7 @@ export async function initTracking() {
       .catch(() => null)
       .then((raw) => {
         state = parse(raw);
+        prune();
         return state;
       });
   }
@@ -61,10 +65,29 @@ function emit() {
   for (const listener of listeners) listener(state);
 }
 
+/** Retire les jours trop anciens, puis les vidéos au-delà du plafond. */
+function prune() {
+  if (!state) return;
+
+  const oldestDay = dayKey(Date.now() - MAX_DAY_AGE * DAY_MS);
+  for (const key of Object.keys(state.days)) {
+    if (key < oldestDay) delete state.days[key];
+  }
+
+  const entries = Object.values(state.videos);
+  if (entries.length <= MAX_VIDEOS) return;
+
+  entries.sort((a, b) => (a.lastAt ?? 0) - (b.lastAt ?? 0));
+  for (const entry of entries.slice(0, entries.length - MAX_VIDEOS)) {
+    delete state.videos[entry.videoId];
+  }
+}
+
 function persist() {
   if (writeTimer) return;
   writeTimer = setTimeout(() => {
     writeTimer = null;
+    prune();
     if (state) AsyncStorage.setItem(KEY, JSON.stringify(state)).catch(() => {});
   }, 700);
 }
@@ -172,7 +195,12 @@ export function setRating(video, rating) {
   emit();
 }
 
+/** Efface tout l'historique local (bouton « Effacer mes données »). */
 export async function resetTracking() {
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
   state = { videos: {}, days: {}, channels: {} };
   await AsyncStorage.removeItem(KEY).catch(() => {});
   emit();

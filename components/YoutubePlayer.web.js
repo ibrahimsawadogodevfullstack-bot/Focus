@@ -65,7 +65,7 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
       'sandbox',
       'allow-scripts allow-same-origin allow-presentation allow-forms',
     );
-    frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+    frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
     frame.setAttribute('allowfullscreen', 'true');
     frame.setAttribute('title', 'Lecteur YouTube');
     frame.style.cssText = 'width:100%;height:100%;border:0;background:#000;display:block';

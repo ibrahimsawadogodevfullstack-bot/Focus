@@ -1,6 +1,6 @@
 import { DEFAULT_CHANNEL_IDS } from '../constants/channels';
 import { feedUrl } from './feedUrl';
-import { isShort } from './filters';
+import { withFormat } from './filters';
 import { netFetch } from './net';
 import { parseFeed } from './rssParser';
 import { readFeedCache, writeFeedCache } from './storage';
@@ -52,7 +52,6 @@ async function mapWithConcurrency(items, limit, worker) {
 function mergeFeeds(feeds) {
   const byId = new Map();
   const channels = new Map();
-  let hiddenShorts = 0;
 
   for (const feed of feeds) {
     if (!feed) continue;
@@ -60,16 +59,16 @@ function mergeFeeds(feeds) {
       channels.set(feed.channelId, feed.channelTitle);
     }
     for (const video of feed.videos) {
-      // Les Shorts sont écartés : ils sont faits pour l'attention rapide.
-      if (isShort(video)) {
-        hiddenShorts += 1;
-        continue;
-      }
       if (!byId.has(video.videoId)) {
-        byId.set(video.videoId, {
-          ...video,
-          channelTitle: video.channelTitle || channels.get(video.channelId) || '',
-        });
+        // Le format est calculé une fois ici : le flux et le lecteur lisent
+        // ensuite le même champ, sans règle divergente.
+        byId.set(
+          video.videoId,
+          withFormat({
+            ...video,
+            channelTitle: video.channelTitle || channels.get(video.channelId) || '',
+          }),
+        );
       }
     }
   }
@@ -79,7 +78,6 @@ function mergeFeeds(feeds) {
   return {
     videos,
     channels: [...channels.entries()].map(([id, title]) => ({ id, title })),
-    hiddenShorts,
   };
 }
 

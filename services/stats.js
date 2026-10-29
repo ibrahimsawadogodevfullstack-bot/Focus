@@ -1,53 +1,15 @@
-import { dayKey } from './tracking';
+import { dayKey, daysSince, startOfWeek, weekDays, weekLabel } from '../utils/date.js';
 
-const DAY = 24 * 60 * 60 * 1000;
-const MONTHS = [
-  'janv.',
-  'févr.',
-  'mars',
-  'avr.',
-  'mai',
-  'juin',
-  'juil.',
-  'août',
-  'sept.',
-  'oct.',
-  'nov.',
-  'déc.',
-];
+// Agrégats de la semaine et par catégorie.
+//
+// Règle de calcul de la progression : elle porte sur les vidéos **suivies**
+// (celles que l'élève a ouvertes), jamais sur le flux du jour. Le flux RSS
+// tourne en permanence : l'utiliser comme dénominateur faisait monter puis
+// redescendre la barre sans qu'aucune vidéo ait été regardée.
+
+export { dayKey, startOfWeek, weekDays, weekLabel, daysSince };
 
 export const WEEKLY_GOAL = 8;
-
-/** Lundi 00:00 de la semaine courante. */
-export function startOfWeek(now = Date.now()) {
-  const date = new Date(now);
-  date.setHours(0, 0, 0, 0);
-  const shift = (date.getDay() + 6) % 7; // lundi = 0
-  date.setDate(date.getDate() - shift);
-  return date.getTime();
-}
-
-export function weekDays(now = Date.now()) {
-  const start = startOfWeek(now);
-  return Array.from({ length: 7 }, (_, index) => {
-    const stamp = start + index * DAY;
-    const date = new Date(stamp);
-    return {
-      key: dayKey(stamp),
-      label: ['L', 'M', 'M', 'J', 'V', 'S', 'D'][index],
-      stamp,
-      day: date.getDate(),
-    };
-  });
-}
-
-export function weekLabel(now = Date.now()) {
-  const start = new Date(startOfWeek(now));
-  const end = new Date(startOfWeek(now) + 6 * DAY);
-  const startText = `${start.getDate()} ${MONTHS[start.getMonth()]}`;
-  const endText = `${end.getDate()} ${MONTHS[end.getMonth()]}`;
-  return `${startText} – ${endText}`;
-}
 
 /** « 3 h 05 », « 25 min », « < 1 min ». */
 export function formatEffort(seconds = 0) {
@@ -66,41 +28,23 @@ export function formatClockShort(seconds = 0) {
   return `${minutes}:${`${rest}`.padStart(2, '0')}`;
 }
 
-export function daysSince(timestamp, now = Date.now()) {
-  if (!timestamp) return null;
-  return Math.floor((now - timestamp) / DAY);
-}
-
-function videosByCategory(videos, categories) {
-  const map = new Map();
-  for (const category of categories) {
-    map.set(category.id, videos.filter((video) => category.channelIds.includes(video.channelId)));
-  }
-  return map;
-}
-
-function trackedVideos(tracking) {
-  return Object.values(tracking.videos ?? {});
-}
-
 function statusOf({ hasActivity, days, toReview, ratio }) {
   if (!hasActivity) return { key: 'empty', label: 'Aucune activité' };
-  if (days !== null && days >= 7) return { key: 'neglected', label: 'Négligé' };
-  if (toReview > 0) {
-    return { key: 'review', label: `${toReview} à revoir` };
-  }
+  // La fenêtre hebdomadaire fait 7 jours : on ne déclare « négligé » qu'au-delà,
+  // sinon une catégorie suivie lundi dernier bascule pile à la limite.
+  if (days !== null && days > 7) return { key: 'neglected', label: 'Négligé' };
+  if (toReview > 0) return { key: 'review', label: `${toReview} à revoir` };
   if (ratio >= 0.6) return { key: 'comfort', label: "À l'aise" };
   return { key: 'progress', label: 'En cours' };
 }
 
 /**
  * Agrège les statistiques de la semaine et par catégorie.
- * `videos` = vidéos actuellement dans l'accueil (pour les totaux).
+ * `goal` vient des réglages (objectif personnalisable).
  */
-export function summarize({ tracking, categories, videos, now = Date.now() }) {
+export function summarize({ tracking, categories, videos, goal = WEEKLY_GOAL, now = Date.now() }) {
   const days = weekDays(now);
-  const tracked = trackedVideos(tracking);
-  const feedByCategory = videosByCategory(videos, categories);
+  const tracked = Object.values(tracking.videos ?? {});
 
   const weekKeys = new Set(days.map((day) => day.key));
 
@@ -120,8 +64,6 @@ export function summarize({ tracking, categories, videos, now = Date.now() }) {
 
   const perCategory = categories.map((category) => {
     const channelIds = new Set(category.channelIds);
-    const feedVideos = feedByCategory.get(category.id) ?? [];
-    const feedIds = new Set(feedVideos.map((video) => video.videoId));
 
     // Temps de la semaine : somme des canaux de la catégorie.
     let seconds = 0;
@@ -133,21 +75,19 @@ export function summarize({ tracking, categories, videos, now = Date.now() }) {
       }
     }
 
-    const categoryTracked = tracked.filter((video) => channelIds.has(video.channelId));
-    const completed = feedVideos.filter(
-      (video) => tracking.videos?.[video.videoId]?.completed,
+    const trackedInCategory = tracked.filter((video) => channelIds.has(video.channelId));
+    const total = trackedInCategory.length;
+    const completed = trackedInCategory.filter((video) => video.completed).length;
+    const toReview = trackedInCategory.filter(
+      (video) => video.rating === 'fragile' && !video.completed,
     ).length;
 
-    const lastAt = categoryTracked.reduce(
+    const lastAt = trackedInCategory.reduce(
       (latest, video) => Math.max(latest, video.lastAt ?? 0),
       0,
     );
 
-    const toReview = categoryTracked.filter(
-      (video) => video.rating === 'fragile' && !video.completed,
-    ).length;
-
-    const ratio = feedVideos.length > 0 ? completed / feedVideos.length : 0;
+    const ratio = total > 0 ? completed / total : 0;
     const daysAgo = lastAt ? daysSince(lastAt, now) : null;
     const status = statusOf({
       hasActivity: Boolean(lastAt) || seconds > 0,
@@ -161,17 +101,12 @@ export function summarize({ tracking, categories, videos, now = Date.now() }) {
       name: category.name,
       seconds,
       completed,
-      total: feedVideos.length,
+      total,
       lastAt: lastAt || null,
       daysSince: daysAgo,
       toReview,
       ratio,
       status,
-      videoCount: categoryTracked.length,
-      reviewIds: new Set(
-        categoryTracked.filter((video) => video.rating === 'fragile').map((video) => video.videoId),
-      ),
-      feedIds,
     };
   });
 
@@ -181,7 +116,7 @@ export function summarize({ tracking, categories, videos, now = Date.now() }) {
     completedThisWeek,
     daily,
     categories: perCategory,
-    goal: WEEKLY_GOAL,
+    goal,
     weekLabel: weekLabel(now),
   };
 }
@@ -248,7 +183,7 @@ export function insightFor(summary) {
 
   const best = [...active].sort((a, b) => b.seconds - a.seconds)[0];
   const neglected = summary.categories
-    .filter((category) => category.daysSince !== null && category.daysSince >= 7)
+    .filter((category) => category.daysSince !== null && category.daysSince > 7)
     .sort((a, b) => b.daysSince - a.daysSince)[0];
   const review = summary.categories
     .filter((category) => category.toReview > 0)

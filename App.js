@@ -40,15 +40,15 @@ import { resolveChannelAvatars } from './services/channelAvatars';
 import {
   getTracking,
   initTracking,
+  resetTracking,
   subscribeTracking,
 } from './services/tracking';
+import { DEFAULT_SETTINGS, readSettings, writeSettings } from './services/settings';
 import {
   addSeenId,
-  addShortId,
   readCategories,
   readChannels,
   readSeenIds,
-  readShortIds,
   writeCategories,
   writeChannels,
 } from './services/storage';
@@ -59,7 +59,6 @@ const EMPTY_FEED = {
   savedAt: null,
   fromCache: false,
   failedChannels: [],
-  hiddenShorts: 0,
   error: null,
 };
 
@@ -74,14 +73,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [seenIds, setSeenIds] = useState([]);
-  const [shortIds, setShortIds] = useState([]);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [route, setRoute] = useState({ name: 'feed' });
   const [offline, setOffline] = useState(null);
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineProgress, setOfflineProgress] = useState(null);
   const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
   const [downloads, setDownloads] = useState([]);
-  const [downloadProgress, setDownloadProgress] = useState({});
+  const [savingIds, setSavingIds] = useState({});
   const [localVideos, setLocalVideos] = useState([]);
   const [importingLocal, setImportingLocal] = useState(false);
   const [avatars, setAvatars] = useState({});
@@ -133,24 +132,24 @@ export default function App() {
         storedChannels,
         storedCategories,
         seen,
-        shorts,
         storedOffline,
         storedDownloads,
         storedLocalVideos,
+        storedSettings,
       ] = await Promise.all([
         readChannels(),
         readCategories(),
         readSeenIds(),
-        readShortIds(),
         readOffline(),
         readDownloads(),
         readLocalVideos(),
+        readSettings(),
       ]);
       if (cancelled) return;
       setChannels(storedChannels);
       setCategories(storedCategories);
       setSeenIds(seen);
-      setShortIds(shorts);
+      setSettings(storedSettings);
       setOffline(storedOffline);
       setDownloads(storedDownloads);
       setLocalVideos(storedLocalVideos);
@@ -183,13 +182,13 @@ export default function App() {
     };
   }, [libraryReady, channelKey]);
 
-  const applyFeed = useCallback((result) => {    setFeed({
+  const applyFeed = useCallback((result) => {
+    setFeed({
       videos: result.videos ?? [],
       channels: result.channels ?? [],
       savedAt: result.savedAt ?? null,
       fromCache: Boolean(result.fromCache),
       failedChannels: result.failedChannels ?? [],
-      hiddenShorts: result.hiddenShorts ?? 0,
       error: result.error ?? null,
     });
 
@@ -306,16 +305,30 @@ export default function App() {
     addSeenId(video.videoId).then((seen) => setSeenIds(seen));
   }, []);
 
-  const handleShortDetected = useCallback((videoId) => {
-    addShortId(videoId).then((ids) => setShortIds(ids));
+  // Les Shorts ne sont plus retirés du flux : ils vont dans leur propre rangée
+  // (voir FeedScreen). Le filtre `shortIds` qui les bannissait définitivement,
+  // y compris pour une capsule pédagogique de 60 s, est supprimé.
+  const feedVideos = feed.videos;
+
+  const updateSettings = useCallback(async (patch) => {
+    const next = await writeSettings(patch);
+    setSettings(next);
   }, []);
 
-  // Les formats courts déjà repérés ne réapparaissent pas dans le flux.
-  const feedVideos = useMemo(() => {
-    if (shortIds.length === 0) return feed.videos;
-    const hidden = new Set(shortIds);
-    return feed.videos.filter((video) => !hidden.has(video.videoId));
-  }, [feed.videos, shortIds]);
+  const handleChangeGoal = useCallback(
+    (goal) => {
+      updateSettings({ weeklyGoal: goal });
+    },
+    [updateSettings],
+  );
+
+  const handleToggleAutoplay = useCallback(() => {
+    updateSettings({ autoplayNext: !settings.autoplayNext });
+  }, [settings.autoplayNext, updateSettings]);
+
+  const handleResetData = useCallback(async () => {
+    await resetTracking();
+  }, []);
 
   const handleDownloadOffline = useCallback(async () => {
     if (offlineDownloading || feedVideos.length === 0) return;
@@ -340,9 +353,10 @@ export default function App() {
     await clearOffline();
   }, []);
 
-  // Même geste que YouTube : menu « … » d'une carte puis « Télécharger ».
-  // La fiche part tout de suite, la miniature suit : le pourcentage avance
-  // pendant ce temps puis reste affiché un instant (comme YouTube).
+  // Menu « … » d'une carte puis « Enregistrer hors ligne ».
+  // Seules la fiche et la miniature sont conservées : aucun fichier vidéo
+  // YouTube n'est téléchargé. L'indicateur est donc un état « en cours », pas
+  // un faux pourcentage de progression.
   const handleToggleDownload = useCallback(
     async (video) => {
       const exists = downloads.some((item) => item.videoId === video.videoId);
@@ -352,43 +366,21 @@ export default function App() {
         return;
       }
 
-      if (downloadProgress[video.videoId] !== undefined) return;
+      if (savingIds[video.videoId]) return;
 
-      setDownloadProgress((prev) => ({ ...prev, [video.videoId]: 3 }));
-      const timer = setInterval(() => {
-        setDownloadProgress((prev) => {
-          const current = prev[video.videoId];
-          if (current === undefined || current >= 88) return prev;
-          const step = current < 30 ? 7 : current < 60 ? 5 : 3;
-          return { ...prev, [video.videoId]: Math.min(88, current + step) };
-        });
-      }, 110);
-
-      const startedAt = Date.now();
-      let next = downloads;
+      setSavingIds((prev) => ({ ...prev, [video.videoId]: true }));
       try {
-        next = await saveDownload(video);
-        // Le téléchargement d'une fiche est instantané : on garde un temps
-        // visible pour que la progression soit lisible.
-        const elapsed = Date.now() - startedAt;
-        if (elapsed < 1000) {
-          await new Promise((resolve) => setTimeout(resolve, 1000 - elapsed));
-        }
+        const next = await saveDownload(video);
         setDownloads(next);
       } finally {
-        clearInterval(timer);
-      }
-
-      setDownloadProgress((prev) => ({ ...prev, [video.videoId]: 100 }));
-      setTimeout(() => {
-        setDownloadProgress((prev) => {
+        setSavingIds((prev) => {
           const done = { ...prev };
           delete done[video.videoId];
           return done;
         });
-      }, 700);
+      }
     },
-    [downloadProgress, downloads],
+    [downloads, savingIds],
   );
 
   // Lecture hors ligne : fichiers vidéo de l'appareil (aucun téléchargement
@@ -450,14 +442,19 @@ export default function App() {
       setChannels(nextChannels);
       await writeChannels(nextChannels);
 
-      const nextCategories = categories
-        .map((category) => ({
-          ...category,
-          channelIds: category.channelIds.filter((id) => id !== channelId),
-        }))
-        .filter((category) => category.channelIds.length > 0);
+      // La catégorie est conservée même si elle devient vide : elle a été créée
+      // volontairement et peut être complétée plus tard. La supprimer en douce
+      // faisait perdre du travail sans prévenir.
+      const nextCategories = categories.map((category) => ({
+        ...category,
+        channelIds: category.channelIds.filter((id) => id !== channelId),
+      }));
 
-      if (nextCategories.length !== categories.length) {
+      const categoriesChanged = nextCategories.some(
+        (category, index) => category.channelIds.length !== categories[index].channelIds.length,
+      );
+
+      if (categoriesChanged) {
         setCategories(nextCategories);
         await writeCategories(nextCategories);
       }
@@ -540,7 +537,7 @@ export default function App() {
         onOpenCategories={() => setRoute({ name: 'categories' })}
         onOpenLibrary={() => setRoute({ name: 'channels' })}
         downloads={downloads}
-        downloadProgress={downloadProgress}
+        savingIds={savingIds}
         onToggleDownload={handleToggleDownload}
         onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}
@@ -552,7 +549,7 @@ export default function App() {
         fromCache={feed.fromCache}
         savedAt={feed.savedAt}
         failedChannels={feed.failedChannels}
-        hiddenShorts={feed.hiddenShorts}
+        shortsPosition={settings.shortsPosition}
         onRefresh={handleRefresh}
         onOpen={handleOpen}
       />
@@ -572,6 +569,9 @@ export default function App() {
         tracking={tracking}
         categories={categories}
         videos={feedVideos}
+        weeklyGoal={settings.weeklyGoal}
+        onChangeGoal={handleChangeGoal}
+        onResetData={handleResetData}
         onOpenCategory={(categoryId) =>
           setRoute({ name: 'categoryStats', categoryId })
         }
@@ -594,7 +594,12 @@ export default function App() {
         tracking={tracking}
         categories={categories}
         videos={feedVideos}
-        onOpenCategory={(categoryId) => setRoute({ name: 'categoryStats', categoryId })}
+        weeklyGoal={settings.weeklyGoal}
+        onChangeGoal={handleChangeGoal}
+        onResetData={handleResetData}
+        onOpenCategory={(categoryId) =>
+          setRoute({ name: 'categoryStats', categoryId })
+        }
         onOpenCategories={() => setRoute({ name: 'categories' })}
       />
     );
@@ -632,6 +637,7 @@ export default function App() {
       <CategoryEditor
         category={route.category}
         channels={channels}
+        categories={categories}
         avatars={avatars}
         onSave={handleSaveCategory}
         onDelete={handleDeleteCategory}
@@ -652,12 +658,14 @@ export default function App() {
         queue={route.queue}
         initialIndex={route.index}
         downloads={downloads}
+        savingIds={savingIds}
         avatars={avatars}
+        autoplayNext={settings.autoplayNext}
+        onToggleAutoplay={handleToggleAutoplay}
         backLabel={route.from === 'offline' ? 'Hors ligne' : 'Accueil'}
         onBack={() => setRoute({ name: route.from === 'offline' ? 'offline' : 'feed' })}
         onVideoChange={handleVideoChange}
         onToggleDownload={handleToggleDownload}
-        onShortDetected={handleShortDetected}
       />
     );
   }

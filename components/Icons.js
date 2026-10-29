@@ -374,6 +374,98 @@ export function TrashIcon({ color, size = 16, thickness = 2 }) {
   );
 }
 
+export function ShortsIcon({ color, size = 18 }) {
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: size * 0.62,
+          height: size * 0.88,
+          borderRadius: size * 0.18,
+          borderWidth: Math.max(1.4, size * 0.1),
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          width: 0,
+          height: 0,
+          marginLeft: size * 0.06,
+          borderTopWidth: size * 0.14,
+          borderBottomWidth: size * 0.14,
+          borderLeftWidth: size * 0.22,
+          borderTopColor: 'transparent',
+          borderBottomColor: 'transparent',
+          borderLeftColor: color,
+        }}
+      />
+    </View>
+  );
+}
+
+export function FullscreenIcon({ color, size = 16, thickness = 2 }) {
+  const corner = size * 0.34;
+  const style = (top, left, right, bottom, turns) => ({
+    position: 'absolute',
+    top,
+    left,
+    right,
+    bottom,
+    width: corner,
+    height: corner,
+    borderColor: color,
+    borderTopWidth: turns.top ? thickness : 0,
+    borderLeftWidth: turns.left ? thickness : 0,
+    borderRightWidth: turns.right ? thickness : 0,
+    borderBottomWidth: turns.bottom ? thickness : 0,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  });
+
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={style(0, 0, undefined, undefined, { top: true, left: true })} />
+      <View style={style(0, undefined, 0, undefined, { top: true, right: true })} />
+      <View style={style(undefined, 0, undefined, 0, { bottom: true, left: true })} />
+      <View style={style(undefined, undefined, 0, 0, { bottom: true, right: true })} />
+    </View>
+  );
+}
+
+export function MinimizeIcon({ color, size = 16, thickness = 2 }) {
+  const arm = size * 0.34;
+  const style = (top, left, right, bottom, turns) => ({
+    position: 'absolute',
+    top,
+    left,
+    right,
+    bottom,
+    width: arm,
+    height: arm,
+    borderColor: color,
+    borderTopWidth: turns.top ? thickness : 0,
+    borderLeftWidth: turns.left ? thickness : 0,
+    borderRightWidth: turns.right ? thickness : 0,
+    borderBottomWidth: turns.bottom ? thickness : 0,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  });
+
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={style(0, 0, undefined, undefined, { bottom: true, right: true })} />
+      <View style={style(0, undefined, 0, undefined, { bottom: true, left: true })} />
+      <View style={style(undefined, 0, undefined, 0, { top: true, right: true })} />
+      <View style={style(undefined, undefined, 0, 0, { top: true, left: true })} />
+    </View>
+  );
+}
+
 export function StatsIcon({ color, size = 20, thickness = 2.5 }) {
   const bars = [
     { height: 0.42, offset: 0 },

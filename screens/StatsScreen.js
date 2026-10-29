@@ -1,16 +1,29 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Chevron } from '../components/Icons';
+import ConfirmSheet from '../components/ConfirmSheet';
+import { Chevron, PlusIcon, TrashIcon } from '../components/Icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
+import { GOAL_MAX, GOAL_MIN } from '../services/settings';
 import { formatEffort, insightFor, summarize } from '../services/stats';
 
-export default function StatsScreen({ tracking, categories, videos, onOpenCategory, onOpenCategories }) {
+export default function StatsScreen({
+  tracking,
+  categories,
+  videos,
+  weeklyGoal = 8,
+  onChangeGoal,
+  onResetData,
+  onOpenCategory,
+  onOpenCategories,
+}) {
+  const [confirmingReset, setConfirmingReset] = useState(false);
+
   const summary = useMemo(
-    () => summarize({ tracking, categories, videos }),
-    [tracking, categories, videos],
+    () => summarize({ tracking, categories, videos, goal: weeklyGoal }),
+    [tracking, categories, videos, weeklyGoal],
   );
 
   const insight = useMemo(() => insightFor(summary), [summary]);
@@ -36,6 +49,40 @@ export default function StatsScreen({ tracking, categories, videos, onOpenCatego
           </View>
           <View style={styles.track}>
             <View style={[styles.trackFill, { width: `${goalRatio * 100}%` }]} />
+          </View>
+
+          <View style={styles.goalStepper}>
+            <Pressable
+              onPress={() => onChangeGoal?.(Math.max(GOAL_MIN, weeklyGoal - 1))}
+              disabled={weeklyGoal <= GOAL_MIN}
+              accessibilityRole="button"
+              accessibilityLabel="Réduire l’objectif hebdomadaire"
+              accessibilityState={{ disabled: weeklyGoal <= GOAL_MIN }}
+              style={({ pressed }) => [
+                styles.stepButton,
+                weeklyGoal <= GOAL_MIN && styles.stepButtonDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.stepSign}>−</Text>
+            </Pressable>
+
+            <Text style={styles.stepHint}>vidéos par semaine</Text>
+
+            <Pressable
+              onPress={() => onChangeGoal?.(Math.min(GOAL_MAX, weeklyGoal + 1))}
+              disabled={weeklyGoal >= GOAL_MAX}
+              accessibilityRole="button"
+              accessibilityLabel="Augmenter l’objectif hebdomadaire"
+              accessibilityState={{ disabled: weeklyGoal >= GOAL_MAX }}
+              style={({ pressed }) => [
+                styles.stepButton,
+                weeklyGoal >= GOAL_MAX && styles.stepButtonDisabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <PlusIcon color={colors.text} size={13} thickness={2} />
+            </Pressable>
           </View>
         </View>
 
@@ -97,7 +144,33 @@ export default function StatsScreen({ tracking, categories, videos, onOpenCatego
         <View style={styles.insight}>
           <Text style={styles.insightText}>{insight}</Text>
         </View>
+
+        <Pressable
+          onPress={() => setConfirmingReset(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Effacer mes données de suivi"
+          style={({ pressed }) => [styles.reset, pressed && styles.pressed]}
+        >
+          <TrashIcon color={colors.danger} size={15} />
+          <Text style={styles.resetText}>Effacer mes données</Text>
+        </Pressable>
+        <Text style={styles.resetHint}>
+          Temps, vidéos terminées et auto-évaluations sont supprimés de cet appareil.
+        </Text>
       </ScrollView>
+
+      <ConfirmSheet
+        visible={confirmingReset}
+        title="Effacer mes données ?"
+        message="Ton temps de visionnage, tes vidéos terminées et tes auto-évaluations seront définitivement supprimés. Les chaînes et catégories sont conservées."
+        confirmLabel="Effacer"
+        destructive
+        onConfirm={() => {
+          setConfirmingReset(false);
+          onResetData?.();
+        }}
+        onCancel={() => setConfirmingReset(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -303,5 +376,60 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     fontWeight: '500',
+  },
+  goalStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  stepButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  stepButtonDisabled: {
+    opacity: 0.4,
+  },
+  stepSign: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  stepHint: {
+    flex: 1,
+    textAlign: 'center',
+    color: colors.textFaint,
+    fontSize: 11.5,
+    fontWeight: '500',
+  },
+  reset: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xxl,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.dangerSoft,
+  },
+  resetText: {
+    color: colors.danger,
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  resetHint: {
+    marginTop: spacing.sm,
+    color: colors.textFaint,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
   },
 });

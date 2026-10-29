@@ -15,7 +15,15 @@ import ConfirmSheet from '../components/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
 
-export default function CategoryEditor({ category, channels, avatars = {}, onSave, onDelete, onClose }) {
+export default function CategoryEditor({
+  category,
+  channels,
+  categories = [],
+  avatars = {},
+  onSave,
+  onDelete,
+  onClose,
+}) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(category?.name ?? '');
   const [selected, setSelected] = useState(() => new Set(category?.channelIds ?? []));
@@ -47,6 +55,18 @@ export default function CategoryEditor({ category, channels, avatars = {}, onSav
 
   const handleSave = async () => {
     if (!canSave) return;
+
+    // Deux catégories du même nom rendraient les puces de l'accueil
+    // indiscernables : on refuse avant d'écrire.
+    const duplicate = categories.some(
+      (entry) =>
+        entry.id !== category?.id &&
+        entry.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+    );
+    if (duplicate) {
+      setError('Une catégorie porte déjà ce nom.');
+      return;
+    }
 
     setSaving(true);
     setError(null);

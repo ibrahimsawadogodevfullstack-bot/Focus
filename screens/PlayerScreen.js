@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,14 +15,16 @@ import {
   CheckIcon,
   Chevron,
   DownloadIcon,
+  FullscreenIcon,
   LockIcon,
+  MinimizeIcon,
   PauseIcon,
   PlayIcon,
 } from '../components/Icons';
 import ChannelAvatar from '../components/ChannelAvatar';
-import { FocusMark } from '../components/FocusMark';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
+import { FORMAT_SHORT, classifyFormat } from '../services/filters';
 import {
   getTracking,
   markOpened,
@@ -41,8 +44,14 @@ const RATINGS = [
 
 const FLUSH_EVERY = 5;
 
-// Une page = une vidéo plein écran. Le lecteur n'est monté que pour la page
-// visible ; les autres affichent la miniature (une seule WebView à la fois).
+// Une page = une vidéo. Le lecteur n'est monté que pour la page visible ; les
+// autres affichent la miniature (une seule WebView à la fois).
+//
+// Deux présentations :
+//   - verticale (Short) : le lecteur occupe tout l'écran dès l'ouverture,
+//     contrôles en surimpression — comme Reels/Shorts ;
+//   - horizontale : lecteur 16:9, puis contrôles et détails, avec un bouton
+//     plein écran qui bascule dans la présentation immersive.
 function VideoPage({
   video,
   height,
@@ -50,14 +59,17 @@ function VideoPage({
   isLast,
   downloaded,
   avatars,
-  // Pourcentage de téléchargement en cours (0–100), undefined si inactif.
-  downloadPercent,
+  saving,
   onToggleDownload,
   onEnded,
   onSeen,
-  onShortDetected,
 }) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  const vertical = classifyFormat(video) === FORMAT_SHORT;
+  // Plein écran par défaut pour le vertical, sur demande pour l'horizontal.
+  const [immersive, setImmersive] = useState(vertical);
   const playerRef = useRef(null);
   const trackRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -67,7 +79,6 @@ function VideoPage({
   const [errorCode, setErrorCode] = useState(null);
   const [playerKey, setPlayerKey] = useState(0);
   const [blocked, setBlocked] = useState(false);
-  const [shortNotice, setShortNotice] = useState(false);
   const [rating, setRatingState] = useState(
     () => getTracking().videos?.[video.videoId]?.rating ?? null,
   );
@@ -77,7 +88,6 @@ function VideoPage({
   const [lastReplayAt, setLastReplayAt] = useState(
     () => getTracking().videos?.[video.videoId]?.lastReplayAt ?? null,
   );
-  const flaggedShort = useRef(false);
   const lastTimeRef = useRef(null);
   const durationRef = useRef(0);
   const playingRef = useRef(false);
@@ -124,12 +134,6 @@ function VideoPage({
     return () => clearTimeout(timer);
   }, [blocked]);
 
-  useEffect(() => {
-    if (!shortNotice) return undefined;
-    const timer = setTimeout(() => setShortNotice(false), 3200);
-    return () => clearTimeout(timer);
-  }, [shortNotice]);
-
   const handleEvent = useCallback(
     (event) => {
       switch (event.type) {
@@ -166,17 +170,7 @@ function VideoPage({
           setTime(current);
           if (event.duration) {
             setDuration(event.duration);
-            // Un format très court est presque toujours un Short : on le
-            // signale et il disparaîtra du flux aux prochains chargements.
-            if (
-              event.duration > 0 &&
-              event.duration <= 65 &&
-              !flaggedShort.current
-            ) {
-              flaggedShort.current = true;
-              onShortDetected?.(video.videoId);
-              setShortNotice(true);
-            }
+            durationRef.current = event.duration;
           }
           break;
         }
@@ -196,7 +190,7 @@ function VideoPage({
           break;
       }
     },
-    [flush, onEnded, onShortDetected, video],
+    [flush, onEnded, video],
   );
 
   const seekToRatio = (ratio) => {
@@ -240,11 +234,19 @@ function VideoPage({
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
   const notice = blocked ? 'Sortie bloquée — tu restes dans Focus' : null;
-  const shortPill = shortNotice ? 'Short masqué' : null;
+
+  // Hauteur du lecteur horizontal : 16:9 quand la place le permet, sinon ce
+  // qui reste au-dessus des contrôles (aucun débordement sur petit écran).
+  const stageHeight = Math.min((windowWidth * 9) / 16, Math.max(160, height - 330));
 
   return (
     <View style={[styles.page, { height }]}>
-      <View style={styles.playerWrap}>
+      <View
+        style={[
+          styles.stage,
+          immersive ? styles.stageImmersive : { height: stageHeight },
+        ]}
+      >
         {active && !errorCode ? (
           <YoutubePlayer
             key={playerKey}
@@ -258,7 +260,7 @@ function VideoPage({
             <Image
               source={{ uri: thumbnail(video.videoId) }}
               style={styles.poster}
-              resizeMode="cover"
+              resizeMode="contain"
             />
             {errorCode ? (
               <View style={styles.posterOverlay}>
@@ -281,8 +283,118 @@ function VideoPage({
             ) : null}
           </>
         )}
+        {immersive ? (
+          <View style={styles.overlayTop} pointerEvents="none">
+            <Text style={styles.overlayTitle} numberOfLines={2}>
+              {video.title}
+            </Text>
+            <Text style={styles.overlayMeta} numberOfLines={1}>
+              {video.channelTitle}
+            </Text>
+            {notice ? (
+              <Text
+                style={[styles.overlayMeta, blocked && styles.overlayBlocked]}
+                numberOfLines={1}
+              >
+                {notice}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {immersive ? (
+          <View
+            style={[
+              styles.overlayBottom,
+              { paddingBottom: spacing.lg + insets.bottom },
+            ]}
+          >
+            <View style={styles.overlayTrack}>
+              <View style={[styles.trackFill, { width: `${progressRatio * 100}%` }]} />
+            </View>
+
+            <View style={styles.overlayTimeRow}>
+              <Text style={styles.overlayTime}>{formatClock(time)}</Text>
+              <Text style={styles.overlayTime}>
+                {duration ? formatClock(duration) : '—:—'}
+              </Text>
+            </View>
+
+            <View style={styles.overlayButtons}>
+              <Pressable
+                onPress={() => playerRef.current?.seekBy(-10)}
+                disabled={!active}
+                accessibilityRole="button"
+                accessibilityLabel="Reculer de dix secondes"
+                style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
+              >
+                <Text style={styles.roundText}>−10</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => playerRef.current?.toggle()}
+                disabled={!active}
+                accessibilityRole="button"
+                accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
+                style={({ pressed }) => [styles.play, pressed && styles.playPressed]}
+              >
+                {isPlaying ? <PauseIcon size={17} /> : <PlayIcon size={19} />}
+              </Pressable>
+
+              <Pressable
+                onPress={() => playerRef.current?.seekBy(10)}
+                disabled={!active}
+                accessibilityRole="button"
+                accessibilityLabel="Avancer de dix secondes"
+                style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
+              >
+                <Text style={styles.roundText}>+10</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setImmersive(false)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  vertical ? 'Afficher les détails' : 'Quitter le plein écran'
+                }
+                style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
+              >
+                <MinimizeIcon color={colors.text} size={15} />
+              </Pressable>
+            </View>
+
+            <View style={styles.overlayRating}>
+              {RATINGS.map((option) => {
+                const selected = rating === option.key;
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => handleRate(option.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${option.label} — ${option.hint}`}
+                    style={({ pressed }) => [
+                      styles.overlayChip,
+                      selected && styles.overlayChipActive,
+                      pressed && styles.ratingPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[styles.overlayChipText, selected && styles.overlayChipTextActive]}
+                      numberOfLines={1}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
       </View>
 
+      {immersive ? null : (
+      <>
       <View style={styles.controls}>
         <Pressable
           ref={trackRef}
@@ -340,6 +452,15 @@ function VideoPage({
           >
             <Text style={styles.roundText}>+10</Text>
           </Pressable>
+
+          <Pressable
+            onPress={() => setImmersive(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Plein écran"
+            style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
+          >
+            <FullscreenIcon color={colors.text} size={15} />
+          </Pressable>
         </View>
       </View>
 
@@ -362,11 +483,11 @@ function VideoPage({
 
           <View style={styles.metaSpacer} />
 
-          {typeof downloadPercent === 'number' ? (
+          {saving ? (
             <View style={[styles.downloadChip, styles.downloadChipOn]}>
               <DownloadIcon color={colors.accentText} size={12} thickness={2} />
               <Text style={[styles.downloadLabel, styles.downloadLabelOn]}>
-                {downloadPercent} %
+                Enregistrement…
               </Text>
             </View>
           ) : onToggleDownload ? (
@@ -393,7 +514,7 @@ function VideoPage({
                 style={[styles.downloadLabel, downloaded && styles.downloadLabelOn]}
                 numberOfLines={1}
               >
-                {downloaded ? 'Téléchargée' : 'Télécharger'}
+                {downloaded ? 'Enregistrée hors ligne' : 'Enregistrer hors ligne'}
               </Text>
             </Pressable>
           ) : null}
@@ -439,11 +560,11 @@ function VideoPage({
           ) : null}
         </View>
 
-        {notice || shortPill ? (
+        {notice ? (
           <View style={[styles.notice, blocked && styles.noticeBlocked]}>
             <LockIcon color={blocked ? colors.danger : colors.accentText} size={10} />
             <Text style={[styles.noticeText, blocked && styles.noticeTextBlocked]}>
-              {notice || shortPill}
+              {notice}
             </Text>
           </View>
         ) : null}
@@ -484,6 +605,8 @@ function VideoPage({
           )}
         </View>
       </View>
+      </>
+      )}
     </View>
   );
 }
@@ -492,13 +615,14 @@ export default function PlayerScreen({
   queue,
   initialIndex = 0,
   downloads = [],
-  downloadProgress = {},
+  savingIds = {},
   backLabel = 'Accueil',
   avatars = {},
+  autoplayNext = false,
+  onToggleAutoplay,
   onBack,
   onVideoChange,
   onToggleDownload,
-  onShortDetected,
 }) {
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
@@ -568,12 +692,26 @@ export default function PlayerScreen({
           <Text style={styles.backLabel}>{backLabel}</Text>
         </Pressable>
 
-        <View style={styles.focusPill}>
-          <FocusMark size={12} />
-          <Text style={styles.focusText} numberOfLines={1}>
-            Mode focus
+        <Pressable
+          onPress={onToggleAutoplay}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: Boolean(autoplayNext) }}
+          accessibilityLabel={
+            autoplayNext
+              ? 'Désactiver la lecture continue'
+              : 'Activer la lecture continue'
+          }
+          style={({ pressed }) => [
+            styles.autoplay,
+            autoplayNext && styles.autoplayOn,
+            pressed && styles.backPressed,
+          ]}
+        >
+          <PlayIcon color={autoplayNext ? colors.accentText : colors.textFaint} size={9} />
+          <Text style={[styles.autoplayText, autoplayNext && styles.autoplayTextOn]}>
+            Enchaîner
           </Text>
-        </View>
+        </Pressable>
 
         <Text style={styles.counter}>
           {index + 1} / {queue.length}
@@ -597,11 +735,14 @@ export default function PlayerScreen({
                 isLast={itemIndex === queue.length - 1}
                 avatars={avatars}
                 downloaded={downloads.some((video) => video.videoId === item.videoId)}
-                downloadPercent={downloadProgress[item.videoId]}
+                saving={Boolean(savingIds[item.videoId])}
                 onToggleDownload={onToggleDownload}
-                onEnded={() => goToIndex(itemIndex + 1)}
+                onEnded={() => {
+                  // Lecture continue désactivée par défaut : sans ce garde-fou,
+                  // la fin d'une vidéo enchaînait sur tout le flux.
+                  if (autoplayNext) goToIndex(itemIndex + 1);
+                }}
                 onSeen={onVideoChange}
-                onShortDetected={onShortDetected}
               />
             )}
             getItemLayout={(_, itemIndex) => ({
@@ -664,23 +805,27 @@ const styles = StyleSheet.create({
     minWidth: 64,
     textAlign: 'right',
   },
-  focusPill: {
+  autoplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    height: 28,
-    paddingHorizontal: spacing.md,
-    borderRadius: 14,
-    backgroundColor: colors.accentSoft,
+    gap: 5,
+    height: 30,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.accentLine,
-    maxWidth: 150,
+    borderColor: colors.line,
   },
-  focusText: {
-    color: colors.accentText,
+  autoplayOn: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentLine,
+  },
+  autoplayText: {
+    color: colors.textFaint,
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.1,
+  },
+  autoplayTextOn: {
+    color: colors.accentText,
   },
   listWrap: {
     flex: 1,
@@ -689,16 +834,111 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: colors.bg,
   },
-  // Le lecteur prend toute la hauteur laissée par les contrôles : les vidéos
-  // verticales (Shorts) occupent ainsi l'écran comme dans l'app YouTube.
-  playerWrap: {
+  // Boîte du lecteur : hauteur imposée par le format (16:9 en présentation
+  // normale, tout l'écran en immersif). Elle ne dépend plus de ce qui reste.
+  stage: {
     width: '100%',
-    flex: 1,
-    minHeight: 180,
     backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  stageImmersive: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
   player: {
     flex: 1,
+  },
+  overlayTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    backgroundColor: 'rgba(5, 7, 14, 0.55)',
+  },
+  overlayTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  overlayMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  overlayBlocked: {
+    color: colors.danger,
+  },
+  overlayBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.xxxl,
+    gap: spacing.sm,
+    backgroundColor: 'rgba(5, 7, 14, 0.62)',
+  },
+  overlayTrack: {
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(233, 241, 255, 0.3)',
+  },
+  overlayTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  overlayTime: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  overlayButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  overlayRound: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(233, 241, 255, 0.14)',
+  },
+  overlayRating: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  overlayChip: {
+    flex: 1,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(233, 241, 255, 0.12)',
+    paddingHorizontal: 4,
+  },
+  overlayChipActive: {
+    backgroundColor: colors.accent,
+  },
+  overlayChipText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  overlayChipTextActive: {
+    color: colors.onAccent,
+    fontWeight: '700',
   },
   poster: {
     width: '100%',
@@ -935,11 +1175,6 @@ const styles = StyleSheet.create({
   downloadLabelOn: {
     color: colors.accentText,
     fontWeight: '700',
-  },
-  avatarText: {
-    color: colors.accentText,
-    fontSize: 10,
-    fontWeight: '800',
   },
   channel: {
     color: colors.textMuted,
