@@ -573,6 +573,8 @@ export default function PlayerScreen({
             initialScrollIndex={Math.min(initialIndex, queue.length - 1)}
             initialNumToRender={1}
             maxToRenderPerBatch={2}
+            // Une WebView détruite pendant la lecture fait planter Android.
+            removeClippedSubviews={false}
             windowSize={3}
             pagingEnabled
             snapToInterval={pageHeight}

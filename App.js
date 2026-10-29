@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
 import TabBar from './components/TabBar';
 import { colors } from './constants/theme';
 import CategoriesScreen from './screens/CategoriesScreen';
@@ -19,6 +20,7 @@ import {
   saveDownload,
   writeDownloads,
 } from './services/downloads';
+import { saveCrash } from './services/crashLog';
 import { loadFeed } from './services/feed';
 import {
   clearOffline,
@@ -73,6 +75,7 @@ export default function App() {
   const [downloads, setDownloads] = useState([]);
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
+  const [crash, setCrash] = useState(null);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -80,6 +83,22 @@ export default function App() {
     () => channels.map((channel) => channel.id).join(','),
     [channels],
   );
+
+  // Erreurs JS : on les affiche au lieu de fermer l'application.
+  useEffect(() => {
+    const errorUtils = global.ErrorUtils;
+    if (!errorUtils?.setGlobalHandler) return undefined;
+
+    const previous = errorUtils.getGlobalHandler?.();
+    errorUtils.setGlobalHandler((error) => {
+      saveCrash(error, 'global');
+      setCrash({ error });
+    });
+
+    return () => {
+      if (previous) errorUtils.setGlobalHandler(previous);
+    };
+  }, []);
 
   // Suivi de lecture : temps effectif, progression, révisions.
   useEffect(() => {
@@ -543,7 +562,21 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
-        <View style={styles.body}>{screen}</View>
+        <View style={styles.body}>
+          {crash ? (
+            <CrashScreen
+              error={crash.error}
+              onRetry={() => {
+                setCrash(null);
+                setRoute({ name: 'feed' });
+              }}
+            />
+          ) : (
+            <ErrorBoundary onReset={() => setRoute({ name: 'feed' })}>
+              {screen}
+            </ErrorBoundary>
+          )}
+        </View>
         {showTabBar ? <TabBar active={route.name} onChange={handleOpenTab} /> : null}
         <StatusBar style="light" />
       </View>
