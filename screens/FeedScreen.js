@@ -49,6 +49,7 @@ export default function FeedScreen({
   hiddenShorts = 0,
   onRefresh,
   downloads = [],
+  downloadProgress = {},
   onOpen,
   onToggleDownload,
   onRemoveChannel,
@@ -136,6 +137,7 @@ export default function FeedScreen({
             isNew={hasHistory && !seen.has(item.videoId)}
             onPress={() => onOpen(item, visibleVideos)}
             downloaded={downloads.some((video) => video.videoId === item.videoId)}
+            downloadPercent={downloadProgress[item.videoId]}
             channelAvatar={avatars[item.channelId]}
             onMore={
               onRemoveChannel || onToggleDownload

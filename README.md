@@ -21,7 +21,9 @@ pas de serveur intermédiaire, pas de clé API.
   passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
 - **Hors ligne** : comme dans YouTube, le menu « … » d'une vidéo propose
   « Télécharger » : sa fiche et sa miniature sont conservées et apparaissent
-  dans l'onglet Hors ligne (avec suppression possible). L'onglet permet aussi de
+  dans l'onglet Hors ligne (avec suppression possible). La carte affiche la
+  progression en pourcentage pendant l'enregistrement, puis un badge
+  « Téléchargée ». L'onglet permet aussi de
   garder d'un coup les titres, chaînes et miniatures de tout le flux. Le fichier
   vidéo, lui, n'est pas enregistré (interdit par les CGU du lecteur) : la liste
   reste consultable, la lecture demande une connexion.

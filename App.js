@@ -73,6 +73,7 @@ export default function App() {
   const [offlineProgress, setOfflineProgress] = useState(null);
   const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
   const [downloads, setDownloads] = useState([]);
+  const [downloadProgress, setDownloadProgress] = useState({});
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const [crash, setCrash] = useState(null);
@@ -323,15 +324,54 @@ export default function App() {
   }, []);
 
   // Même geste que YouTube : menu « … » d'une carte puis « Télécharger ».
+  // La fiche part tout de suite, la miniature suit : le pourcentage avance
+  // pendant ce temps puis reste affiché un instant (comme YouTube).
   const handleToggleDownload = useCallback(
     async (video) => {
       const exists = downloads.some((item) => item.videoId === video.videoId);
-      const next = exists
-        ? await deleteDownload(video.videoId)
-        : await saveDownload(video);
-      setDownloads(next);
+      if (exists) {
+        const next = await deleteDownload(video.videoId);
+        setDownloads(next);
+        return;
+      }
+
+      if (downloadProgress[video.videoId] !== undefined) return;
+
+      setDownloadProgress((prev) => ({ ...prev, [video.videoId]: 3 }));
+      const timer = setInterval(() => {
+        setDownloadProgress((prev) => {
+          const current = prev[video.videoId];
+          if (current === undefined || current >= 88) return prev;
+          const step = current < 30 ? 7 : current < 60 ? 5 : 3;
+          return { ...prev, [video.videoId]: Math.min(88, current + step) };
+        });
+      }, 110);
+
+      const startedAt = Date.now();
+      let next = downloads;
+      try {
+        next = await saveDownload(video);
+        // Le téléchargement d'une fiche est instantané : on garde un temps
+        // visible pour que la progression soit lisible.
+        const elapsed = Date.now() - startedAt;
+        if (elapsed < 1000) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 - elapsed));
+        }
+        setDownloads(next);
+      } finally {
+        clearInterval(timer);
+      }
+
+      setDownloadProgress((prev) => ({ ...prev, [video.videoId]: 100 }));
+      setTimeout(() => {
+        setDownloadProgress((prev) => {
+          const done = { ...prev };
+          delete done[video.videoId];
+          return done;
+        });
+      }, 700);
     },
-    [downloads],
+    [downloadProgress, downloads],
   );
 
   const handleOpenDownload = useCallback(
@@ -451,6 +491,7 @@ export default function App() {
         onOpenCategories={() => setRoute({ name: 'categories' })}
         onOpenLibrary={() => setRoute({ name: 'channels' })}
         downloads={downloads}
+        downloadProgress={downloadProgress}
         onToggleDownload={handleToggleDownload}
         onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}

@@ -13,9 +13,20 @@ const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
  * Le bouton « … » est un frère du bouton principal pour éviter un bouton
  * imbriqué dans un autre sur le web.
  */
-export default function VideoCard({ video, isNew, downloaded, channelAvatar, onPress, onMore }) {
+export default function VideoCard({
+  video,
+  isNew,
+  downloaded,
+  downloadPercent,
+  channelAvatar,
+  onPress,
+  onMore,
+}) {
   const [thumbStep, setThumbStep] = useState(0);
-  const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}`;
+  const downloading = typeof downloadPercent === 'number';
+  const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}${
+    downloading ? `, téléchargement ${downloadPercent} %` : ''
+  }`;
 
   return (
     <View style={styles.card}>
@@ -41,10 +52,18 @@ export default function VideoCard({ video, isNew, downloaded, channelAvatar, onP
           </View>
         ) : null}
 
-        {downloaded ? (
+        {downloaded && !downloading ? (
           <View style={styles.downloadedBadge}>
             <DownloadIcon color={colors.text} size={11} thickness={2} />
             <Text style={styles.newText}>Téléchargée</Text>
+          </View>
+        ) : null}
+
+        {downloading ? (
+          <View style={styles.progressTrack}>
+            <View
+              style={[styles.progressFill, { width: `${Math.max(3, downloadPercent)}%` }]}
+            />
           </View>
         ) : null}
       </Pressable>
@@ -62,8 +81,13 @@ export default function VideoCard({ video, isNew, downloaded, channelAvatar, onP
             <Text style={styles.title} numberOfLines={2}>
               {video.title}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {video.channelTitle} · {timeAgo(video.publishedAt)}
+            <Text
+              style={[styles.meta, downloading && styles.metaDownloading]}
+              numberOfLines={1}
+            >
+              {downloading
+                ? `Téléchargement… ${downloadPercent} %`
+                : `${video.channelTitle} · ${timeAgo(video.publishedAt)}`}
             </Text>
           </View>
         </Pressable>
@@ -114,6 +138,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 11,
     backgroundColor: 'rgba(5, 7, 14, 0.82)',
+  },
+  metaDownloading: {
+    color: colors.accentText,
+    fontWeight: '600',
+  },
+  progressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: 'rgba(5, 7, 14, 0.6)',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: colors.accent,
   },
   downloadedBadge: {
     position: 'absolute',

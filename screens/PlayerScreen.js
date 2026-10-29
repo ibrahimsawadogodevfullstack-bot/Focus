@@ -360,7 +360,14 @@ function VideoPage({
 
           <View style={styles.metaSpacer} />
 
-          {onToggleDownload ? (
+          {typeof downloadPercent === 'number' ? (
+            <View style={[styles.downloadChip, styles.downloadChipOn]}>
+              <DownloadIcon color={colors.accentText} size={12} thickness={2} />
+              <Text style={[styles.downloadLabel, styles.downloadLabelOn]}>
+                {downloadPercent} %
+              </Text>
+            </View>
+          ) : onToggleDownload ? (
             <Pressable
               onPress={() => onToggleDownload(video)}
               accessibilityRole="button"
@@ -483,6 +490,7 @@ export default function PlayerScreen({
   queue,
   initialIndex = 0,
   downloads = [],
+  downloadProgress = {},
   backLabel = 'Accueil',
   avatars = {},
   onBack,
@@ -587,6 +595,7 @@ export default function PlayerScreen({
                 isLast={itemIndex === queue.length - 1}
                 avatars={avatars}
                 downloaded={downloads.some((video) => video.videoId === item.videoId)}
+                downloadPercent={downloadProgress[item.videoId]}
                 onToggleDownload={onToggleDownload}
                 onEnded={() => goToIndex(itemIndex + 1)}
                 onSeen={onVideoChange}
