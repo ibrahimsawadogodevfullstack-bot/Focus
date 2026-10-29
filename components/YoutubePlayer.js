@@ -123,7 +123,20 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
             // Message non JSON : sans intérêt pour l'application.
           }
         }}
-        onError={() => onEvent?.({ type: 'error', code: 'webview' })}
+        onError={(event) => {
+          // Une coupure réseau donne une page d'erreur WebView : on la
+          // distingue d'un refus d'intégration pour un message juste.
+          const { description = '', code } = event?.nativeEvent ?? {};
+          const offline =
+            /ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|ERR_CONNECTION|ERR_ADDRESS_UNREACHABLE|ERR_NETWORK_CHANGED/i.test(
+              description,
+            );
+          onEvent?.({
+            type: 'error',
+            code: offline ? 'network' : code ?? 'webview',
+            description,
+          });
+        }}
         onHttpError={(event) =>
           onEvent?.({
             type: 'error',

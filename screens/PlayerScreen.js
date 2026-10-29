@@ -63,6 +63,7 @@ function VideoPage({
   const [duration, setDuration] = useState(0);
   const [trackWidth, setTrackWidth] = useState(0);
   const [errorCode, setErrorCode] = useState(null);
+  const [playerKey, setPlayerKey] = useState(0);
   const [blocked, setBlocked] = useState(false);
   const [shortNotice, setShortNotice] = useState(false);
   const [rating, setRatingState] = useState(
@@ -242,19 +243,41 @@ function VideoPage({
   return (
     <View style={[styles.page, { height }]}>
       <View style={styles.playerWrap}>
-        {active ? (
+        {active && !errorCode ? (
           <YoutubePlayer
+            key={playerKey}
             ref={playerRef}
             videoId={video.videoId}
             onEvent={handleEvent}
             style={styles.player}
           />
         ) : (
-          <Image
-            source={{ uri: thumbnail(video.videoId) }}
-            style={styles.poster}
-            resizeMode="cover"
-          />
+          <>
+            <Image
+              source={{ uri: thumbnail(video.videoId) }}
+              style={styles.poster}
+              resizeMode="cover"
+            />
+            {errorCode ? (
+              <View style={styles.posterOverlay}>
+                <Text style={styles.offlineText}>
+                  {errorCode === 'network'
+                    ? 'Hors ligne : cette vidéo n’est pas enregistrée sur l’appareil.'
+                    : 'Lecture intégrée indisponible.'}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setErrorCode(null);
+                    setPlayerKey((value) => value + 1);
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.retry, pressed && styles.retryPressed]}
+                >
+                  <Text style={styles.retryText}>Réessayer</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </>
         )}
       </View>
 
@@ -418,10 +441,13 @@ function VideoPage({
 
         {errorCode ? (
           <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Lecture intégrée indisponible</Text>
+            <Text style={styles.errorTitle}>
+              {errorCode === 'network' ? 'Pas de connexion' : 'Lecture intégrée indisponible'}
+            </Text>
             <Text style={styles.errorText}>
-              Le propriétaire refuse l’intégration, ou la vidéo n’est plus disponible. Aucun lien
-              de sortie n’est proposé : le mode focus reste actif.
+              {errorCode === 'network'
+                ? 'Hors ligne, seuls le titre et la miniature sont conservés : la vidéo demande une connexion. Aucun lien de sortie n’est proposé.'
+                : 'Le propriétaire refuse l’intégration, ou la vidéo n’est plus disponible. Aucun lien de sortie n’est proposé : le mode focus reste actif.'}
             </Text>
             <Text style={styles.errorHint}>
               {isLast ? 'Fin de la liste.' : 'Glisse vers le haut pour la vidéo suivante.'}
@@ -663,6 +689,37 @@ const styles = StyleSheet.create({
   poster: {
     width: '100%',
     height: '100%',
+  },
+  posterOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: 'rgba(5, 7, 14, 0.78)',
+  },
+  offlineText: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  retry: {
+    height: 38,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  retryPressed: {
+    opacity: 0.85,
+  },
+  retryText: {
+    color: colors.onAccent,
+    fontSize: 13,
+    fontWeight: '700',
   },
   notice: {
     alignSelf: 'flex-start',
