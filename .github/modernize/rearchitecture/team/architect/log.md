@@ -32,3 +32,10 @@
 - Debugging dead-ends and what actually worked: exact Expo SDK 54 TypeScript documentation was fetched from the requested raw URL; local app entry, route, platform-player, Metro, test-import, and worktree seams supplied direct evidence.
 - Techniques/patterns worth reusing for future tasks: treat Node exact `.js` imports as a separate compatibility contract from Metro, preserve native/web player siblings atomically, and migrate files using current worktree contents.
 - Learnings consumed: [architect/expo-platform-player-and-test-seams, architect/typescript-source-reorganization]
+
+## [t2] Mapped existing modules into the selected src architecture
+- Codebase/domain discoveries: the app coordinator owns the custom route state; shared UI and theme are imported across screens; YouTube resolution/embed/thumbnail logic is integration-facing; offline/local-player screens remain unreachable.
+- Wrong assumptions and corrections: do not activate offline routes merely because those screens move; preserve the platform player pair and Node test import contract independently.
+- Debugging dead-ends and what actually worked: `context.md`, `decisions.md`, and project topology were absent; t1 evidence plus current source imports, root config, and file inventory were sufficient. The `python` command was unavailable, so Node 22.23 performed the exhaustive source-filename coverage check instead.
+- Techniques/patterns worth reusing for future tasks: keep the first move behavior-neutral, direct feature dependencies toward domain/shared/infrastructure, and validate Node test resolution separately from Metro after file moves.
+- Learnings consumed: [architect/expo-platform-player-and-test-seams, architect/typescript-source-reorganization]

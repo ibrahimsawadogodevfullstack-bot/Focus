@@ -11,3 +11,6 @@ The existing t1.1 artifact defines remediation and completion evidence for all f
 
 ## 2026-11-02T09:10:43Z — t1 [architect]
 Implementation should preserve the custom route/bootstrap behavior and move native/web YouTube player siblings together; account separately for Node tests’ explicit `.js` imports.
+
+## 2026-11-02T09:16:38Z — t2 [architect]
+Architecture decision: Keep the custom navigation and Expo entry; move screens by feature, cross-feature UI and pure rules to `shared`/`domain`, and integrations to `infrastructure`. Move offline screens without making them reachable; preserve the native/web player pair and verify Node test resolution separately from Metro.

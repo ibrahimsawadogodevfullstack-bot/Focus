@@ -12,3 +12,4 @@ Move platform-specific siblings together with the same basename and keep extensi
 
 ## History
 - 2026-11-02 (youtube-filter-v2/t1.1): initial
+- 2026-11-02 (youtube-filter-v2/t2): mapped custom navigation to `src/app`, feature-owned screens/components beside their feature, cross-feature UI and pure rules to `shared`/`domain`, and direct integrations to `infrastructure`; keep offline sources relocated without making them reachable.
