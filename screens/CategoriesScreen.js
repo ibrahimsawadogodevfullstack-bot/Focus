@@ -5,8 +5,11 @@ import EmptyState from '../components/EmptyState';
 import { Chevron, PlusIcon } from '../components/Icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 export default function CategoriesScreen({ categories, channels, onCreate, onEdit }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const channelById = new Map(channels.map((channel) => [channel.id, channel]));
 
   return (
@@ -106,7 +109,7 @@ export default function CategoriesScreen({ categories, channels, onCreate, onEdi
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,

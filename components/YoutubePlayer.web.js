@@ -15,14 +15,16 @@ const STATE_MAP = {
   5: 'paused',
 };
 
-function buildWebEmbedUrl(videoId, startSeconds = 0) {
+function buildWebEmbedUrl(videoId, startSeconds = 0, subtitles = false) {
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
   const params = new URLSearchParams({
     autoplay: '1',
     playsinline: '1',
     rel: '0',
+    controls: '0',
     modestbranding: '1',
     iv_load_policy: '3',
+    cc_load_policy: subtitles ? '1' : '0',
     enablejsapi: '1',
     origin,
   });
@@ -34,7 +36,7 @@ function buildWebEmbedUrl(videoId, startSeconds = 0) {
 }
 
 const YoutubePlayer = forwardRef(function YoutubePlayer(
-  { videoId, startSeconds = 0, onEvent, style },
+  { videoId, startSeconds = 0, subtitles = false, onEvent, style },
   ref,
 ) {
   const hostRef = useRef(null);
@@ -59,7 +61,10 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
     if (!hostRef.current) return undefined;
 
     const frame = document.createElement('iframe');
-    frame.setAttribute('src', buildWebEmbedUrl(initialVideoId, startSeconds));
+    frame.setAttribute(
+      'src',
+      buildWebEmbedUrl(initialVideoId, startSeconds, subtitles),
+    );
     // Pas de allow-popups (pas de nouvel onglet) ni de allow-top-navigation.
     frame.setAttribute(
       'sandbox',
@@ -145,8 +150,7 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
       frame.remove();
       frameRef.current = null;
     };
-    // Montage unique : le lecteur n'est créé qu'une fois.
-  }, []);
+  }, [initialVideoId, startSeconds, subtitles]);
 
   useEffect(() => {
     if (videoId && videoId !== initialVideoId) {

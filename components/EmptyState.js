@@ -2,8 +2,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '../constants/theme';
 import { FocusMark } from './FocusMark';
+import { useThemeStyles } from '../services/ThemeProvider';
 
 export default function EmptyState({ title, message, actionLabel, onAction }) {
+  const styles = useThemeStyles(baseStyles);
   return (
     <View style={styles.wrap}>
       <FocusMark size={40} style={styles.mark} />
@@ -22,7 +24,7 @@ export default function EmptyState({ title, message, actionLabel, onAction }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     paddingHorizontal: spacing.xl,

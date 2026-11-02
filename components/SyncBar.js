@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, StyleSheet } from 'react-native';
 
 import { colors } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 
 /**
  * Barre de progression type YouTube : fine, collée en haut du contenu, qui se
@@ -9,6 +10,7 @@ import { colors } from '../constants/theme';
  * Le pourcentage est affiché à côté de la marque (voir AppBar).
  */
 export default function SyncBar({ active, percent = 0 }) {
+  const styles = useThemeStyles(baseStyles);
   const progress = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -42,7 +44,7 @@ export default function SyncBar({ active, percent = 0 }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   track: {
     height: 2.5,
     backgroundColor: colors.line,

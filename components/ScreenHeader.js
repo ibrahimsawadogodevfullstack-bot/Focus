@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 import BrandMark from './BrandMark';
 
 /**
@@ -8,22 +9,23 @@ import BrandMark from './BrandMark';
  * ligne, puis une ligne de contexte discrète sous le titre.
  */
 export default function ScreenHeader({ title, subtitle, right }) {
+  const themedStyles = useThemeStyles(styles);
   return (
-    <View style={styles.wrap}>
-      <View style={styles.bar}>
+    <View style={themedStyles.wrap}>
+      <View style={themedStyles.bar}>
         <BrandMark size={16} textSize={16} />
 
-        <View style={styles.center} pointerEvents="none">
-          <Text style={styles.title} numberOfLines={1}>
+        <View style={themedStyles.center} pointerEvents="none">
+          <Text style={themedStyles.title} numberOfLines={1}>
             {title}
           </Text>
         </View>
 
-        {right ? <View style={styles.right}>{right}</View> : null}
+        {right ? <View style={themedStyles.right}>{right}</View> : null}
       </View>
 
       {subtitle ? (
-        <Text style={styles.subtitle} numberOfLines={2}>
+        <Text style={themedStyles.subtitle} numberOfLines={2}>
           {subtitle}
         </Text>
       ) : null}

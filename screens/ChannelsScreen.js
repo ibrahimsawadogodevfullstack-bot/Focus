@@ -18,8 +18,11 @@ import { TrashIcon } from '../components/Icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { resolveChannelInput } from '../services/channelResolver';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, onRemoveChannel }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -174,7 +177,7 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,

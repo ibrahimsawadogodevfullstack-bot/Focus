@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ConfirmSheet from '../components/ConfirmSheet';
@@ -11,10 +11,25 @@ import {
   TrashIcon,
 } from '../components/Icons';
 import ScreenHeader from '../components/ScreenHeader';
+import VideoThumbnail from '../components/VideoThumbnail';
 import { colors, radius, spacing } from '../constants/theme';
+import { FORMAT_SHORT, formatOf } from '../services/filters';
 import { formatBytes } from '../services/localVideos';
-import { thumbnailUri } from '../services/offline';
 import { formatClock, timeAgo } from '../utils/format';
+
+/** Vignette de liste : 16:9 pour une vidéo, 9:16 pour un Short. */
+function OfflineThumb({ video, formats }) {
+  const format = formatOf(video, formats);
+  return (
+    <VideoThumbnail
+      videoId={video.videoId}
+      thumbnail={video.thumbnail}
+      format={format}
+      radius={radius.sm}
+      style={format === FORMAT_SHORT ? styles.shortThumb : styles.thumb}
+    />
+  );
+}
 
 /**
  * Cache hors ligne : titres, chaînes et miniatures du flux.
@@ -27,6 +42,7 @@ export default function OfflineScreen({
   importing = false,
   downloading,
   progress,
+  formats = {},
   feedCount,
   onDownload,
   onClear,
@@ -149,11 +165,7 @@ export default function OfflineScreen({
                 accessibilityLabel={`Ouvrir ${video.title}`}
                 style={({ pressed }) => [styles.downloadMain, pressed && styles.rowPressed]}
               >
-                <Image
-                  source={{ uri: thumbnailUri(video.videoId) }}
-                  style={styles.thumb}
-                  resizeMode="cover"
-                />
+                <OfflineThumb video={video} formats={formats} />
                 <View style={styles.rowTexts}>
                   <Text style={styles.rowTitle} numberOfLines={2}>
                     {video.title}
@@ -278,11 +290,7 @@ export default function OfflineScreen({
                 accessibilityLabel={`${video.title} — ${video.channelTitle}`}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
-                <Image
-                  source={{ uri: thumbnailUri(video.videoId) }}
-                  style={styles.thumb}
-                  resizeMode="cover"
-                />
+                <OfflineThumb video={video} formats={formats} />
                 <View style={styles.rowTexts}>
                   <Text style={styles.rowTitle} numberOfLines={2}>
                     {video.title}
@@ -563,9 +571,9 @@ const styles = StyleSheet.create({
   },
   thumb: {
     width: 112,
+  },
+  shortThumb: {
     height: 63,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceAlt,
   },
   rowTexts: {
     flex: 1,

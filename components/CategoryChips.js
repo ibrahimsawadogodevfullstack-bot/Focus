@@ -1,10 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../constants/theme';
 import { PlusIcon } from './Icons';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 /** Filtres de catégories, dans l'esprit des puces de la page d'accueil YouTube. */
 export default function CategoryChips({ categories, activeId, onSelect, onManage }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation('home');
   return (
     <ScrollView
       horizontal
@@ -12,10 +17,11 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       style={styles.scroll}
       contentContainerStyle={styles.content}
     >
-      <Chip label="Tous" active={activeId === null} onPress={() => onSelect(null)} />
+      <Chip styles={styles} label={t('allCategories')} active={activeId === null} onPress={() => onSelect(null)} />
 
       {categories.map((category) => (
         <Chip
+          styles={styles}
           key={category.id}
           label={category.name}
           active={activeId === category.id}
@@ -26,7 +32,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       <Pressable
         onPress={onManage}
         accessibilityRole="button"
-        accessibilityLabel="Gérer les catégories"
+        accessibilityLabel={t('manageCategories')}
         style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
       >
         <PlusIcon color={colors.textMuted} size={13} />
@@ -35,7 +41,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
   );
 }
 
-function Chip({ label, active, onPress }) {
+function Chip({ label, active, onPress, styles }) {
   return (
     <Pressable
       onPress={onPress}
@@ -54,7 +60,7 @@ function Chip({ label, active, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   // Hauteur fixe : une ScrollView horizontale dans une colonne flex se
   // comprime sinon (surtout sur le web).
   scroll: {

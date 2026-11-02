@@ -13,8 +13,7 @@ import {
   summarize,
   weekDays,
 } from '../services/stats';
-
-const DAY = 24 * 60 * 60 * 1000;
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 function lastActivityLabel(timestamp) {
   const days = daysSince(timestamp);
@@ -25,6 +24,8 @@ function lastActivityLabel(timestamp) {
 }
 
 export default function CategoryStatsScreen({ category, tracking, categories, videos, onBack, onOpen }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const summary = useMemo(
     () => summarize({ tracking, categories, videos }),
     [tracking, categories, videos],
@@ -181,7 +182,9 @@ function videoMeta(row) {
 }
 
 function VideoBadge({ row }) {
-  const { label, bg, color } = badgeFor(row);
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
+  const { label, bg, color } = badgeFor(row, colors);
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
       <Text style={[styles.badgeText, { color }]} numberOfLines={1}>
@@ -191,7 +194,7 @@ function VideoBadge({ row }) {
   );
 }
 
-function badgeFor(row) {
+function badgeFor(row, colors) {
   if (row.rating === 'solide') {
     return { label: 'Bien compris', bg: colors.successSoft, color: colors.success };
   }
@@ -207,7 +210,7 @@ function badgeFor(row) {
   return { label: 'Nouvelle', bg: colors.surfaceAlt, color: colors.textFaint };
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,

@@ -2,7 +2,9 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 
 import { colors, spacing } from '../constants/theme';
 import { FocusMark } from './FocusMark';
-import { Chevron, SearchIcon } from './Icons';
+import { Chevron, PersonIcon, SearchIcon } from './Icons';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Barre du haut façon YouTube : marque à gauche, recherche et profil à droite.
@@ -13,34 +15,37 @@ export default function AppBar({
   query = '',
   onChangeQuery,
   onToggleSearch,
-  onOpenLibrary,
+  onOpenProfile,
   syncLabel = '',
 }) {
+  const { colors } = useTheme();
+  const themedStyles = useThemeStyles(styles);
+  const { t } = useTranslation(['home', 'common']);
   if (searching) {
     return (
-      <View style={styles.bar}>
+      <View style={themedStyles.bar}>
         <Pressable
           onPress={onToggleSearch}
           accessibilityRole="button"
           accessibilityLabel="Fermer la recherche"
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          style={({ pressed }) => [themedStyles.backButton, pressed && themedStyles.pressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />
         </Pressable>
 
-        <View style={styles.field}>
+        <View style={themedStyles.field}>
           <SearchIcon color={colors.textFaint} size={15} thickness={2} />
           <TextInput
             value={query}
             onChangeText={onChangeQuery}
-            placeholder="Rechercher une vidéo ou une chaîne"
+            placeholder={t('home:searchPlaceholder')}
             placeholderTextColor={colors.textFaint}
             selectionColor={colors.accent}
             autoFocus
             autoCorrect={false}
             returnKeyType="search"
-            style={[styles.input, Platform.OS === 'web' && styles.inputWeb]}
-            accessibilityLabel="Rechercher dans le flux"
+            style={[themedStyles.input, Platform.OS === 'web' && themedStyles.inputWeb]}
+            accessibilityLabel={t('home:searchAccessibility')}
           />
         </View>
       </View>
@@ -48,40 +53,40 @@ export default function AppBar({
   }
 
   return (
-    <View style={styles.bar}>
-      <View style={styles.brand}>
+    <View style={themedStyles.bar}>
+      <View style={themedStyles.brand}>
         <FocusMark size={20} />
-        <Text style={styles.wordmark}>focus</Text>
+        <Text style={themedStyles.wordmark}>focus</Text>
         {syncLabel ? (
-          <View style={styles.syncTag} accessibilityLiveRegion="polite">
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText} numberOfLines={1}>
+          <View style={themedStyles.syncTag} accessibilityLiveRegion="polite">
+            <View style={themedStyles.syncDot} />
+            <Text style={themedStyles.syncText} numberOfLines={1}>
               {syncLabel}
             </Text>
           </View>
         ) : null}
       </View>
 
-      <View style={styles.actions}>
+      <View style={themedStyles.actions}>
         <Pressable
           onPress={onToggleSearch}
           accessibilityRole="button"
-          accessibilityLabel="Rechercher"
+          accessibilityLabel={t('home:search')}
           hitSlop={8}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          style={({ pressed }) => [themedStyles.iconButton, pressed && themedStyles.pressed]}
         >
           <SearchIcon color={colors.text} size={19} thickness={2} />
         </Pressable>
 
         <Pressable
-          onPress={onOpenLibrary}
+          onPress={onOpenProfile}
           accessibilityRole="button"
-          accessibilityLabel="Ma bibliothèque de chaînes"
+          accessibilityLabel={t('home:profileAccessibility')}
           hitSlop={6}
-          style={({ pressed }) => [pressed && styles.pressed]}
+          style={({ pressed }) => [pressed && themedStyles.pressed]}
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>F</Text>
+          <View style={themedStyles.avatar}>
+            <PersonIcon color={colors.onAccent} size={19} />
           </View>
         </Pressable>
       </View>

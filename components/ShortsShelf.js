@@ -1,40 +1,63 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../constants/theme';
-import ShortCard from './ShortCard';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { isShort } from '../services/filters';
+import ShortCard, { SHORT_CARD_WIDTH } from './ShortCard';
 import { ShortsIcon } from './Icons';
 
 const GUTTER = spacing.lg; // 16 px, aligné sur la grille
+const GAP = 12;
 
 /**
  * Rangée « Shorts » : défilement horizontal, cartes 9:16.
- * Les Shorts n'apparaissent jamais dans la grille 16:9 — c'est cette séparation
- * qui garantit qu'aucune vignette verticale n'est dessinée dans une carte large.
+ *
+ * Filtre défensif : même si une vidéo long a fuité dans la liste, elle ne peut
+ * pas être dessinée ici. Inversement, les Shorts ne vont jamais dans la grille
+ * 16:9 (voir splitByFormat dans FeedScreen).
  */
-export default function ShortsShelf({ videos, onOpen, seen, hasHistory }) {
-  if (!videos || videos.length === 0) return null;
+export default function ShortsShelf({
+  videos,
+  onOpen,
+  onMore,
+  seen,
+  hasHistory,
+  sidePadding = 0,
+  dataSaver = false,
+}) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
+  const shorts = (videos ?? []).filter((video) => isShort(video));
+  if (shorts.length === 0) return null;
+
+  const padding = sidePadding + GUTTER;
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingHorizontal: padding }]}>
         <ShortsIcon color={colors.accentText} size={16} />
         <Text style={styles.title}>Shorts</Text>
-        <Text style={styles.count}>{videos.length}</Text>
+        <Text style={styles.count}>{shorts.length}</Text>
       </View>
 
       <FlatList
         horizontal
-        data={videos}
+        data={shorts}
         keyExtractor={(item) => item.videoId}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.list}
+        accessibilityLabel="Rangée des Shorts"
+        contentContainerStyle={[styles.list, { paddingHorizontal: padding }]}
         initialNumToRender={4}
         windowSize={5}
+        removeClippedSubviews={false}
         renderItem={({ item }) => (
           <ShortCard
             video={item}
+            width={SHORT_CARD_WIDTH}
             isNew={Boolean(hasHistory) && !(seen?.has(item.videoId) ?? false)}
-            onPress={() => onOpen(item, videos)}
+            dataSaver={dataSaver}
+            onPress={() => onOpen(item, shorts)}
+            onMore={onMore ? () => onMore(item) : undefined}
           />
         )}
       />
@@ -42,7 +65,7 @@ export default function ShortsShelf({ videos, onOpen, seen, hasHistory }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrap: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
@@ -51,7 +74,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: GUTTER,
     paddingBottom: spacing.md,
   },
   title: {
@@ -67,7 +89,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   list: {
-    paddingHorizontal: GUTTER,
-    gap: spacing.md,
+    gap: GAP,
   },
 });

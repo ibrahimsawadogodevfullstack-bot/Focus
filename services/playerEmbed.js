@@ -8,7 +8,6 @@ const BASE_PARAMS = [
   'rel=0',
   'modestbranding=1',
   'iv_load_policy=3',
-  'cc_load_policy=0',
   'fs=1',
   'enablejsapi=1',
   // L'application fournit ses propres contrôles : on masque la barre de
@@ -19,9 +18,15 @@ const BASE_PARAMS = [
 ];
 
 /** Page embed officielle, chargée directement (et non plus dans une iframe locale). */
-export function buildEmbedUrl({ videoId, startSeconds = 0, autoplay = false }) {
+export function buildEmbedUrl({
+  videoId,
+  startSeconds = 0,
+  autoplay = false,
+  subtitles = false,
+}) {
   const params = [...BASE_PARAMS];
   params.push(`autoplay=${autoplay ? 1 : 0}`);
+  params.push(`cc_load_policy=${subtitles ? 1 : 0}`);
 
   const start = Math.max(0, Math.round(startSeconds));
   if (start > 0) params.push(`start=${start}`);

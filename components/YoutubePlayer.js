@@ -14,7 +14,7 @@ const ALLOWED_URL =
   /^(https:\/\/www\.youtube\.com\/embed\/.*|https:\/\/consent\.youtube\.com\/.*|https:\/\/www\.youtube-nocookie\.com\/.*|about:blank)$/;
 
 const YoutubePlayer = forwardRef(function YoutubePlayer(
-  { videoId, startSeconds = 0, onEvent, style },
+  { videoId, startSeconds = 0, subtitles = false, onEvent, style },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -24,7 +24,12 @@ const YoutubePlayer = forwardRef(function YoutubePlayer(
   // lecteur (loadVideoById), sans recharger la WebView.
   const embedUrl = useRef(
     // Lecture immédiate : on évite l'écran d'attente YouTube et ses suggestions.
-    buildEmbedUrl({ videoId: initialVideoId, startSeconds, autoplay: true }),
+    buildEmbedUrl({
+      videoId: initialVideoId,
+      startSeconds,
+      autoplay: true,
+      subtitles,
+    }),
   ).current;
 
   const run = useCallback((js) => {

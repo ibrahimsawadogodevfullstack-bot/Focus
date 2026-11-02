@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +16,7 @@ import ChannelAvatar from '../components/ChannelAvatar';
 import ConfirmSheet from '../components/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../components/Icons';
 import { colors, radius, spacing } from '../constants/theme';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 export default function CategoryEditor({
   category,
@@ -24,6 +27,8 @@ export default function CategoryEditor({
   onDelete,
   onClose,
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(category?.name ?? '');
   const [selected, setSelected] = useState(() => new Set(category?.channelIds ?? []));
@@ -103,118 +108,129 @@ export default function CategoryEditor({
         <BrandMark size={15} textSize={15} style={styles.headerBrand} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.editorContent}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Text style={styles.label}>Nom de la catégorie</Text>
-        <TextInput
-          value={name}
-          onChangeText={(value) => {
-            setName(value);
-            if (error) setError(null);
-          }}
-          placeholder="Ex. Maths, Anglais, Tech"
-          placeholderTextColor={colors.textFaint}
-          maxLength={40}
-          autoFocus={!category}
-          returnKeyType="done"
-          accessibilityLabel="Nom de la catégorie"
-          style={styles.nameInput}
-        />
-        <Text style={styles.counter}>{name.length} / 40</Text>
-
-        <View style={styles.sectionRow}>
-          <Text style={styles.label}>Chaînes</Text>
-          <Text style={styles.selection}>
-            {selected.size} sélectionnée{selected.size > 1 ? 's' : ''}
-          </Text>
-        </View>
-
-        {channels.length > 5 ? (
+        <View style={styles.nameSection}>
+          <Text style={styles.label}>Nom de la catégorie</Text>
           <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Rechercher une chaîne"
+            value={name}
+            onChangeText={(value) => {
+              setName(value);
+              if (error) setError(null);
+            }}
+            placeholder="Ex. Maths, Anglais, Tech"
             placeholderTextColor={colors.textFaint}
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Rechercher une chaîne"
-            style={styles.searchInput}
+            maxLength={40}
+            autoFocus={!category}
+            returnKeyType="done"
+            accessibilityLabel="Nom de la catégorie"
+            style={styles.nameInput}
           />
-        ) : null}
-
-        <View style={styles.list}>
-          {filtered.map((channel) => {
-            const active = selected.has(channel.id);
-            return (
-              <Pressable
-                key={channel.id}
-                onPress={() => toggle(channel.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: active }}
-                accessibilityLabel={channel.title || channel.id}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              >
-                <View style={[styles.check, active && styles.checkActive]}>
-                  {active ? <CheckIcon color={colors.onAccent} size={11} /> : null}
-                </View>
-
-                <ChannelAvatar
-                  uri={avatars[channel.id]}
-                  name={channel.title || channel.id}
-                  size={30}
-                />
-
-                <Text style={[styles.rowTitle, active && styles.rowTitleActive]} numberOfLines={1}>
-                  {channel.title || channel.id}
-                </Text>
-              </Pressable>
-            );
-          })}
-
-          {filtered.length === 0 && channels.length > 0 ? (
-            <Text style={styles.noResult}>Aucune chaîne ne correspond.</Text>
-          ) : null}
-
-          {channels.length === 0 ? (
-            <Text style={styles.noResult}>
-              Ajoute d’abord des chaînes depuis l’onglet Chaînes.
-            </Text>
-          ) : null}
+          <Text style={styles.counter}>{name.length} / 40</Text>
         </View>
 
-        {category ? (
-          <Pressable
-            onPress={confirmDelete}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.delete, pressed && styles.deletePressed]}
-          >
-            <Text style={styles.deleteText}>Supprimer la catégorie</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable
-          onPress={handleSave}
-          disabled={!canSave}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canSave, busy: saving }}
-          style={({ pressed }) => [
-            styles.save,
-            !canSave && styles.saveDisabled,
-            pressed && canSave && styles.savePressed,
-          ]}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.saveText, !canSave && styles.saveTextDisabled]}>
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
-          </Text>
-        </Pressable>
-      </View>
+          <View style={styles.sectionRow}>
+            <Text style={styles.label}>Chaînes</Text>
+            <Text style={styles.selection}>
+              {selected.size} sélectionnée{selected.size > 1 ? 's' : ''}
+            </Text>
+          </View>
+
+          {channels.length > 5 ? (
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Rechercher une chaîne"
+              placeholderTextColor={colors.textFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Rechercher une chaîne"
+              style={styles.searchInput}
+            />
+          ) : null}
+
+          <View style={styles.list}>
+            {filtered.map((channel) => {
+              const active = selected.has(channel.id);
+              return (
+                <Pressable
+                  key={channel.id}
+                  onPress={() => toggle(channel.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: active }}
+                  accessibilityLabel={channel.title || channel.id}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <View style={[styles.check, active && styles.checkActive]}>
+                    {active ? <CheckIcon color={colors.onAccent} size={11} /> : null}
+                  </View>
+
+                  <ChannelAvatar
+                    uri={avatars[channel.id]}
+                    name={channel.title || channel.id}
+                    size={30}
+                  />
+
+                  <Text style={[styles.rowTitle, active && styles.rowTitleActive]} numberOfLines={1}>
+                    {channel.title || channel.id}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+            {filtered.length === 0 && channels.length > 0 ? (
+              <Text style={styles.noResult}>Aucune chaîne ne correspond.</Text>
+            ) : null}
+
+            {channels.length === 0 ? (
+              <Text style={styles.noResult}>
+                Ajoute d’abord des chaînes depuis l’onglet Chaînes.
+              </Text>
+            ) : null}
+          </View>
+
+          {category ? (
+            <Pressable
+              onPress={confirmDelete}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.delete, pressed && styles.deletePressed]}
+            >
+              <Text style={styles.deleteText}>Supprimer la catégorie</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {!error && !saving && !trimmedName ? (
+            <Text style={styles.saveHint}>Saisis un nom pour activer l’enregistrement.</Text>
+          ) : null}
+          <Pressable
+            onPress={handleSave}
+            disabled={!canSave}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSave, busy: saving }}
+            style={({ pressed }) => [
+              styles.save,
+              !canSave && styles.saveDisabled,
+              pressed && canSave && styles.savePressed,
+            ]}
+          >
+            <Text style={[styles.saveText, !canSave && styles.saveTextDisabled]}>
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
 
       <ConfirmSheet
         visible={confirmingDelete}
@@ -232,10 +248,20 @@ export default function CategoryEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  editorContent: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  nameSection: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
   },
   header: {
     flexDirection: 'row',
@@ -394,6 +420,11 @@ const styles = StyleSheet.create({
   error: {
     color: colors.danger,
     fontSize: 12.5,
+    textAlign: 'center',
+  },
+  saveHint: {
+    color: colors.textFaint,
+    fontSize: 12,
     textAlign: 'center',
   },
   save: {

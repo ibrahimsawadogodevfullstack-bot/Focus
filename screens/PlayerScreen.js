@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
-  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,9 +11,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  CheckIcon,
   Chevron,
-  DownloadIcon,
   FullscreenIcon,
   LockIcon,
   MinimizeIcon,
@@ -22,9 +19,11 @@ import {
   PlayIcon,
 } from '../components/Icons';
 import ChannelAvatar from '../components/ChannelAvatar';
+import VideoThumbnail from '../components/VideoThumbnail';
 import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../constants/theme';
-import { FORMAT_SHORT, classifyFormat } from '../services/filters';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { FORMAT_SHORT, FORMAT_VIDEO, formatOf } from '../services/filters';
 import {
   getTracking,
   markOpened,
@@ -34,8 +33,6 @@ import {
 } from '../services/tracking';
 import { formatClock, timeAgo } from '../utils/format';
 
-const thumbnail = (videoId) => `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-
 const RATINGS = [
   { key: 'fragile', label: 'Pas vraiment', hint: 'à revoir' },
   { key: 'moyen', label: 'À peu près', hint: 'fragile' },
@@ -43,6 +40,7 @@ const RATINGS = [
 ];
 
 const FLUSH_EVERY = 5;
+const CONTROLS_HIDE_DELAY = 2000;
 
 // Une page = une vidéo. Le lecteur n'est monté que pour la page visible ; les
 // autres affichent la miniature (une seule WebView à la fois).
@@ -57,19 +55,24 @@ function VideoPage({
   height,
   active,
   isLast,
-  downloaded,
   avatars,
-  saving,
-  onToggleDownload,
+  formats = {},
+  playbackSpeed = 1,
+  subtitles = false,
+  dataSaver = false,
   onEnded,
   onSeen,
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
 
-  const vertical = classifyFormat(video) === FORMAT_SHORT;
+  const vertical = formatOf(video, formats) === FORMAT_SHORT;
   // Plein écran par défaut pour le vertical, sur demande pour l'horizontal.
   const [immersive, setImmersive] = useState(vertical);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimerRef = useRef(null);
   const playerRef = useRef(null);
   const trackRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -92,6 +95,35 @@ function VideoPage({
   const durationRef = useRef(0);
   const playingRef = useRef(false);
   const pendingRef = useRef(0);
+
+  const showControls = useCallback(() => {
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    setControlsVisible(true);
+    controlsTimerRef.current = setTimeout(
+      () => setControlsVisible(false),
+      CONTROLS_HIDE_DELAY,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+
+    if (!active) {
+      setControlsVisible(true);
+      return undefined;
+    }
+
+    setControlsVisible(true);
+    controlsTimerRef.current = setTimeout(
+      () => setControlsVisible(false),
+      CONTROLS_HIDE_DELAY,
+    );
+
+    return () => {
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+      controlsTimerRef.current = null;
+    };
+  }, [active, video.videoId]);
 
   const flush = useCallback(
     (completed = false) => {
@@ -175,6 +207,7 @@ function VideoPage({
           break;
         }
         case 'ready':
+          playerRef.current?.setRate(playbackSpeed);
           if (event.duration) {
             durationRef.current = event.duration;
             setDuration(event.duration);
@@ -190,7 +223,7 @@ function VideoPage({
           break;
       }
     },
-    [flush, onEnded, video],
+    [flush, onEnded, playbackSpeed, video],
   );
 
   const seekToRatio = (ratio) => {
@@ -246,22 +279,31 @@ function VideoPage({
           styles.stage,
           immersive ? styles.stageImmersive : { height: stageHeight },
         ]}
+        onTouchStart={() => {
+          if (controlsVisible) showControls();
+        }}
       >
         {active && !errorCode ? (
           <YoutubePlayer
             key={playerKey}
             ref={playerRef}
             videoId={video.videoId}
+            subtitles={subtitles}
             onEvent={handleEvent}
             style={styles.player}
           />
         ) : (
           <>
-            <Image
-              source={{ uri: thumbnail(video.videoId) }}
-              style={styles.poster}
-              resizeMode="contain"
-            />
+            <View style={styles.posterWrap}>
+              <VideoThumbnail
+                videoId={video.videoId}
+                thumbnail={video.thumbnail}
+                format={vertical ? FORMAT_SHORT : FORMAT_VIDEO}
+                dataSaver={dataSaver}
+                radius={0}
+                style={styles.poster}
+              />
+            </View>
             {errorCode ? (
               <View style={styles.posterOverlay}>
                 <Text style={styles.offlineText}>
@@ -283,7 +325,16 @@ function VideoPage({
             ) : null}
           </>
         )}
-        {immersive ? (
+        {!controlsVisible ? (
+          <Pressable
+            onPress={showControls}
+            accessibilityRole="button"
+            accessibilityLabel="Afficher les commandes du lecteur"
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+
+        {immersive && controlsVisible ? (
           <View style={styles.overlayTop} pointerEvents="none">
             <Text style={styles.overlayTitle} numberOfLines={2}>
               {video.title}
@@ -302,7 +353,7 @@ function VideoPage({
           </View>
         ) : null}
 
-        {immersive ? (
+        {immersive && controlsVisible ? (
           <View
             style={[
               styles.overlayBottom,
@@ -393,7 +444,7 @@ function VideoPage({
         ) : null}
       </View>
 
-      {immersive ? null : (
+      {immersive || !controlsVisible ? null : (
       <>
       <View style={styles.controls}>
         <Pressable
@@ -481,43 +532,6 @@ function VideoPage({
           <Text style={styles.dot}>·</Text>
           <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
 
-          <View style={styles.metaSpacer} />
-
-          {saving ? (
-            <View style={[styles.downloadChip, styles.downloadChipOn]}>
-              <DownloadIcon color={colors.accentText} size={12} thickness={2} />
-              <Text style={[styles.downloadLabel, styles.downloadLabelOn]}>
-                Enregistrement…
-              </Text>
-            </View>
-          ) : onToggleDownload ? (
-            <Pressable
-              onPress={() => onToggleDownload(video)}
-              accessibilityRole="button"
-              accessibilityLabel={
-                downloaded ? 'Supprimer le téléchargement' : 'Télécharger la vidéo'
-              }
-              accessibilityState={{ selected: Boolean(downloaded) }}
-              hitSlop={6}
-              style={({ pressed }) => [
-                styles.downloadChip,
-                downloaded && styles.downloadChipOn,
-                pressed && styles.ratingPressed,
-              ]}
-            >
-              {downloaded ? (
-                <CheckIcon color={colors.accentText} size={10} />
-              ) : (
-                <DownloadIcon color={colors.textMuted} size={12} thickness={2} />
-              )}
-              <Text
-                style={[styles.downloadLabel, downloaded && styles.downloadLabelOn]}
-                numberOfLines={1}
-              >
-                {downloaded ? 'Enregistrée hors ligne' : 'Enregistrer hors ligne'}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
 
         <View style={styles.ratingBlock}>
@@ -614,16 +628,19 @@ function VideoPage({
 export default function PlayerScreen({
   queue,
   initialIndex = 0,
-  downloads = [],
-  savingIds = {},
   backLabel = 'Accueil',
   avatars = {},
+  formats = {},
   autoplayNext = false,
+  playbackSpeed = 1,
+  subtitles = false,
+  dataSaver = false,
   onToggleAutoplay,
   onBack,
   onVideoChange,
-  onToggleDownload,
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
   const listRef = useRef(null);
@@ -734,9 +751,10 @@ export default function PlayerScreen({
                 active={itemIndex === index}
                 isLast={itemIndex === queue.length - 1}
                 avatars={avatars}
-                downloaded={downloads.some((video) => video.videoId === item.videoId)}
-                saving={Boolean(savingIds[item.videoId])}
-                onToggleDownload={onToggleDownload}
+                formats={formats}
+                playbackSpeed={playbackSpeed}
+                subtitles={subtitles}
+                dataSaver={dataSaver}
                 onEnded={() => {
                   // Lecture continue désactivée par défaut : sans ce garde-fou,
                   // la fin d'une vidéo enchaînait sur tout le flux.
@@ -770,7 +788,7 @@ export default function PlayerScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -940,8 +958,12 @@ const styles = StyleSheet.create({
     color: colors.onAccent,
     fontWeight: '700',
   },
+  posterWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   poster: {
-    width: '100%',
     height: '100%',
   },
   posterOverlay: {
@@ -1148,33 +1170,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  metaSpacer: {
-    flex: 1,
-  },
-  downloadChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 26,
-    paddingHorizontal: 9,
-    borderRadius: 13,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.lineStrong,
-  },
-  downloadChipOn: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accentLine,
-  },
-  downloadLabel: {
-    color: colors.textMuted,
-    fontSize: 10.5,
-    fontWeight: '600',
-  },
-  downloadLabelOn: {
-    color: colors.accentText,
-    fontWeight: '700',
   },
   channel: {
     color: colors.textMuted,

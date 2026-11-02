@@ -45,6 +45,7 @@ function handleProxy(req, res) {
   }
 
   fetch(target, {
+    method: req.method,
     redirect: 'follow',
     headers: {
       'user-agent': ANDROID_UA,
@@ -55,14 +56,20 @@ function handleProxy(req, res) {
     },
   })
     .then(async (response) => {
-      const body = Buffer.from(await response.arrayBuffer());
+      const isHead = req.method === 'HEAD';
+      const body = isHead ? Buffer.alloc(0) : Buffer.from(await response.arrayBuffer());
       res.statusCode = response.status;
       res.setHeader(
         'content-type',
         response.headers.get('content-type') || 'text/plain; charset=utf-8',
       );
       res.setHeader('cache-control', 'no-store');
-      res.setHeader('content-length', body.length);
+      const contentLength = response.headers.get('content-length');
+      if (contentLength) {
+        res.setHeader('content-length', contentLength);
+      } else if (!isHead) {
+        res.setHeader('content-length', body.length);
+      }
       res.end(body);
     })
     .catch((error) => {

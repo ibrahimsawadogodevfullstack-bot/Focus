@@ -1,14 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 import { FocusMark } from './FocusMark';
 
 /** Marque de l'application, présente en haut de chaque onglet. */
 export default function BrandMark({ size = 18, textSize = 18, style }) {
+  const themedStyles = useThemeStyles(styles);
   return (
-    <View style={[styles.row, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={[themedStyles.row, style]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <FocusMark size={size} />
-      <Text style={[styles.word, { fontSize: textSize }]}>focus</Text>
+      <Text style={[themedStyles.word, { fontSize: textSize }]}>focus</Text>
     </View>
   );
 }

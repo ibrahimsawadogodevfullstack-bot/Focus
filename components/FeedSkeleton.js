@@ -2,14 +2,16 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { colors, spacing } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
+import { SHORT_CARD_WIDTH } from './ShortCard';
 
 const TITLE_HEIGHT = 40;
 const META_HEIGHT = 17;
 
 /**
  * Squelette de chargement : la forme exacte du contenu qui arrive.
- * Il reçoit la largeur de carte calculée par la grille, pour que rien ne bouge
- * quand les vraies images se posent.
+ * Il reçoit la largeur de carte et la marge latérale calculées par la grille,
+ * pour que rien ne bouge quand les vraies images se posent.
  */
 export default function FeedSkeleton({
   rows = 2,
@@ -17,7 +19,9 @@ export default function FeedSkeleton({
   cardWidth,
   count,
   withShorts = false,
+  sidePadding = 0,
 }) {
+  const styles = useThemeStyles(baseStyles);
   const pulse = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
@@ -44,22 +48,26 @@ export default function FeedSkeleton({
   // `count` reste accepté pour les anciens appels : on l'interprète en cartes.
   const rowCount = count ? Math.ceil(count / columns) : rows;
   const width = cardWidth ?? 320;
+  const padding = sidePadding + spacing.lg;
 
   return (
     <View accessibilityLabel="Chargement du flux" accessibilityRole="progressbar">
       {withShorts ? (
-        <Animated.View style={[styles.shelf, { opacity: pulse }]}>
+        <Animated.View style={[styles.shelf, { paddingHorizontal: padding, opacity: pulse }]}>
           <View style={styles.shelfTitle} />
           <View style={styles.shelfRow}>
             {[0, 1, 2].map((key) => (
-              <View key={key} style={styles.shortThumb} />
+              <View key={key} style={styles.shortCard}>
+                <View style={styles.shortThumb} />
+                <View style={styles.shortText} />
+              </View>
             ))}
           </View>
         </Animated.View>
       ) : null}
 
       {Array.from({ length: rowCount }).map((_, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
+        <View key={rowIndex} style={[styles.row, { paddingHorizontal: padding }]}>
           {Array.from({ length: columns }).map((__, columnIndex) => (
             <Animated.View
               key={columnIndex}
@@ -81,11 +89,10 @@ export default function FeedSkeleton({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
   },
   card: {
     paddingBottom: spacing.lg,
@@ -125,8 +132,8 @@ const styles = StyleSheet.create({
     width: '58%',
   },
   shelf: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   shelfTitle: {
     width: 84,
@@ -137,12 +144,22 @@ const styles = StyleSheet.create({
   },
   shelfRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: 12,
+  },
+  shortCard: {
+    width: SHORT_CARD_WIDTH,
   },
   shortThumb: {
-    width: 156,
+    width: '100%',
     aspectRatio: 9 / 16,
     borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+  },
+  shortText: {
+    marginTop: spacing.sm,
+    height: 13,
+    width: '80%',
+    borderRadius: 7,
     backgroundColor: colors.surfaceAlt,
   },
 });

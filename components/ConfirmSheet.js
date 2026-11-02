@@ -2,6 +2,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 
 /**
  * Confirmation en feuille basse : même rendu sur Android, iOS et web
@@ -18,6 +19,7 @@ export default function ConfirmSheet({
   onCancel,
 }) {
   const insets = useSafeAreaInsets();
+  const themedStyles = useThemeStyles(styles);
 
   return (
     <Modal
@@ -27,7 +29,7 @@ export default function ConfirmSheet({
       onRequestClose={onCancel}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
+      <View style={themedStyles.backdrop}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onCancel}
@@ -35,21 +37,21 @@ export default function ConfirmSheet({
           importantForAccessibility="no"
         />
 
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-          <View style={styles.grabber} />
-          <Text style={styles.title}>{title}</Text>
-          {message ? <Text style={styles.message}>{message}</Text> : null}
+        <View style={[themedStyles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+          <View style={themedStyles.grabber} />
+          <Text style={themedStyles.title}>{title}</Text>
+          {message ? <Text style={themedStyles.message}>{message}</Text> : null}
 
           <Pressable
             onPress={onConfirm}
             accessibilityRole="button"
             style={({ pressed }) => [
-              styles.action,
-              destructive && styles.actionDanger,
-              pressed && styles.actionPressed,
+              themedStyles.action,
+              destructive && themedStyles.actionDanger,
+              pressed && themedStyles.actionPressed,
             ]}
           >
-            <Text style={[styles.actionText, destructive && styles.actionTextDanger]}>
+            <Text style={[themedStyles.actionText, destructive && themedStyles.actionTextDanger]}>
               {confirmLabel}
             </Text>
           </Pressable>
@@ -57,9 +59,9 @@ export default function ConfirmSheet({
           <Pressable
             onPress={onCancel}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.cancel, pressed && styles.cancelPressed]}
+            style={({ pressed }) => [themedStyles.cancel, pressed && themedStyles.cancelPressed]}
           >
-            <Text style={styles.cancelText}>{cancelLabel}</Text>
+            <Text style={themedStyles.cancelText}>{cancelLabel}</Text>
           </Pressable>
         </View>
       </View>

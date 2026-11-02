@@ -3,7 +3,7 @@
 // Une seule couleur d'accent (azure), des surfaces bleu-nuit, et des filets
 // fins pour structurer l'information. Aucune couleur littérale dans les écrans.
 
-export const colors = {
+export const DARK_COLORS = {
   // Scène
   bg: '#05070E',
   surface: '#0A1120',
@@ -34,6 +34,36 @@ export const colors = {
   warn: '#FFC46B',
   warnSoft: 'rgba(255, 196, 107, 0.13)',
 };
+
+export const LIGHT_COLORS = {
+  bg: '#F5F7FB',
+  surface: '#FFFFFF',
+  surfaceAlt: '#EEF2F7',
+  raised: '#E3E9F2',
+
+  line: '#CFD8E6',
+  lineStrong: '#AEBBD0',
+
+  text: '#182230',
+  textMuted: '#435066',
+  textFaint: '#56647A',
+
+  accent: '#175CD3',
+  accentText: '#164A9C',
+  accentSoft: '#E8F0FE',
+  accentLine: '#B6CCF7',
+  onAccent: '#FFFFFF',
+
+  danger: '#B4233C',
+  dangerSoft: '#FCE8EB',
+  success: '#067647',
+  successSoft: '#D1FADF',
+  warn: '#875300',
+  warnSoft: '#FEF0C7',
+};
+
+// Alias conservé pour les composants non interactifs avec le thème.
+export const colors = DARK_COLORS;
 
 export const spacing = {
   xs: 4,
@@ -94,4 +124,11 @@ export const layout = {
   gutter: 20,
   hit: 44,
   tabBar: 56,
+
+  // Grille de l'accueil : une seule source pour les seuils et les espacements.
+  gridGutter: 16,
+  gridGap: 16,
+  twoColumnMinWidth: 600,
+  threeColumnMinWidth: 1024,
+  maxContentWidth: 1600,
 };

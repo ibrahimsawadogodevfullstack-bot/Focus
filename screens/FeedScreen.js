@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import ActionSheet from '../components/ActionSheet';
 import AppBar from '../components/AppBar';
@@ -19,13 +20,18 @@ import FeedSkeleton from '../components/FeedSkeleton';
 import ShortsShelf from '../components/ShortsShelf';
 import SyncBar from '../components/SyncBar';
 import VideoCard from '../components/VideoCard';
-import { DownloadIcon, TrashIcon } from '../components/Icons';
+import { TrashIcon } from '../components/Icons';
 import { colors, layout, spacing } from '../constants/theme';
-import { splitByFormat } from '../services/filters';
+import { isFormatResolved, resolveFormats, splitByFormat } from '../services/filters';
+import { hasFailedFormat } from '../services/formats';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 import { timeAgo } from '../utils/format';
 
-const GUTTER = spacing.lg; // 16 px
-const GAP = spacing.lg; // 16 px
+const GUTTER = layout.gridGutter; // 16 px
+const GAP = layout.gridGap; // 16 px
+
+/** La rangée Shorts arrive après ce nombre de vidéos longues. */
+export const SHORTS_SHELF_POSITION = 2;
 
 const normalize = (value) =>
   (value || '')
@@ -34,21 +40,23 @@ const normalize = (value) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-/** Colonnes de la grille selon la largeur utile de l'écran. */
+/** Colonnes de la grille selon la largeur de l'écran. */
 function columnsFor(width) {
-  if (width < 600) return 1;
-  if (width < 1024) return 2;
+  if (width < layout.twoColumnMinWidth) return 1;
+  if (width < layout.threeColumnMinWidth) return 2;
   return 3;
 }
 
 export default function FeedScreen({
   videos,
+  formats = {},
   channels,
   categories,
   activeCategoryId,
   onSelectCategory,
   onOpenCategories,
-  onOpenLibrary,
+  onOpenChannels,
+  onOpenProfile,
   seenIds,
   avatars = {},
   loading,
@@ -59,15 +67,17 @@ export default function FeedScreen({
   savedAt,
   failedChannels = [],
   onRefresh,
-  downloads = [],
-  savingIds = {},
+  trackingVideos = {},
   onOpen,
-  onToggleDownload,
   onRemoveChannel,
   shortsPosition = 'after-first-row',
+  dataSaver = false,
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation(['home', 'common']);
 
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
@@ -75,13 +85,14 @@ export default function FeedScreen({
   const [menuChannel, setMenuChannel] = useState(null);
 
   const columns = columnsFor(windowWidth);
+
+  // Largeur utile : jamais plus de 1600 px, le reste est réparti en marges
+  // égales pour centrer le contenu sur les très grands écrans (web, tablette).
+  const contentWidth = Math.min(windowWidth, layout.maxContentWidth);
+  const sidePadding = Math.max(0, (windowWidth - contentWidth) / 2);
   const cardWidth = Math.max(
     0,
-    (windowWidth - 2 * GUTTER - (columns - 1) * GAP) / columns,
-  );
-
-  const menuDownloaded = Boolean(
-    menuVideo && downloads.some((video) => video.videoId === menuVideo.videoId),
+    (contentWidth - 2 * GUTTER - (columns - 1) * GAP) / columns,
   );
 
   const activeCategory = useMemo(
@@ -99,37 +110,80 @@ export default function FeedScreen({
     return videos.filter((video) => scopeIds.has(video.channelId));
   }, [videos, scopeIds]);
 
+  // Format effectif appliqué une fois : la grille, la rangée Shorts et le
+  // lecteur lisent ensuite le même champ `format`.
+  const formattedVideos = useMemo(
+    () => resolveFormats(scopedVideos, formats),
+    [scopedVideos, formats],
+  );
+
   const visibleVideos = useMemo(() => {
     const needle = normalize(query.trim());
-    if (!needle) return scopedVideos;
-    return scopedVideos.filter(
+    if (!needle) return formattedVideos;
+    return formattedVideos.filter(
       (video) =>
         normalize(video.title).includes(needle) ||
         normalize(video.channelTitle).includes(needle),
     );
-  }, [query, scopedVideos]);
+  }, [query, formattedVideos]);
 
   // Les deux flux ne se mélangent jamais : les Shorts vont dans leur rangée,
   // les vidéos longues dans la grille.
   const { shorts, long } = useMemo(() => splitByFormat(visibleVideos), [visibleVideos]);
 
+  // Vidéos dont le format n'est encore prouvé par rien : on ne dessine pas leur
+  // vignette (un Short pourrait apparaître dans un cadre 16:9). Elles gardent
+  // leur place avec un placeholder neutre, puis se résolvent progressivement.
+  const pendingIds = useMemo(() => {
+    const pending = new Set();
+    for (const video of scopedVideos) {
+      if (
+        !isFormatResolved(video, formats) &&
+        !hasFailedFormat(video.videoId)
+      ) {
+        pending.add(video.videoId);
+      }
+    }
+    return pending;
+  }, [scopedVideos, formats]);
+
   // Grille construite en lignes explicites : largeurs strictement égales, et
-  // insertion possible de la rangée Shorts à n'importe quelle frontière.
+  // insertion de la rangée Shorts après la première ligne complète contenant
+  // SHORTS_SHELF_POSITION vidéos (2 sur une colonne, 3 sur trois colonnes).
   const rows = useMemo(() => {
     const list = [];
-    for (let index = 0; index < long.length; index += columns) {
+    const at =
+      shortsPosition === 'top'
+        ? 0
+        : Math.ceil(SHORTS_SHELF_POSITION / columns) * columns;
+    let buffer = [];
+    let inserted = shorts.length === 0;
+
+    const flush = () => {
+      if (buffer.length === 0) return;
       list.push({
         type: 'row',
-        key: `row-${columns}-${index}`,
-        videos: long.slice(index, index + columns),
+        key: `row-${columns}-${list.length}`,
+        videos: buffer,
       });
-    }
-    if (shorts.length > 0) {
-      const at = shortsPosition === 'top' ? 0 : Math.min(1, list.length);
-      list.splice(at, 0, { type: 'shorts', key: `shorts-${columns}` });
-    }
+      buffer = [];
+    };
+
+    long.forEach((video, index) => {
+      if (!inserted && index === at) {
+        flush();
+        list.push({ type: 'shorts', key: `shorts-${columns}` });
+        inserted = true;
+      }
+      buffer.push(video);
+      if (buffer.length === columns) flush();
+    });
+
+    flush();
+    if (!inserted) list.push({ type: 'shorts', key: `shorts-${columns}` });
+
     return list;
-  }, [long, shorts, columns, shortsPosition]);
+  }, [long, shorts.length, columns, shortsPosition]);
 
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
@@ -152,6 +206,15 @@ export default function FeedScreen({
     });
   }, []);
 
+  const progressFor = useCallback(
+    (video) => {
+      const entry = trackingVideos?.[video.videoId];
+      if (!entry || !(entry.duration > 0)) return 0;
+      return entry.position / entry.duration;
+    },
+    [trackingVideos],
+  );
+
   const renderItem = useCallback(
     ({ item }) => {
       if (item.type === 'shorts') {
@@ -160,28 +223,29 @@ export default function FeedScreen({
             videos={shorts}
             seen={seen}
             hasHistory={hasHistory}
+            sidePadding={sidePadding}
+            dataSaver={dataSaver}
             onOpen={onOpen}
+            onMore={onRemoveChannel ? setMenuVideo : undefined}
           />
         );
       }
 
       return (
-        <View style={styles.gridRow}>
+        <View style={[styles.gridRow, { paddingHorizontal: sidePadding + GUTTER }]}>
           {item.videos.map((video) => (
             <VideoCard
               key={video.videoId}
               width={cardWidth}
               video={video}
+              pending={pendingIds.has(video.videoId)}
+              progress={progressFor(video)}
+              duration={trackingVideos?.[video.videoId]?.duration}
               isNew={hasHistory && !seen.has(video.videoId)}
               onPress={() => onOpen(video, long)}
-              downloaded={downloads.some((entry) => entry.videoId === video.videoId)}
-              saving={Boolean(savingIds[video.videoId])}
+              dataSaver={dataSaver}
               channelAvatar={avatars[video.channelId]}
-              onMore={
-                onRemoveChannel || onToggleDownload
-                  ? () => setMenuVideo(video)
-                  : undefined
-              }
+              onMore={onRemoveChannel ? () => setMenuVideo(video) : undefined}
             />
           ))}
         </View>
@@ -190,15 +254,18 @@ export default function FeedScreen({
     [
       avatars,
       cardWidth,
-      downloads,
+      dataSaver,
       hasHistory,
       long,
       onOpen,
       onRemoveChannel,
-      onToggleDownload,
-      savingIds,
+      pendingIds,
+      progressFor,
       seen,
       shorts,
+      sidePadding,
+      styles.gridRow,
+      trackingVideos,
     ],
   );
 
@@ -209,7 +276,7 @@ export default function FeedScreen({
         query={query}
         onChangeQuery={setQuery}
         onToggleSearch={toggleSearch}
-        onOpenLibrary={onOpenLibrary}
+        onOpenProfile={onOpenProfile}
         syncLabel={syncLabel}
       />
 
@@ -225,18 +292,18 @@ export default function FeedScreen({
       <FlatList
         data={rows}
         keyExtractor={(item) => item.key}
-        extraData={`${columns}-${cardWidth}-${shortsPosition}`}
+        extraData={`${columns}-${cardWidth}-${shortsPosition}-${sidePadding}`}
         renderItem={renderItem}
         ListHeaderComponent={
           error ? (
-            <View style={styles.banner}>
+            <View style={[styles.banner, { marginHorizontal: sidePadding + GUTTER }]}>
               <Text style={styles.bannerText}>
                 {fromCache
-                  ? 'Hors ligne : la dernière liste enregistrée est affichée.'
-                  : 'Certaines chaînes n’ont pas répondu.'}
+                  ? t('home:offlineCacheMessage')
+                  : t('home:partialFailureMessage')}
               </Text>
               <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
-                <Text style={styles.bannerAction}>Réessayer</Text>
+                <Text style={styles.bannerAction}>{t('home:retry')}</Text>
               </Pressable>
             </View>
           ) : null
@@ -247,25 +314,29 @@ export default function FeedScreen({
               columns={columns}
               cardWidth={cardWidth}
               rows={2}
-              withShorts={shortsPosition === 'top'}
+              sidePadding={sidePadding}
             />
           ) : query.trim() ? (
             <EmptyState
-              title="Aucun résultat"
-              message={`Aucune vidéo ne correspond à « ${query.trim()} ».`}
-              actionLabel="Effacer la recherche"
+              title={t('home:noResults')}
+              message={t('home:noSearchMatch', { query: query.trim() })}
+              actionLabel={t('common:clearSearch')}
               onAction={toggleSearch}
             />
           ) : (
             <EmptyState
-              title={activeCategory ? 'Catégorie vide' : 'Rien à afficher'}
+              title={activeCategory ? t('home:emptyCategory') : t('home:nothingToShow')}
               message={
                 activeCategory
-                  ? 'Aucune vidéo récente pour ces chaînes. Ajoute-en une à la catégorie.'
-                  : 'Tire vers le bas pour actualiser, ou ajoute des chaînes à ta bibliothèque.'
+                  ? t('home:emptyCategoryMessage')
+                  : t('home:emptyFeedMessage')
               }
-              actionLabel={activeCategory ? 'Modifier la catégorie' : 'Gérer mes chaînes'}
-              onAction={onOpenCategories}
+              actionLabel={
+                activeCategory
+                  ? t('home:editCategory')
+                  : t('home:manageChannels')
+              }
+              onAction={activeCategory ? onOpenCategories : onOpenChannels}
             />
           )
         }
@@ -273,24 +344,28 @@ export default function FeedScreen({
           visibleVideos.length > 0 ? (
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                {long.length} vidéo{long.length > 1 ? 's' : ''}
+                {t('home:video', { count: long.length })}
                 {shorts.length > 0
-                  ? ` · ${shorts.length} Short${shorts.length > 1 ? 's' : ''}`
+                  ? ` · ${t('home:short', { count: shorts.length })}`
                   : ''}
                 {' · '}
-                {scopeChannelCount} chaîne{scopeChannelCount > 1 ? 's' : ''}
-                {failedChannels.length > 0 ? ` · ${failedChannels.length} en échec` : ''}
+                {t('home:channel', { count: scopeChannelCount })}
+                {failedChannels.length > 0
+                  ? ` · ${t('home:failedChannels', { count: failedChannels.length })}`
+                  : ''}
               </Text>
               <Text style={styles.footerText}>
-                {savedAt ? `Synchronisé ${timeAgo(savedAt)}` : 'Jamais synchronisé'}
-                {fromCache ? ' · cache local' : ''}
+                {savedAt
+                  ? t('home:lastSynced', { time: timeAgo(savedAt) })
+                  : t('home:neverSynced')}
+                {fromCache ? ` · ${t('home:localCache')}` : ''}
               </Text>
               <Pressable
                 onPress={onRefresh}
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
               >
-                <Text style={styles.footerAction}>Actualiser</Text>
+                <Text style={styles.footerAction}>{t('home:refresh')}</Text>
               </Pressable>
             </View>
           ) : null
@@ -321,25 +396,12 @@ export default function FeedScreen({
         actions={
           menuVideo
             ? [
-                {
-                  key: 'download',
-                  label: menuDownloaded ? 'Retirer l’enregistrement' : 'Enregistrer hors ligne',
-                  hint: menuDownloaded
-                    ? 'Retire la fiche de l’onglet Hors ligne'
-                    : 'Garde la fiche et la miniature pour le hors ligne',
-                  icon: <DownloadIcon color={colors.textMuted} size={17} />,
-                  onPress: () => {
-                    const video = menuVideo;
-                    setMenuVideo(null);
-                    onToggleDownload?.(video);
-                  },
-                },
                 ...(onRemoveChannel
                   ? [
                       {
                         key: 'remove-channel',
-                        label: 'Retirer la chaîne',
-                        hint: 'Elle quittera ta bibliothèque et tes catégories',
+                        label: t('home:removeChannel'),
+                        hint: t('home:removeChannelHint'),
                         destructive: true,
                         icon: <TrashIcon color={colors.danger} size={16} />,
                         onPress: () => {
@@ -360,9 +422,9 @@ export default function FeedScreen({
 
       <ConfirmSheet
         visible={Boolean(menuChannel)}
-        title="Retirer cette chaîne ?"
-        message={`« ${menuChannel?.title ?? ''} » quittera ta bibliothèque, ton accueil et tes catégories.`}
-        confirmLabel="Retirer la chaîne"
+        title={t('home:removeChannelConfirm')}
+        message={t('home:removeChannelHint')}
+        confirmLabel={t('home:removeChannel')}
         destructive
         onConfirm={() => {
           const channel = menuChannel;
@@ -375,7 +437,7 @@ export default function FeedScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -387,7 +449,6 @@ const styles = StyleSheet.create({
   gridRow: {
     flexDirection: 'row',
     gap: GAP,
-    paddingHorizontal: GUTTER,
     alignItems: 'flex-start',
   },
   banner: {
@@ -395,7 +456,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginHorizontal: GUTTER,
     marginBottom: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

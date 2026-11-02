@@ -1,7 +1,9 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { colors, radius, spacing } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 
 /**
  * Feuille d'actions en bas d'écran (même rendu Android, iOS et web).
@@ -9,6 +11,8 @@ import { colors, radius, spacing } from '../constants/theme';
  */
 export default function ActionSheet({ visible, title, message, actions = [], onClose }) {
   const insets = useSafeAreaInsets();
+  const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation('common');
 
   return (
     <Modal
@@ -74,10 +78,10 @@ export default function ActionSheet({ visible, title, message, actions = [], onC
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Annuler"
+            accessibilityLabel={t('cancel')}
             style={({ pressed }) => [styles.cancel, pressed && styles.cancelPressed]}
           >
-            <Text style={styles.cancelText}>Annuler</Text>
+            <Text style={styles.cancelText}>{t('cancel')}</Text>
           </Pressable>
         </View>
       </View>
@@ -85,7 +89,7 @@ export default function ActionSheet({ visible, title, message, actions = [], onC
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',

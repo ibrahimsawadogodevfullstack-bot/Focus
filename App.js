@@ -1,49 +1,39 @@
-import * as DocumentPicker from 'expo-document-picker';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
 import TabBar from './components/TabBar';
-import { colors } from './constants/theme';
+import { DEFAULT_SETTINGS, readSettings } from './services/settings';
+import { SettingsProvider, useSettings, useUpdateSettings } from './services/SettingsProvider';
+import { ThemeProvider, useTheme } from './services/ThemeProvider';
 import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
-import LocalPlayerScreen from './screens/LocalPlayerScreen';
-import OfflineScreen from './screens/OfflineScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import StatsScreen from './screens/StatsScreen';
-import {
-  deleteDownload,
-  readDownloads,
-  saveDownload,
-  writeDownloads,
-} from './services/downloads';
+import YouScreen from './screens/YouScreen';
 import { saveCrash } from './services/crashLog';
 import { loadFeed } from './services/feed';
-import {
-  deleteLocalVideo,
-  importLocalVideos,
-  readLocalVideos,
-  updateLocalDuration,
-} from './services/localVideos';
-import {
-  clearOffline,
-  downloadOffline,
-  readOffline,
-  writeOffline,
-} from './services/offline';
 import { resolveChannelAvatars } from './services/channelAvatars';
+import { FORMAT_SHORT, formatOf } from './services/filters';
 import {
   getTracking,
   initTracking,
   resetTracking,
   subscribeTracking,
 } from './services/tracking';
-import { DEFAULT_SETTINGS, readSettings, writeSettings } from './services/settings';
+import {
+  detectFormats,
+  getFormats,
+  initFormats,
+  subscribeFormats,
+} from './services/formats';
 import {
   addSeenId,
   readCategories,
@@ -62,9 +52,79 @@ const EMPTY_FEED = {
   error: null,
 };
 
-const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'offline', 'stats']);
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'stats', 'you']);
+
+SplashScreen.preventAutoHideAsync().catch((error) => {
+  console.warn('Could not keep the native splash screen visible.', error);
+});
 
 export default function App() {
+  const [bootstrapSettings, setBootstrapSettings] = useState(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let completed = false;
+
+    const showApp = async (settings) => {
+      if (!active) return;
+      try {
+        await i18nReady;
+        await applyLanguage(settings.language);
+      } catch (error) {
+        console.error('Unable to initialize the application language.', error);
+      }
+      if (!active) return;
+      completed = true;
+      setBootstrapSettings(settings);
+      setReady(true);
+    };
+
+    const fallbackTimer = setTimeout(() => {
+      if (!completed) showApp(DEFAULT_SETTINGS);
+    }, 400);
+
+    readSettings()
+      .then((settings) => {
+        clearTimeout(fallbackTimer);
+        return showApp(settings);
+      })
+      .catch((error) => {
+        console.error('Unable to load saved settings.', error);
+        clearTimeout(fallbackTimer);
+        return showApp(DEFAULT_SETTINGS);
+      });
+
+    return () => {
+      active = false;
+      clearTimeout(fallbackTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    SplashScreen.hideAsync().catch((error) => {
+      console.warn('Could not hide the native splash screen.', error);
+    });
+  }, [ready]);
+
+  if (!ready) return null;
+
+  return (
+    <SettingsProvider initialSettings={bootstrapSettings}>
+      <ThemeProvider>
+        <SafeAreaProvider>
+          <AppContent />
+        </SafeAreaProvider>
+      </ThemeProvider>
+    </SettingsProvider>
+  );
+}
+
+function AppContent() {
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
+  const { colors, resolved } = useTheme();
   const [feed, setFeed] = useState(EMPTY_FEED);
   const [channels, setChannels] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -73,16 +133,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [seenIds, setSeenIds] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [formats, setFormatsState] = useState(() => getFormats());
   const [route, setRoute] = useState({ name: 'feed' });
-  const [offline, setOffline] = useState(null);
-  const [offlineDownloading, setOfflineDownloading] = useState(false);
-  const [offlineProgress, setOfflineProgress] = useState(null);
   const [sync, setSync] = useState({ active: false, done: 0, total: 0, percent: 0 });
-  const [downloads, setDownloads] = useState([]);
-  const [savingIds, setSavingIds] = useState({});
-  const [localVideos, setLocalVideos] = useState([]);
-  const [importingLocal, setImportingLocal] = useState(false);
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const [crash, setCrash] = useState(null);
@@ -132,27 +185,15 @@ export default function App() {
         storedChannels,
         storedCategories,
         seen,
-        storedOffline,
-        storedDownloads,
-        storedLocalVideos,
-        storedSettings,
       ] = await Promise.all([
         readChannels(),
         readCategories(),
         readSeenIds(),
-        readOffline(),
-        readDownloads(),
-        readLocalVideos(),
-        readSettings(),
       ]);
       if (cancelled) return;
       setChannels(storedChannels);
       setCategories(storedCategories);
       setSeenIds(seen);
-      setSettings(storedSettings);
-      setOffline(storedOffline);
-      setDownloads(storedDownloads);
-      setLocalVideos(storedLocalVideos);
       setLibraryReady(true);
     })();
 
@@ -181,6 +222,30 @@ export default function App() {
       active = false;
     };
   }, [libraryReady, channelKey]);
+
+  // Formats réels (vertical / horizontal) : cache local, puis sondes réseau.
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeFormats((next) => {
+      if (active) setFormatsState(next);
+    });
+
+    initFormats().then((known) => {
+      if (active) setFormatsState({ ...known });
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // Chaque flux chargé est passé à la sonde : les Shorts non tagués rejoignent
+  // leur rangée dès que leur orientation est connue.
+  useEffect(() => {
+    if (feed.videos.length === 0) return;
+    detectFormats(feed.videos);
+  }, [feed.videos]);
 
   const applyFeed = useCallback((result) => {
     setFeed({
@@ -229,6 +294,7 @@ export default function App() {
         const result = await loadFeed({
           channelIds: ids,
           force,
+          onCached: applyFeed,
           onProgress: ({ done, total, percent }) =>
             setSync({ active: true, done, total, percent }),
         });
@@ -275,10 +341,6 @@ export default function App() {
         setRoute({ name: 'stats' });
         return true;
       }
-      if (current === 'localPlayer') {
-        setRoute({ name: 'offline' });
-        return true;
-      }
       if (current !== 'feed') {
         setRoute({ name: 'feed' });
         return true;
@@ -305,15 +367,9 @@ export default function App() {
     addSeenId(video.videoId).then((seen) => setSeenIds(seen));
   }, []);
 
-  // Les Shorts ne sont plus retirés du flux : ils vont dans leur propre rangée
-  // (voir FeedScreen). Le filtre `shortIds` qui les bannissait définitivement,
-  // y compris pour une capsule pédagogique de 60 s, est supprimé.
-  const feedVideos = feed.videos;
-
-  const updateSettings = useCallback(async (patch) => {
-    const next = await writeSettings(patch);
-    setSettings(next);
-  }, []);
+  const feedVideos = settings.hideShorts
+    ? feed.videos.filter((video) => formatOf(video, formats) !== FORMAT_SHORT)
+    : feed.videos;
 
   const handleChangeGoal = useCallback(
     (goal) => {
@@ -329,103 +385,6 @@ export default function App() {
   const handleResetData = useCallback(async () => {
     await resetTracking();
   }, []);
-
-  const handleDownloadOffline = useCallback(async () => {
-    if (offlineDownloading || feedVideos.length === 0) return;
-
-    setOfflineDownloading(true);
-    setOfflineProgress({ done: 0, total: feedVideos.length, failed: 0 });
-    // La liste apparaît tout de suite ; les miniatures arrivent au fil de l'eau.
-    setOffline({ savedAt: Date.now(), videos: feedVideos, thumbs: 0, failed: 0 });
-    try {
-      const snapshot = await downloadOffline(feedVideos, setOfflineProgress);
-      setOffline(snapshot);
-    } catch {
-      // L'écran garde l'état précédent : rien n'est perdu.
-    } finally {
-      setOfflineDownloading(false);
-      setOfflineProgress(null);
-    }
-  }, [feedVideos, offlineDownloading]);
-
-  const handleClearOffline = useCallback(async () => {
-    setOffline(null);
-    await clearOffline();
-  }, []);
-
-  // Menu « … » d'une carte puis « Enregistrer hors ligne ».
-  // Seules la fiche et la miniature sont conservées : aucun fichier vidéo
-  // YouTube n'est téléchargé. L'indicateur est donc un état « en cours », pas
-  // un faux pourcentage de progression.
-  const handleToggleDownload = useCallback(
-    async (video) => {
-      const exists = downloads.some((item) => item.videoId === video.videoId);
-      if (exists) {
-        const next = await deleteDownload(video.videoId);
-        setDownloads(next);
-        return;
-      }
-
-      if (savingIds[video.videoId]) return;
-
-      setSavingIds((prev) => ({ ...prev, [video.videoId]: true }));
-      try {
-        const next = await saveDownload(video);
-        setDownloads(next);
-      } finally {
-        setSavingIds((prev) => {
-          const done = { ...prev };
-          delete done[video.videoId];
-          return done;
-        });
-      }
-    },
-    [downloads, savingIds],
-  );
-
-  // Lecture hors ligne : fichiers vidéo de l'appareil (aucun téléchargement
-  // YouTube : le lecteur local ne lit que ce que l'utilisateur fournit).
-  const handleImportLocal = useCallback(async () => {
-    if (importingLocal) return;
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'video/*',
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      setImportingLocal(true);
-      const next = await importLocalVideos(result.assets);
-      setLocalVideos(next);
-    } catch {
-      // Sélecteur indisponible : la liste reste inchangée.
-    } finally {
-      setImportingLocal(false);
-    }
-  }, [importingLocal]);
-
-  const handleDeleteLocal = useCallback(async (video) => {
-    const next = await deleteLocalVideo(video);
-    setLocalVideos(next);
-  }, []);
-
-  const handleLocalDuration = useCallback(async (id, duration) => {
-    if (!id || !duration) return;
-    const next = await updateLocalDuration(id, duration);
-    setLocalVideos(next);
-  }, []);
-
-  const handleOpenDownload = useCallback(
-    (video) => {
-      const queue = downloads.length > 0 ? downloads : [video];
-      const index = Math.max(
-        0,
-        queue.findIndex((item) => item.videoId === video.videoId),
-      );
-      setRoute({ name: 'player', queue, index, from: 'offline' });
-    },
-    [downloads],
-  );
 
   const handleAddChannel = useCallback(
     async (channel) => {
@@ -466,27 +425,8 @@ export default function App() {
         setActiveCategoryId(null);
       }
 
-      // Les téléchargements et le cache ne gardent pas la chaîne retirée.
-      if (downloads.some((video) => video.channelId === channelId)) {
-        const remaining = downloads.filter((video) => video.channelId !== channelId);
-        setDownloads(remaining);
-        await writeDownloads(remaining);
-      }
-
-      if (offline?.videos?.length) {
-        const remaining = offline.videos.filter((video) => video.channelId !== channelId);
-        if (remaining.length !== offline.videos.length) {
-          const snapshot = {
-            ...offline,
-            videos: remaining,
-            thumbs: Math.min(offline.thumbs ?? 0, remaining.length),
-          };
-          setOffline(snapshot);
-          await writeOffline(snapshot);
-        }
-      }
     },
-    [activeCategoryId, categories, channels, downloads, offline],
+    [activeCategoryId, categories, channels],
   );
 
   const handleSaveCategory = useCallback(
@@ -530,15 +470,15 @@ export default function App() {
     screen = (
       <FeedScreen
         videos={feedVideos}
+        formats={formats}
         channels={channels}
         categories={categories}
         activeCategoryId={activeCategoryId}
         onSelectCategory={setActiveCategoryId}
         onOpenCategories={() => setRoute({ name: 'categories' })}
-        onOpenLibrary={() => setRoute({ name: 'channels' })}
-        downloads={downloads}
-        savingIds={savingIds}
-        onToggleDownload={handleToggleDownload}
+        onOpenChannels={() => setRoute({ name: 'channels' })}
+        onOpenProfile={() => setRoute({ name: 'you' })}
+        trackingVideos={tracking.videos}
         onRemoveChannel={handleRemoveChannel}
         seenIds={seenIds}
         avatars={avatars}
@@ -550,6 +490,7 @@ export default function App() {
         savedAt={feed.savedAt}
         failedChannels={feed.failedChannels}
         shortsPosition={settings.shortsPosition}
+        dataSaver={settings.dataSaver}
         onRefresh={handleRefresh}
         onOpen={handleOpen}
       />
@@ -563,6 +504,8 @@ export default function App() {
         onRemoveChannel={handleRemoveChannel}
       />
     );
+  } else if (route.name === 'you') {
+    screen = <YouScreen />;
   } else if (route.name === 'stats') {
     screen = (
       <StatsScreen
@@ -603,26 +546,6 @@ export default function App() {
         onOpenCategories={() => setRoute({ name: 'categories' })}
       />
     );
-  } else if (route.name === 'offline') {
-    screen = (
-      <OfflineScreen
-        offline={offline}
-        downloads={downloads}
-        downloading={offlineDownloading}
-        progress={offlineProgress}
-        feedCount={feedVideos.length}
-        onDownload={handleDownloadOffline}
-        onClear={handleClearOffline}
-        onOpen={handleOpen}
-        onOpenDownload={handleOpenDownload}
-        onRemoveDownload={handleToggleDownload}
-        localVideos={localVideos}
-        importing={importingLocal}
-        onImportLocal={handleImportLocal}
-        onOpenLocal={(video) => setRoute({ name: 'localPlayer', entry: video })}
-        onDeleteLocal={handleDeleteLocal}
-      />
-    );
   } else if (route.name === 'categories') {
     screen = (
       <CategoriesScreen
@@ -644,61 +567,51 @@ export default function App() {
         onClose={() => setRoute({ name: 'categories' })}
       />
     );
-  } else if (route.name === 'localPlayer') {
-    screen = (
-      <LocalPlayerScreen
-        entry={route.entry}
-        onBack={() => setRoute({ name: 'offline' })}
-        onDuration={handleLocalDuration}
-      />
-    );
   } else {
     screen = (
       <PlayerScreen
         queue={route.queue}
         initialIndex={route.index}
-        downloads={downloads}
-        savingIds={savingIds}
         avatars={avatars}
+        formats={formats}
         autoplayNext={settings.autoplayNext}
+        playbackSpeed={settings.playbackSpeed}
+        subtitles={settings.subtitles}
+        dataSaver={settings.dataSaver}
         onToggleAutoplay={handleToggleAutoplay}
-        backLabel={route.from === 'offline' ? 'Hors ligne' : 'Accueil'}
-        onBack={() => setRoute({ name: route.from === 'offline' ? 'offline' : 'feed' })}
+        backLabel="Accueil"
+        onBack={() => setRoute({ name: 'feed' })}
         onVideoChange={handleVideoChange}
-        onToggleDownload={handleToggleDownload}
       />
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.root}>
-        <View style={styles.body}>
-          {crash ? (
-            <CrashScreen
-              error={crash.error}
-              onRetry={() => {
-                setCrash(null);
-                setRoute({ name: 'feed' });
-              }}
-            />
-          ) : (
-            <ErrorBoundary onReset={() => setRoute({ name: 'feed' })}>
-              {screen}
-            </ErrorBoundary>
-          )}
-        </View>
-        {showTabBar ? <TabBar active={route.name} onChange={handleOpenTab} /> : null}
-        <StatusBar style="light" />
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <View style={styles.body}>
+        {crash ? (
+          <CrashScreen
+            error={crash.error}
+            onRetry={() => {
+              setCrash(null);
+              setRoute({ name: 'feed' });
+            }}
+          />
+        ) : (
+          <ErrorBoundary onReset={() => setRoute({ name: 'feed' })}>
+            {screen}
+          </ErrorBoundary>
+        )}
       </View>
-    </SafeAreaProvider>
+      {showTabBar ? <TabBar active={route.name} onChange={handleOpenTab} /> : null}
+      <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   body: {
     flex: 1,

@@ -1,61 +1,69 @@
-import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../constants/theme';
-
-const THUMB_STEPS = ['maxresdefault', 'sddefault', 'hqdefault'];
+import { useThemeStyles } from '../services/ThemeProvider';
+import VideoThumbnail from './VideoThumbnail';
+import { MoreIcon } from './Icons';
 
 /** Largeur d'une carte Short : 150 à 180 px sur mobile. */
 export const SHORT_CARD_WIDTH = 156;
 
 /**
  * Carte Short (9:16), destinée uniquement à la rangée horizontale.
- * Elle ne doit jamais être utilisée dans la grille des vidéos longues : son
- * ratio n'y aurait aucun sens, et c'est précisément ce qui produisait
- * l'affichage « image verticale dans une carte large ».
+ *
+ * Une seule image, en `cover` : si la source est un 16:9 avec le Short au
+ * centre, le cadre 9:16 recadre automatiquement la vraie vidéo. Aucun fond
+ * zoomé superposé, aucun étirement.
  */
-export default function ShortCard({ video, width = SHORT_CARD_WIDTH, onPress, isNew }) {
-  const [thumbStep, setThumbStep] = useState(0);
-  const [failed, setFailed] = useState(false);
-
-  const source = video.thumbnail || `https://i.ytimg.com/vi/${video.videoId}/${THUMB_STEPS[thumbStep]}.jpg`;
-
-  const handleThumbError = () => {
-    if (thumbStep < THUMB_STEPS.length - 1) setThumbStep((step) => step + 1);
-    else setFailed(true);
-  };
-
+export default function ShortCard({
+  video,
+  width = SHORT_CARD_WIDTH,
+  onPress,
+  onMore,
+  isNew,
+  dataSaver = false,
+}) {
+  const styles = useThemeStyles(baseStyles);
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Short : ${video.title} — ${video.channelTitle}`}
-      style={({ pressed }) => [styles.card, { width }, pressed && styles.pressed]}
-    >
-      <View style={styles.thumbWrap}>
-        {failed ? (
-          <View style={styles.placeholder} />
-        ) : (
-          <Image
-            source={{ uri: source }}
-            style={styles.thumb}
-            resizeMode="cover"
-            accessibilityIgnoresInvertColors
-            onError={handleThumbError}
-          />
-        )}
+    <View style={[styles.card, { width }]}>
+      <VideoThumbnail
+        videoId={video.videoId}
+        format="short"
+        dataSaver={dataSaver}
+        onPress={onPress}
+        accessibilityLabel={`Short : ${video.title} — ${video.channelTitle}`}
+        style={styles.thumbWrap}
+      >
+        {isNew ? <View pointerEvents="none" style={styles.newDot} /> : null}
 
-        {isNew ? <View style={styles.newDot} /> : null}
-      </View>
+        {onMore ? (
+          <Pressable
+            onPress={onMore}
+            accessibilityRole="button"
+            accessibilityLabel={`Options pour ${video.channelTitle}`}
+            hitSlop={4}
+            style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
+          >
+            <MoreIcon color={colors.text} size={15} />
+          </Pressable>
+        ) : null}
+      </VideoThumbnail>
 
-      <Text style={styles.title} numberOfLines={2}>
-        {video.title}
-      </Text>
-    </Pressable>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Ouvrir ${video.title}`}
+        style={({ pressed }) => [styles.titlePress, pressed && styles.pressed]}
+      >
+        <Text style={styles.title} numberOfLines={2}>
+          {video.title}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   card: {
     paddingBottom: spacing.sm,
   },
@@ -64,31 +72,34 @@ const styles = StyleSheet.create({
   },
   thumbWrap: {
     width: '100%',
-    aspectRatio: 9 / 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceAlt,
-  },
-  thumb: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: colors.surfaceAlt,
   },
   newDot: {
     position: 'absolute',
     top: spacing.sm,
-    right: spacing.sm,
+    left: spacing.sm,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.accent,
   },
-  title: {
+  more: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5, 7, 14, 0.52)',
+  },
+  morePressed: {
+    backgroundColor: 'rgba(5, 7, 14, 0.78)',
+  },
+  titlePress: {
     marginTop: spacing.sm,
+  },
+  title: {
     color: colors.text,
     fontSize: 12.5,
     fontWeight: '600',

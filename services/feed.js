@@ -1,8 +1,8 @@
 import { DEFAULT_CHANNEL_IDS } from '../constants/channels';
 import { feedUrl } from './feedUrl';
-import { withFormat } from './filters';
 import { netFetch } from './net';
 import { parseFeed } from './rssParser';
+import { startPerformance } from './performance';
 import { readFeedCache, writeFeedCache } from './storage';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -11,9 +11,11 @@ const CONCURRENCY = 4;
 
 export { feedUrl };
 
-async function fetchWithTimeout(url) {
+async function fetchWithTimeout(url, channelId) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const finish = startPerformance('feed.request', { channelId });
+  let outcome = { result: 'error' };
   try {
     const response = await netFetch(url, {
       signal: controller.signal,
@@ -22,14 +24,24 @@ async function fetchWithTimeout(url) {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    return await response.text();
+    const body = await response.text();
+    outcome = { result: 'ok', status: response.status, responseChars: body.length };
+    return body;
+  } catch (error) {
+    outcome = {
+      result: 'error',
+      errorName: error?.name ?? 'Error',
+      message: error?.message ?? 'Request failed',
+    };
+    throw error;
   } finally {
     clearTimeout(timer);
+    finish(outcome);
   }
 }
 
 async function fetchChannel(channelId) {
-  const xml = await fetchWithTimeout(feedUrl(channelId));
+  const xml = await fetchWithTimeout(feedUrl(channelId), channelId);
   return parseFeed(xml, channelId);
 }
 
@@ -60,15 +72,13 @@ function mergeFeeds(feeds) {
     }
     for (const video of feed.videos) {
       if (!byId.has(video.videoId)) {
-        // Le format est calculé une fois ici : le flux et le lecteur lisent
-        // ensuite le même champ, sans règle divergente.
-        byId.set(
-          video.videoId,
-          withFormat({
-            ...video,
-            channelTitle: video.channelTitle || channels.get(video.channelId) || '',
-          }),
-        );
+        // On ne stampe plus `format` ici : un « video » par défaut serait
+        // indiscernable d'un vrai format fourni par une API. Le classement est
+        // appliqué au rendu (resolveFormats), une fois les sondes connues.
+        byId.set(video.videoId, {
+          ...video,
+          channelTitle: video.channelTitle || channels.get(video.channelId) || '',
+        });
       }
     }
   }
@@ -123,7 +133,12 @@ export async function loadFeed({
   channelIds = DEFAULT_CHANNEL_IDS,
   force = false,
   onProgress,
+  onCached,
 } = {}) {
+  const finish = startPerformance('feed.load', {
+    channelCount: channelIds.length,
+    force,
+  });
   const channelKey = [...channelIds].sort().join(',');
   const cached = await readFeedCache();
   const sameScope = cached && cached.channelKey === channelKey;
@@ -131,16 +146,38 @@ export async function loadFeed({
 
   if (sameScope && isFresh && !force) {
     onProgress?.({ done: channelIds.length, total: channelIds.length, percent: 100 });
+    finish({
+      source: 'cache',
+      cacheAgeMs: Math.max(0, Date.now() - cached.savedAt),
+      videoCount: cached.videos?.length ?? 0,
+    });
     return { ...cached, fromCache: true };
   }
 
+  if (sameScope && cached && !isFresh && !force) {
+    onCached?.({ ...cached, fromCache: true });
+  }
+
   try {
-    return await fetchFeed(channelIds, { onProgress });
+    const result = await fetchFeed(channelIds, { onProgress });
+    finish({
+      source: 'network',
+      videoCount: result.videos.length,
+      failedChannelCount: result.failedChannels.length,
+    });
+    return result;
   } catch (error) {
     if (sameScope && cached) {
       onProgress?.({ done: channelIds.length, total: channelIds.length, percent: 100 });
+      finish({
+        source: 'stale-cache',
+        result: 'network-error',
+        cacheAgeMs: Math.max(0, Date.now() - cached.savedAt),
+        videoCount: cached.videos?.length ?? 0,
+      });
       return { ...cached, fromCache: true, error: error?.message };
     }
+    finish({ source: 'network', result: 'error' });
     throw error;
   }
 }

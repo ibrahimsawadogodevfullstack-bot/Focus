@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../constants/theme';
+import { useThemeStyles } from '../services/ThemeProvider';
 
 /** Avatar de chaîne : la vraie photo YouTube, sinon l'initiale en secours. */
 export default function ChannelAvatar({ uri, name, size = 40 }) {
+  const styles = useThemeStyles(baseStyles);
   const [failed, setFailed] = useState(false);
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   const circle = { width: size, height: size, borderRadius: size / 2 };
@@ -28,7 +30,7 @@ export default function ChannelAvatar({ uri, name, size = 40 }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   image: {
     backgroundColor: colors.surfaceAlt,
     borderWidth: StyleSheet.hairlineWidth,

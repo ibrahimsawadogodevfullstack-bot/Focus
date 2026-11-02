@@ -19,23 +19,16 @@ pas de serveur intermédiaire, pas de clé API.
 
   Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
   passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
-- **Hors ligne** : comme dans YouTube, le menu « … » d'une vidéo propose
-  « Télécharger » : sa fiche et sa miniature sont conservées et apparaissent
-  dans l'onglet Hors ligne (avec suppression possible). La carte affiche la
-  progression en pourcentage pendant l'enregistrement, puis un badge
-  « Téléchargée ». L'onglet permet aussi de
-  garder d'un coup les titres, chaînes et miniatures de tout le flux. Le fichier
-  vidéo YouTube, lui, n'est pas enregistré (interdit par les CGU du lecteur) :
-  la fiche reste consultable, sa lecture demande une connexion.
-- **Lecture locale hors ligne** : l'onglet Hors ligne accepte aussi les vidéos
-  présentes sur l'appareil (« Importer une vidéo »). Le fichier est copié dans
-  le dossier privé de l'app (il survit au nettoyage du cache du sélecteur), sa
-  taille et sa durée s'affichent, et un lecteur maison le lit sans réseau :
-  lecture/pause, ±10 s, avancement tapable, vitesses 1× à 2×, suppression avec
-  confirmation. Aucun téléchargement YouTube n'est effectué : l'app ne lit que
-  les fichiers fournis par l'utilisateur.
+- **Préférences « Vous »** : langue française/anglaise ou système, thème clair,
+  sombre ou système, lecture automatique, vitesse par défaut, sous-titres,
+  masquage des Shorts, miniatures en résolution réduite et suppression du cache
+  des miniatures.
+- **Données hors ligne préexistantes** : l'interface et les actions hors ligne
+  ont été retirées. Les anciennes données locales ne sont ni lues ni supprimées
+  par cette version ; réinstaller l'app ou effacer ses données système reste
+  une action destructive distincte.
 - **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
-  chaîne, insensible aux accents) et un accès à la bibliothèque ; rangée de puces
+  chaîne, insensible aux accents) et un accès à « Vous » ; rangée de puces
   « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
 - **Catégories** : regroupements nommés de plusieurs chaînes (« Maths »,
   « Anglais », « Tech »…). Une catégorie devient un filtre du flux et peut être
@@ -46,9 +39,13 @@ pas de serveur intermédiaire, pas de clé API.
   152/153). Les commandes de l'interface (lecture, ±10 s, progression) pilotent
   le lecteur via un pont JavaScript injecté. La navigation hors du lecteur est
   bloquée, la fin de vidéo enchaîne sur la suivante, et toute sortie vers
-  YouTube demande une confirmation.
+  YouTube demande une confirmation. En plein écran, le titre et les commandes
+  se masquent après 2 secondes et réapparaissent au toucher.
 - **Cache** : flux gardé dans `AsyncStorage` (TTL 10 min, invalidé quand la
-  liste des chaînes change), affichage hors ligne, titres appris puis stockés.
+  liste des chaînes change), cache périmé affiché pendant l'actualisation,
+  titres appris puis stockés.
+- **Thèmes et langues** : réglages persistés et migrés sans effacer la
+  bibliothèque ni les statistiques déjà présentes.
 - **Vidéos déjà vues** : pastille « nouveau » sur les vidéos non encore ouvertes.
 - **Suivi et statistiques** : onglet Stats « Ma semaine » (jours actifs, temps
   effectif, vidéos finies, objectif hebdomadaire) puis, par catégorie, le temps
@@ -85,10 +82,7 @@ services/feedUrl.js        URL du flux Atom d'une chaîne
 services/feed.js           fetch RSS, fusion, tri, cache par périmètre
 services/rssParser.js      analyse Atom (sans dépendance XML)
 services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
-services/offline.js        instantané hors ligne + préchauffage des miniatures
 services/tracking.js       temps vu, progression, révisions, auto-évaluation
-services/downloads.js      téléchargements par vidéo (fiche + miniature)
-services/localVideos.js    import, copie, suppression et taille des vidéos locales
 services/stats.js          agrégats semaine/catégorie, états, synthèse
 services/channelResolver.js résolution identifiant / @handle / URL / vidéo
 services/channelCandidates.js extraction des UC… depuis une page de chaîne
@@ -96,15 +90,16 @@ services/net.js            fetch direct (mobile) ou via proxy (web)
 services/playerEmbed.js    URL d'embed + pont de contrôle injecté
 components/YoutubePlayer   WebView verrouillée + commandes impératives
 components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
+services/performance.js    mesures de diagnostic en développement uniquement
 components/FocusMark       logo « focus »
 components/AppBar          logo, recherche, accès bibliothèque
 components/ConfirmSheet    confirmation en feuille basse (web + mobile)
-components/ActionSheet     menu « … » (télécharger, retirer la chaîne)
+components/ActionSheet     menu « … » (retirer la chaîne)
 components/VideoCard       carte vidéo façon YouTube
 components/CategoryChips   puces « Tous » + catégories
 screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
 screens/ChannelsScreen     bibliothèque de chaînes (ajout/retrait)
-screens/OfflineScreen      téléchargements, cache du flux, progression
+screens/YouScreen          préférences, cache des miniatures, version
 screens/StatsScreen        « Ma semaine », objectif, par catégorie
 screens/CategoryStatsScreen détail d'une catégorie (graphique, vidéos)
 screens/CategoriesScreen   liste des catégories
@@ -151,13 +146,9 @@ L'APK est produit dans `android/app/build/outputs/apk/release/`.
 
 ## Vérifications
 
-- `npx expo export --platform android` : bundle Metro OK.
-- Résolveur de chaînes testé sur YouTube réel : identifiant, `/channel/UC…`,
-  `@handle`, `/@handle/videos`, `/c/…`, `/user/…`, `youtu.be/…` et
-  `watch?v=…` → identifiant + titre corrects ; entrées invalides → message
-  explicite.
-- Interface vérifiée en rendu réel (react-native-web + Chrome) : flux, ajout
-  d'une chaîne par `@handle`, création d'une catégorie, filtrage du flux,
-  écran de lecture.
-- Lecteur vérifié dans Chrome/Blink : `ready` (durée), `play`, `seekTo(60)`,
-  pause, progression, détection d'erreur d'intégration.
+- `npm test` : tests unitaires des formats, RSS, miniatures et paramètres du
+  lecteur.
+- `npx eslint App.js screens components services i18n.js` : lint du code actif.
+- `npx expo export --platform android` : génération du bundle Android.
+- Aucun appareil Android physique n'était connecté ; les mesures matérielles
+  restent à faire (voir [PERF.md](./PERF.md)).

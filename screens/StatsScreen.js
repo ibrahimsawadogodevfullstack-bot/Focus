@@ -8,6 +8,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { colors, radius, spacing } from '../constants/theme';
 import { GOAL_MAX, GOAL_MIN } from '../services/settings';
 import { formatEffort, insightFor, summarize } from '../services/stats';
+import { useTheme, useThemeStyles } from '../services/ThemeProvider';
 
 export default function StatsScreen({
   tracking,
@@ -19,6 +20,8 @@ export default function StatsScreen({
   onOpenCategory,
   onOpenCategories,
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   const summary = useMemo(
@@ -176,6 +179,7 @@ export default function StatsScreen({
 }
 
 function StatCard({ value, label }) {
+  const styles = useThemeStyles(baseStyles);
   return (
     <View style={styles.card}>
       <Text style={styles.cardValue} numberOfLines={1} adjustsFontSizeToFit>
@@ -187,6 +191,8 @@ function StatCard({ value, label }) {
 }
 
 function StatusPill({ status }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(baseStyles);
   const palette = {
     comfort: { bg: colors.successSoft, text: colors.success },
     review: { bg: colors.warnSoft, text: colors.warn },
@@ -204,7 +210,7 @@ function StatusPill({ status }) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,

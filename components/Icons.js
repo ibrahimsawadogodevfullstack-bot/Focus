@@ -498,3 +498,34 @@ export function StatsIcon({ color, size = 20, thickness = 2.5 }) {
     </View>
   );
 }
+
+export function PersonIcon({ color, size = 20 }) {
+  const stroke = Math.max(1.6, size * 0.1);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center' }}>
+      <View
+        style={{
+          width: size * 0.34,
+          height: size * 0.34,
+          borderRadius: size * 0.17,
+          borderWidth: stroke,
+          borderColor: color,
+          marginTop: size * 0.08,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          bottom: size * 0.05,
+          width: size * 0.72,
+          height: size * 0.35,
+          borderTopLeftRadius: size * 0.4,
+          borderTopRightRadius: size * 0.4,
+          borderWidth: stroke,
+          borderBottomWidth: 0,
+          borderColor: color,
+        }}
+      />
+    </View>
+  );
+}

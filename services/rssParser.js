@@ -50,6 +50,14 @@ function parseEntry(entryXml, fallbackChannelId) {
     firstTag(mediaGroup, 'media:description'),
   ).trim();
 
+  // YouTube distingue les Shorts dans le lien « alternate » de l'entrée :
+  //   Short  → https://www.youtube.com/shorts/<id>
+  //   Vidéo  → https://www.youtube.com/watch?v=<id>
+  // Ce lien est la seule preuve fiable côté front, sans sonde réseau.
+  const linkTag = (entryXml.match(/<link\b[^>]*rel="alternate"[^>]*\/?>/i) ?? [])[0] ?? '';
+  const feedUrl = attribute(linkTag, 'href');
+  const hasFeedUrl = /^https?:\/\/(?:www\.|m\.)?youtube\.com\//i.test(feedUrl);
+
   return {
     videoId,
     channelId,
@@ -59,7 +67,8 @@ function parseEntry(entryXml, fallbackChannelId) {
     publishedAt,
     thumbnail:
       attribute(thumbTag, 'url') || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-    url: `https://www.youtube.com/watch?v=${videoId}`,
+    url: hasFeedUrl ? feedUrl : `https://www.youtube.com/watch?v=${videoId}`,
+    urlSource: hasFeedUrl ? 'feed' : 'generated',
   };
 }
 

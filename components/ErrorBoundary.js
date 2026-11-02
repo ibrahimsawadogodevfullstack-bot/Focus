@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing } from '../constants/theme';
 import { saveCrash } from '../services/crashLog';
+import { useThemeStyles } from '../services/ThemeProvider';
 import BrandMark from './BrandMark';
 
 /** Écran lisible quand quelque chose casse : plus de fermeture silencieuse. */
 export function CrashScreen({ error, onRetry }) {
+  const styles = useThemeStyles(baseStyles);
   const message = String(error?.message ?? error ?? 'Erreur inconnue');
   const stack = String(error?.stack ?? '').split('\n').slice(0, 12).join('\n');
 
@@ -72,7 +74,7 @@ export default class ErrorBoundary extends Component {
   }
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
