@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Chevron } from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
-import { colors, radius, spacing } from '../constants/theme';
+import { Chevron } from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import {
   categoryVideos,
   daysSince,
@@ -13,7 +13,7 @@ import {
   summarize,
   weekDays,
 } from '../services/stats';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 function lastActivityLabel(timestamp) {
   const days = daysSince(timestamp);

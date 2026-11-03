@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Chevron, DownloadIcon, PauseIcon, PlayIcon } from '../components/Icons';
-import { colors, radius, spacing } from '../constants/theme';
+import { Chevron, DownloadIcon, PauseIcon, PlayIcon } from '../src/shared/ui/Icons';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { formatBytes } from '../services/localVideos';
-import { formatClock } from '../utils/format';
+import { formatClock } from '../src/shared/utils/format';
 
 const SPEEDS = [1, 1.25, 1.5, 2];
 

@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import ConfirmSheet from '../components/ConfirmSheet';
-import { Chevron, PlusIcon, TrashIcon } from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
-import { colors, radius, spacing } from '../constants/theme';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import { Chevron, PlusIcon, TrashIcon } from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { GOAL_MAX, GOAL_MIN } from '../services/settings';
 import { formatEffort, insightFor, summarize } from '../services/stats';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function StatsScreen({
   tracking,

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function SettingsSection({ title, children }) {
   const themedStyles = useThemeStyles(styles);

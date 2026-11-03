@@ -1,8 +1,19 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, radius, spacing } from '../theme/tokens';
+import { useThemeStyles } from '../theme/ThemeProvider';
+
+interface ConfirmSheetProps {
+  visible: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
 
 /**
  * Confirmation en feuille basse : même rendu sur Android, iOS et web
@@ -17,7 +28,7 @@ export default function ConfirmSheet({
   destructive = false,
   onConfirm,
   onCancel,
-}) {
+}: ConfirmSheetProps) {
   const insets = useSafeAreaInsets();
   const themedStyles = useThemeStyles(styles);
 

@@ -7,7 +7,7 @@ import {
   formatOf,
   getVideoFormat,
   isFormatResolved,
-} from '../services/filters.js';
+} from '../src/domain/videoFormat.ts';
 
 // 1. Champ `format` fourni par les données : prioritaire sur tout le reste.
 test('un champ format explicite gagne, même contre des dimensions inverses', () => {

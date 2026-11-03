@@ -24,7 +24,7 @@ const MONTHS = [
 const WEEK_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 /** Clé locale d'un jour : « 2026-10-29 ». */
-export function dayKey(timestamp = Date.now()) {
+export function dayKey(timestamp: number = Date.now()) {
   const date = new Date(timestamp);
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
@@ -32,7 +32,7 @@ export function dayKey(timestamp = Date.now()) {
 }
 
 /** Lundi 00:00 de la semaine courante. */
-export function startOfWeek(now = Date.now()) {
+export function startOfWeek(now: number = Date.now()) {
   const date = new Date(now);
   date.setHours(0, 0, 0, 0);
   const shift = (date.getDay() + 6) % 7; // lundi = 0
@@ -47,7 +47,7 @@ export function startOfWeek(now = Date.now()) {
  * ajouter 86 400 000 ms décale l'heure locale et peut produire deux fois la
  * même clé de jour (ou en sauter une).
  */
-export function weekDays(now = Date.now()) {
+export function weekDays(now: number = Date.now()) {
   const start = new Date(startOfWeek(now));
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
@@ -61,7 +61,7 @@ export function weekDays(now = Date.now()) {
   });
 }
 
-export function weekLabel(now = Date.now()) {
+export function weekLabel(now: number = Date.now()) {
   const start = new Date(startOfWeek(now));
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
@@ -71,7 +71,7 @@ export function weekLabel(now = Date.now()) {
   return `${startText} – ${endText}`;
 }
 
-export function daysSince(timestamp, now = Date.now()) {
+export function daysSince(timestamp: number | null | undefined, now: number = Date.now()) {
   if (!timestamp) return null;
   return Math.floor((now - timestamp) / DAY_MS);
 }

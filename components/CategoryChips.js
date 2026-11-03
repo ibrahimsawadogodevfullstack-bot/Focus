@@ -1,9 +1,9 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../constants/theme';
-import { PlusIcon } from './Icons';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { PlusIcon } from '../src/shared/ui/Icons';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 /** Filtres de catégories, dans l'esprit des puces de la page d'accueil YouTube. */
 export default function CategoryChips({ categories, activeId, onSelect, onManage }) {

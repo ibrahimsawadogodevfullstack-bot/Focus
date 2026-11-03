@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import BrandMark from '../components/BrandMark';
-import ChannelAvatar from '../components/ChannelAvatar';
-import ConfirmSheet from '../components/ConfirmSheet';
-import { CheckIcon, CloseIcon } from '../components/Icons';
-import { colors, radius, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import BrandMark from '../src/shared/ui/BrandMark';
+import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import { CheckIcon, CloseIcon } from '../src/shared/ui/Icons';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function CategoryEditor({
   category,

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { FORMAT_SHORT, FORMAT_VIDEO, isFormatResolved } from './filters';
+import { FORMAT_SHORT, FORMAT_VIDEO, isFormatResolved } from '../src/domain/videoFormat';
 import { verticalThumb } from './thumbnails';
 
 // Détection du format réel (vertical / horizontal) de chaque vidéo.

@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
-import ConfirmSheet from '../components/ConfirmSheet';
-import EmptyState from '../components/EmptyState';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import EmptyState from '../src/shared/ui/EmptyState';
 import {
   DownloadIcon,
   PlayIcon,
   PlusIcon,
   TrashIcon,
-} from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
-import VideoThumbnail from '../components/VideoThumbnail';
-import { colors, radius, spacing } from '../constants/theme';
-import { FORMAT_SHORT, formatOf } from '../services/filters';
+} from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { FORMAT_SHORT, formatOf } from '../src/domain/videoFormat';
 import { formatBytes } from '../services/localVideos';
-import { formatClock, timeAgo } from '../utils/format';
+import { formatClock, timeAgo } from '../src/shared/utils/format';
 
 /** Vignette de liste : 16:9 pour une vidéo, 9:16 pour un Short. */
 function OfflineThumb({ video, formats }) {
@@ -31,9 +32,28 @@ function OfflineThumb({ video, formats }) {
   );
 }
 
+function groupByCategory(videos, categories) {
+  const known = new Map((categories ?? []).map((category) => [category.id, category.name]));
+  const groups = new Map();
+
+  for (const video of videos) {
+    const assigned = Array.isArray(video.categories) && video.categories.length > 0
+      ? video.categories.map((category) => ({ id: category.id, name: category.name }))
+      : [{ id: 'uncategorized', name: 'Sans catégorie' }];
+
+    for (const category of assigned) {
+      const name = known.get(category.id) ?? category.name;
+      if (!groups.has(category.id)) groups.set(category.id, { id: category.id, name, videos: [] });
+      groups.get(category.id).videos.push(video);
+    }
+  }
+
+  return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
 /**
- * Cache hors ligne : titres, chaînes et miniatures du flux.
- * La vidéo elle-même n'est pas enregistrée (lecteur YouTube officiel).
+ * Bibliothèque hors ligne : fichiers locaux, téléchargements directs disponibles
+ * et cache des fiches du flux.
  */
 export default function OfflineScreen({
   offline,
@@ -52,13 +72,16 @@ export default function OfflineScreen({
   onImportLocal,
   onOpenLocal,
   onDeleteLocal,
+  categories = [],
 }) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const { t } = useTranslation(['offline', 'common']);
 
   const videos = offline?.videos ?? [];
   const hasSnapshot = videos.length > 0;
   const channels = new Set(videos.map((video) => video.channelId)).size;
+  const downloadGroups = groupByCategory(downloads, categories);
   const ratio = progress && progress.total > 0 ? progress.done / progress.total : 0;
 
   return (
@@ -68,12 +91,12 @@ export default function OfflineScreen({
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader
-          title="Hors ligne"
-          subtitle="Importe une vidéo de ton téléphone pour la lire sans réseau, ou garde les fiches de l’accueil en cache."
+          title={t('offline:title')}
+          subtitle={t('offline:subtitle')}
         />
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Vidéos de l’appareil</Text>
+          <Text style={styles.sectionLabel}>{t('offline:deviceVideos')}</Text>
           <View style={styles.sectionRule} />
           {localVideos.length > 0 ? (
             <Text style={styles.sectionCount}>{localVideos.length}</Text>
@@ -84,7 +107,7 @@ export default function OfflineScreen({
           onPress={onImportLocal}
           disabled={importing}
           accessibilityRole="button"
-          accessibilityLabel="Importer une vidéo de l’appareil"
+          accessibilityLabel={t('offline:deviceImport')}
           style={({ pressed }) => [
             styles.importButton,
             importing && styles.importButtonBusy,
@@ -97,14 +120,13 @@ export default function OfflineScreen({
             <PlusIcon color={colors.accentText} size={14} />
           )}
           <Text style={styles.importText}>
-            {importing ? 'Import en cours…' : 'Importer une vidéo'}
+            {importing ? t('offline:importing') : t('offline:importVideo')}
           </Text>
         </Pressable>
 
         {localVideos.length === 0 ? (
           <Text style={styles.emptyHint}>
-            Choisis un fichier vidéo de ton téléphone : il sera lu sans réseau,
-            même en mode avion.
+            {t('offline:deviceHint')}
           </Text>
         ) : (
           localVideos.map((video) => (
@@ -112,7 +134,7 @@ export default function OfflineScreen({
               <Pressable
                 onPress={() => onOpenLocal(video)}
                 accessibilityRole="button"
-                accessibilityLabel={`Lire ${video.title}`}
+                accessibilityLabel={t('offline:readVideo', { title: video.title })}
                 style={({ pressed }) => [styles.downloadMain, pressed && styles.rowPressed]}
               >
                 <View style={styles.localThumb}>
@@ -134,7 +156,7 @@ export default function OfflineScreen({
               <Pressable
                 onPress={() => setPendingDelete(video)}
                 accessibilityRole="button"
-                accessibilityLabel={`Supprimer ${video.title} de l’appareil`}
+                accessibilityLabel={t('offline:removeDevice', { title: video.title })}
                 hitSlop={6}
                 style={({ pressed }) => [styles.remove, pressed && styles.rowPressed]}
               >
@@ -145,7 +167,7 @@ export default function OfflineScreen({
         )}
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Téléchargées</Text>
+          <Text style={styles.sectionLabel}>{t('offline:downloads')}</Text>
           <View style={styles.sectionRule} />
           {downloads.length > 0 ? (
             <Text style={styles.sectionCount}>{downloads.length}</Text>
@@ -154,43 +176,48 @@ export default function OfflineScreen({
 
         {downloads.length === 0 ? (
           <Text style={styles.emptyHint}>
-            Aucune vidéo téléchargée. Sur l’accueil, touche « … » puis « Télécharger ».
+            {t('offline:downloadHint')}
           </Text>
         ) : (
-          downloads.map((video) => (
-            <View key={video.videoId} style={styles.downloadRow}>
-              <Pressable
-                onPress={() => onOpenDownload(video)}
-                accessibilityRole="button"
-                accessibilityLabel={`Ouvrir ${video.title}`}
-                style={({ pressed }) => [styles.downloadMain, pressed && styles.rowPressed]}
-              >
-                <OfflineThumb video={video} formats={formats} />
-                <View style={styles.rowTexts}>
-                  <Text style={styles.rowTitle} numberOfLines={2}>
-                    {video.title}
-                  </Text>
-                  <Text style={styles.rowMeta} numberOfLines={1}>
-                    {video.channelTitle} · {timeAgo(video.savedAt)}
-                  </Text>
-                </View>
-              </Pressable>
+          downloadGroups.map((group) => (
+            <View key={group.id} style={styles.categoryBlock}>
+              <Text style={styles.categoryTitle}>{group.name}</Text>
+              {group.videos.map((video) => (
+                <View key={`${group.id}-${video.videoId}`} style={styles.downloadRow}>
+                  <Pressable
+                    onPress={() => onOpenDownload(video)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('offline:openVideo', { title: video.title })}
+                    style={({ pressed }) => [styles.downloadMain, pressed && styles.rowPressed]}
+                  >
+                    <OfflineThumb video={video} formats={formats} />
+                    <View style={styles.rowTexts}>
+                      <Text style={styles.rowTitle} numberOfLines={2}>
+                        {video.title}
+                      </Text>
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {video.channelTitle} · {timeAgo(video.savedAt)}
+                      </Text>
+                    </View>
+                  </Pressable>
 
-              <Pressable
-                onPress={() => onRemoveDownload(video)}
-                accessibilityRole="button"
-                accessibilityLabel={`Supprimer le téléchargement de ${video.title}`}
-                hitSlop={6}
-                style={({ pressed }) => [styles.remove, pressed && styles.rowPressed]}
-              >
-                <TrashIcon color={colors.textFaint} size={15} />
-              </Pressable>
+                  <Pressable
+                    onPress={() => onRemoveDownload(video)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('offline:removeDownload', { title: video.title })}
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.remove, pressed && styles.rowPressed]}
+                  >
+                    <TrashIcon color={colors.textFaint} size={15} />
+                  </Pressable>
+                </View>
+              ))}
             </View>
           ))
         )}
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Tout l’accueil</Text>
+          <Text style={styles.sectionLabel}>{t('offline:cache')}</Text>
           <View style={styles.sectionRule} />
         </View>
 
@@ -198,24 +225,24 @@ export default function OfflineScreen({
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statValue}>{videos.length}</Text>
-              <Text style={styles.statLabel}>vidéos en cache</Text>
+              <Text style={styles.statLabel}>{t('offline:videosCached')}</Text>
             </View>
             <View style={styles.statRule} />
             <View style={styles.stat}>
               <Text style={styles.statValue}>{channels}</Text>
-              <Text style={styles.statLabel}>chaînes</Text>
+              <Text style={styles.statLabel}>{t('offline:channels')}</Text>
             </View>
             <View style={styles.statRule} />
             <View style={styles.stat}>
               <Text style={styles.statValue}>{offline?.thumbs ?? 0}</Text>
-              <Text style={styles.statLabel}>miniatures</Text>
+              <Text style={styles.statLabel}>{t('offline:miniatures')}</Text>
             </View>
           </View>
 
           <Text style={styles.savedAt}>
             {hasSnapshot
-              ? `Enregistré ${timeAgo(offline.savedAt)}`
-              : 'Aucun enregistrement pour le moment'}
+              ? t('offline:savedAt', { time: timeAgo(offline.savedAt) })
+              : t('offline:neverSaved')}
           </Text>
 
           {downloading ? (
@@ -224,8 +251,11 @@ export default function OfflineScreen({
                 <View style={[styles.fill, { width: `${Math.round(ratio * 100)}%` }]} />
               </View>
               <Text style={styles.progressText}>
-                {progress?.done ?? 0} / {progress?.total ?? 0} miniatures
-                {progress?.failed ? ` · ${progress.failed} en échec` : ''}
+                {t('offline:cacheProgress', {
+                  done: progress?.done ?? 0,
+                  total: progress?.total ?? 0,
+                })}
+                {progress?.failed ? t('offline:cacheFailed', { count: progress.failed }) : ''}
               </Text>
             </View>
           ) : (
@@ -233,7 +263,9 @@ export default function OfflineScreen({
               onPress={onDownload}
               disabled={feedCount === 0}
               accessibilityRole="button"
-              accessibilityLabel={hasSnapshot ? 'Mettre à jour le cache hors ligne' : 'Télécharger pour hors ligne'}
+              accessibilityLabel={
+                hasSnapshot ? t('offline:updateCache') : t('offline:downloadForOffline')
+              }
               accessibilityState={{ disabled: feedCount === 0 }}
               style={({ pressed }) => [
                 styles.primary,
@@ -243,7 +275,7 @@ export default function OfflineScreen({
             >
               <DownloadIcon color={feedCount === 0 ? colors.textFaint : colors.onAccent} size={17} />
               <Text style={[styles.primaryText, feedCount === 0 && styles.primaryTextDisabled]}>
-                {hasSnapshot ? 'Mettre à jour le cache' : 'Télécharger pour hors ligne'}
+                {hasSnapshot ? t('offline:updateCache') : t('offline:downloadForOffline')}
               </Text>
             </Pressable>
           )}
@@ -255,30 +287,26 @@ export default function OfflineScreen({
               style={({ pressed }) => [styles.clear, pressed && styles.clearPressed]}
             >
               <TrashIcon color={colors.danger} size={14} />
-              <Text style={styles.clearText}>Vider le cache</Text>
+              <Text style={styles.clearText}>{t('offline:clearCache')}</Text>
             </Pressable>
           ) : null}
 
           {downloading ? (
             <View style={styles.downloadingRow}>
               <ActivityIndicator color={colors.accentText} size="small" />
-              <Text style={styles.downloadingText}>Téléchargement en cours…</Text>
+              <Text style={styles.downloadingText}>{t('offline:downloading')}</Text>
             </View>
           ) : null}
         </View>
 
         <View style={styles.note}>
-          <Text style={styles.noteText}>
-            Les vidéos YouTube ne sont pas téléchargeables : le lecteur officiel l’interdit.
-            Les fiches restent consultables hors ligne, et les vidéos importées de
-            l’appareil se lisent vraiment sans connexion.
-          </Text>
+          <Text style={styles.noteText}>{t('offline:note')}</Text>
         </View>
 
         {hasSnapshot ? (
           <>
             <View style={styles.sectionRow}>
-              <Text style={styles.sectionLabel}>En cache</Text>
+              <Text style={styles.sectionLabel}>{t('offline:cache')}</Text>
               <View style={styles.sectionRule} />
             </View>
 
@@ -304,17 +332,17 @@ export default function OfflineScreen({
           </>
         ) : feedCount === 0 ? (
           <EmptyState
-            title="Rien hors ligne"
-            message="Ajoute des chaînes pour pouvoir mettre ton accueil en cache."
+            title={t('offline:nothingOffline')}
+            message={t('offline:nothingOfflineMessage')}
           />
         ) : null}
       </ScrollView>
 
       <ConfirmSheet
         visible={Boolean(pendingDelete)}
-        title="Supprimer cette vidéo ?"
-        message={`« ${pendingDelete?.title ?? ''} » sera effacée de l’appareil pour libérer de l’espace.`}
-        confirmLabel="Supprimer"
+        title={t('offline:deleteConfirmTitle')}
+        message={t('offline:deleteConfirmMessage', { title: pendingDelete?.title ?? '' })}
+        confirmLabel={t('offline:delete')}
         destructive
         onConfirm={() => {
           const video = pendingDelete;
@@ -326,9 +354,9 @@ export default function OfflineScreen({
 
       <ConfirmSheet
         visible={confirmClear}
-        title="Vider le cache hors ligne ?"
-        message="Les titres et miniatures enregistrés seront supprimés. Ton accueil reste intact."
-        confirmLabel="Vider le cache"
+        title={t('offline:clearOfflineConfirmTitle')}
+        message={t('offline:clearOfflineConfirmMessage')}
+        confirmLabel={t('offline:clearOffline')}
         destructive
         onConfirm={() => {
           setConfirmClear(false);
@@ -544,6 +572,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
+  },
+  categoryBlock: {
+    marginBottom: spacing.sm,
+  },
+  categoryTitle: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.xs,
+    color: colors.accentText,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   downloadMain: {
     flex: 1,

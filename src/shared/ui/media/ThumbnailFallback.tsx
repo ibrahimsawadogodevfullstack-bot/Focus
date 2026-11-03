@@ -1,11 +1,20 @@
 import { StyleSheet, Text, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors } from '../constants/theme';
-import { thumbnailRatio } from '../services/thumbnailLayout';
-import { PlayIcon } from './Icons';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { colors } from '../../theme/tokens';
+import { thumbnailRatio } from '../../media/thumbnailLayout';
+import { PlayIcon } from '../Icons';
+import { useTheme, useThemeStyles } from '../../theme/ThemeProvider';
 
-export default function ThumbnailFallback({ format = 'video', label, style }) {
+export default function ThumbnailFallback({
+  format = 'video',
+  label,
+  style,
+}: {
+  format?: 'video' | 'short';
+  label?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   const { colors } = useTheme();
   const themedStyles = useThemeStyles(styles);
   return (

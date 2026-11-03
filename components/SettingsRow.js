@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function SettingsRow({
   label,

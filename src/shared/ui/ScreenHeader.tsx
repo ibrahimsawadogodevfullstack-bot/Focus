@@ -1,14 +1,23 @@
 import { StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
 
-import { colors, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../theme/tokens';
+import { useThemeStyles } from '../theme/ThemeProvider';
 import BrandMark from './BrandMark';
 
 /**
  * En-tête d'onglet : la marque à gauche, le titre aligné à droite sur la même
  * ligne, puis une ligne de contexte discrète sous le titre.
  */
-export default function ScreenHeader({ title, subtitle, right }) {
+export default function ScreenHeader({
+  title,
+  subtitle,
+  right,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+}) {
   const themedStyles = useThemeStyles(styles);
   return (
     <View style={themedStyles.wrap}>

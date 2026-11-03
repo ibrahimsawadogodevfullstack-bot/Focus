@@ -14,7 +14,7 @@ export const SHORT_ASPECT = 9 / 16;
 /** Tolérance autour de 9:16 : 0,5625 est le ratio exact d'un Short. */
 export const VERTICAL_RATIO_TOLERANCE = 0.62;
 
-export function thumbnailRatio(format) {
+export function thumbnailRatio(format: string) {
   return format === 'short' ? SHORT_ASPECT : VIDEO_ASPECT;
 }
 
@@ -22,7 +22,10 @@ export function thumbnailRatio(format) {
  * Fraction de la largeur source réellement visible dans le cadre, avec
  * `resizeMode="cover"`. Pour un Short 16:9 dans un cadre 9:16 : ≈ 0,3164.
  */
-export function visibleSourceWidthFraction(format, sourceRatio) {
+export function visibleSourceWidthFraction(
+  format: string,
+  sourceRatio: number | null | undefined,
+) {
   const target = thumbnailRatio(format);
   const ratio = Number(sourceRatio);
   if (!Number.isFinite(ratio) || ratio <= 0) return 1;
@@ -30,12 +33,12 @@ export function visibleSourceWidthFraction(format, sourceRatio) {
 }
 
 /** Vrai si la source est déjà verticale (ou presque). */
-export function isVerticalSource(sourceRatio) {
+export function isVerticalSource(sourceRatio: number | null | undefined) {
   const ratio = Number(sourceRatio);
   return Number.isFinite(ratio) && ratio > 0 && ratio <= VERTICAL_RATIO_TOLERANCE;
 }
 
 /** Pas de zoom logiciel : `cover` suffit au recadrage et évite un flou ajouté. */
-export function cropZoomFor(format, sourceRatio) {
+export function cropZoomFor(format: string, sourceRatio: number | null | undefined) {
   return 1;
 }

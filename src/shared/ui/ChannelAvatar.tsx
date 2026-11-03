@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { colors } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors } from '../theme/tokens';
+import { useThemeStyles } from '../theme/ThemeProvider';
 
 /** Avatar de chaîne : la vraie photo YouTube, sinon l'initiale en secours. */
-export default function ChannelAvatar({ uri, name, size = 40 }) {
+export default function ChannelAvatar({
+  uri,
+  name = '',
+  size = 40,
+}: {
+  uri?: string | null;
+  name?: string;
+  size?: number;
+}) {
   const styles = useThemeStyles(baseStyles);
   const [failed, setFailed] = useState(false);
   const initial = (name || '?').trim().charAt(0).toUpperCase();

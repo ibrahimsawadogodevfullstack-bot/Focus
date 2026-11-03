@@ -3,7 +3,7 @@
 // `oardefault` reste utilisé par la détection du format, mais n'est pas une
 // source d'image fiable : une URL absente peut renvoyer un JPEG générique 120×90.
 
-import { visibleSourceWidthFraction } from './thumbnailLayout.js';
+import { visibleSourceWidthFraction } from '../src/shared/media/thumbnailLayout.ts';
 
 const BASE = 'https://i.ytimg.com/vi';
 const VARIANTS = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault'];

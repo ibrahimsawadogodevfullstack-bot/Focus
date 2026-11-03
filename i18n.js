@@ -25,7 +25,7 @@ export const i18nReady = i18next.isInitialized
     lng: FALLBACK_LANGUAGE,
     fallbackLng: FALLBACK_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES,
-    ns: ['common', 'tabs', 'home', 'you', 'errors'],
+    ns: ['common', 'tabs', 'home', 'you', 'errors', 'categories', 'offline'],
     defaultNS: 'common',
     interpolation: { escapeValue: false },
     returnNull: false,

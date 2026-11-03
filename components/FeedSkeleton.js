@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { SHORT_CARD_WIDTH } from './ShortCard';
 
 const TITLE_HEIGHT = 40;

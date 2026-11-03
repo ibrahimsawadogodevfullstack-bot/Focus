@@ -121,14 +121,17 @@ export const type = {
 };
 
 export const layout = {
-  gutter: 20,
+  gutter: 16,
   hit: 44,
   tabBar: 56,
 
-  // Grille de l'accueil : une seule source pour les seuils et les espacements.
-  gridGutter: 16,
-  gridGap: 16,
-  twoColumnMinWidth: 600,
-  threeColumnMinWidth: 1024,
-  maxContentWidth: 1600,
+  // Grille mobile-first : un écran portrait reste une colonne, le desktop garde
+  // la marge de contenu centrée seulement au-delà des plus grands écrans.
+  gridGutter: 12,
+  gridGap: 12,
+  twoColumnMinWidth: 720,
+  threeColumnMinWidth: 1100,
+  maxContentWidth: 1280,
 };
+
+export type ThemeColors = typeof DARK_COLORS;

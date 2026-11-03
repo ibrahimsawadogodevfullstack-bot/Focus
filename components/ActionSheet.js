@@ -2,8 +2,8 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { colors, radius, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 /**
  * Feuille d'actions en bas d'écran (même rendu Android, iOS et web).

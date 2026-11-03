@@ -1,10 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '../constants/theme';
+import { colors, radius, spacing } from '../theme/tokens';
 import { FocusMark } from './FocusMark';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { useThemeStyles } from '../theme/ThemeProvider';
 
-export default function EmptyState({ title, message, actionLabel, onAction }) {
+export default function EmptyState({
+  title,
+  message,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   const styles = useThemeStyles(baseStyles);
   return (
     <View style={styles.wrap}>

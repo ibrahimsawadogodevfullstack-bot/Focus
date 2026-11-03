@@ -11,14 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import ChannelAvatar from '../components/ChannelAvatar';
-import ConfirmSheet from '../components/ConfirmSheet';
-import EmptyState from '../components/EmptyState';
-import { TrashIcon } from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
-import { colors, radius, spacing } from '../constants/theme';
+import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import EmptyState from '../src/shared/ui/EmptyState';
+import { TrashIcon } from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { resolveChannelInput } from '../services/channelResolver';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, onRemoveChannel }) {
   const { colors } = useTheme();

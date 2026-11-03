@@ -1,9 +1,9 @@
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { FocusMark } from './FocusMark';
-import { Chevron, PersonIcon, SearchIcon } from './Icons';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { FocusMark } from '../src/shared/ui/FocusMark';
+import { Chevron, PersonIcon, SearchIcon } from '../src/shared/ui/Icons';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -27,7 +27,7 @@ export default function AppBar({
         <Pressable
           onPress={onToggleSearch}
           accessibilityRole="button"
-          accessibilityLabel="Fermer la recherche"
+          accessibilityLabel={t('home:closeSearch')}
           style={({ pressed }) => [themedStyles.backButton, pressed && themedStyles.pressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />

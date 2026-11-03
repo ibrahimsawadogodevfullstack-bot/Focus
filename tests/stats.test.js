@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { DAY_MS, dayKey, weekDays } from '../utils/date.js';
+import { DAY_MS, dayKey, weekDays } from '../src/shared/utils/date.ts';
 import { categoryVideos, daysSince, summarize, weekLabel } from '../services/stats.js';
 
 const NOW = new Date(2026, 9, 29, 10, 0, 0).getTime(); // jeudi 29 octobre 2026

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Settings, SettingsPatch } from '../domain/settings';
+import type { Settings, SettingsPatch } from '../src/domain/settings';
 
 const KEY = 'focus.settings.v1';
 export const SETTINGS_SCHEMA_VERSION = 2;

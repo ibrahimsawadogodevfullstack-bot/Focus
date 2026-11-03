@@ -1,4 +1,4 @@
-import { dayKey, daysSince, startOfWeek, weekDays, weekLabel } from '../utils/date.js';
+import { dayKey, daysSince, startOfWeek, weekDays, weekLabel } from '../src/shared/utils/date.ts';
 
 // Agrégats de la semaine et par catégorie.
 //

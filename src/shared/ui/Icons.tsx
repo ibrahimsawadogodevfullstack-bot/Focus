@@ -1,9 +1,18 @@
 import { View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 
 // Icônes dessinées avec des vues : géométrie nette à toutes les densités,
 // aucune police ni bibliothèque d'icônes à charger.
 
-export function GridIcon({ color, size = 20 }) {
+type IconProps = {
+  color?: string;
+  size?: number;
+  thickness?: number;
+};
+type ChevronDirection = 'left' | 'right' | 'up' | 'down';
+type Corners = Partial<Record<'top' | 'left' | 'right' | 'bottom', boolean>>;
+
+export function GridIcon({ color, size = 20 }: IconProps) {
   const cell = (size - 4) / 2;
   return (
     <View style={{ width: size, height: size, flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
@@ -17,7 +26,7 @@ export function GridIcon({ color, size = 20 }) {
   );
 }
 
-export function ListIcon({ color, size = 20 }) {
+export function ListIcon({ color, size = 20 }: IconProps) {
   return (
     <View style={{ width: size, height: size, justifyContent: 'space-between' }}>
       {[0, 1, 2].map((key) => (
@@ -38,7 +47,7 @@ export function ListIcon({ color, size = 20 }) {
   );
 }
 
-export function FolderIcon({ color, size = 20 }) {
+export function FolderIcon({ color, size = 20 }: IconProps) {
   const bodyHeight = size * 0.76;
   return (
     <View style={{ width: size, height: size, justifyContent: 'flex-end' }}>
@@ -66,14 +75,19 @@ export function FolderIcon({ color, size = 20 }) {
   );
 }
 
-const ROTATION = {
+const ROTATION: Record<ChevronDirection, `${number}deg`> = {
   left: '45deg',
   right: '-135deg',
   up: '135deg',
   down: '-45deg',
 };
 
-export function Chevron({ direction = 'left', color, size = 10, thickness = 2 }) {
+export function Chevron({
+  direction = 'left',
+  color,
+  size = 10,
+  thickness = 2,
+}: IconProps & { direction?: ChevronDirection }) {
   return (
     <View
       style={{
@@ -89,7 +103,7 @@ export function Chevron({ direction = 'left', color, size = 10, thickness = 2 })
   );
 }
 
-export function PlusIcon({ color, size = 16, thickness = 2 }) {
+export function PlusIcon({ color, size = 16, thickness = 2 }: IconProps) {
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -114,7 +128,7 @@ export function PlusIcon({ color, size = 16, thickness = 2 }) {
   );
 }
 
-export function CloseIcon({ color, size = 12, thickness = 2 }) {
+export function CloseIcon({ color, size = 12, thickness = 2 }: IconProps) {
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -141,7 +155,7 @@ export function CloseIcon({ color, size = 12, thickness = 2 }) {
   );
 }
 
-export function CheckIcon({ color = '#fff', size = 12 }) {
+export function CheckIcon({ color = '#fff', size = 12 }: IconProps) {
   const thickness = Math.max(1.6, size * 0.15);
   return (
     <View style={{ width: size, height: size }}>
@@ -173,7 +187,7 @@ export function CheckIcon({ color = '#fff', size = 12 }) {
   );
 }
 
-export function LockIcon({ color, size = 12 }) {
+export function LockIcon({ color, size = 12 }: IconProps) {
   const shackle = size * 0.6;
 
   return (
@@ -202,7 +216,8 @@ export function LockIcon({ color, size = 12 }) {
   );
 }
 
-export function PlayIcon({ color = '#fff', size = 16 }) {  return (
+export function PlayIcon({ color = '#fff', size = 16 }: IconProps) {
+  return (
     <View
       style={{
         width: 0,
@@ -219,7 +234,7 @@ export function PlayIcon({ color = '#fff', size = 16 }) {  return (
   );
 }
 
-export function PauseIcon({ color = '#fff', size = 15 }) {
+export function PauseIcon({ color = '#fff', size = 15 }: IconProps) {
   return (
     <View style={{ flexDirection: 'row', gap: size * 0.32 }}>
       <View style={{ width: size * 0.27, height: size, backgroundColor: color, borderRadius: 1.5 }} />
@@ -228,7 +243,7 @@ export function PauseIcon({ color = '#fff', size = 15 }) {
   );
 }
 
-export function SearchIcon({ color, size = 18, thickness = 2 }) {
+export function SearchIcon({ color, size = 18, thickness = 2 }: IconProps) {
   const circle = Math.round(size * 0.66);
   return (
     <View style={{ width: size, height: size }}>
@@ -257,7 +272,7 @@ export function SearchIcon({ color, size = 18, thickness = 2 }) {
   );
 }
 
-export function MoreIcon({ color, size = 16 }) {
+export function MoreIcon({ color, size = 16 }: IconProps) {
   const dot = Math.max(2.5, size * 0.2);
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -271,13 +286,13 @@ export function MoreIcon({ color, size = 16 }) {
   );
 }
 
-export function DownloadIcon({ color, size = 20, thickness = 2 }) {
+export function DownloadIcon({ color, size = 20, thickness = 2 }: IconProps) {
   const t = thickness;
   const apexY = size * 0.58;
   const length = size * 0.36;
   const offset = length * 0.354;
 
-  const stroke = (left, top, rotate) => ({
+  const stroke = (left: number, top: number, rotate: string): ViewStyle => ({
     position: 'absolute',
     left,
     top,
@@ -333,7 +348,7 @@ export function DownloadIcon({ color, size = 20, thickness = 2 }) {
   );
 }
 
-export function TrashIcon({ color, size = 16, thickness = 2 }) {
+export function TrashIcon({ color, size = 16, thickness = 2 }: IconProps) {
   const bodyWidth = size * 0.62;
   return (
     <View style={{ width: size, height: size, alignItems: 'center' }}>
@@ -374,7 +389,7 @@ export function TrashIcon({ color, size = 16, thickness = 2 }) {
   );
 }
 
-export function ShortsIcon({ color, size = 18 }) {
+export function ShortsIcon({ color, size = 18 }: IconProps) {
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -404,9 +419,15 @@ export function ShortsIcon({ color, size = 18 }) {
   );
 }
 
-export function FullscreenIcon({ color, size = 16, thickness = 2 }) {
+export function FullscreenIcon({ color, size = 16, thickness = 2 }: IconProps) {
   const corner = size * 0.34;
-  const style = (top, left, right, bottom, turns) => ({
+  const style = (
+    top: number | undefined,
+    left: number | undefined,
+    right: number | undefined,
+    bottom: number | undefined,
+    turns: Corners,
+  ): ViewStyle => ({
     position: 'absolute',
     top,
     left,
@@ -435,9 +456,15 @@ export function FullscreenIcon({ color, size = 16, thickness = 2 }) {
   );
 }
 
-export function MinimizeIcon({ color, size = 16, thickness = 2 }) {
+export function MinimizeIcon({ color, size = 16, thickness = 2 }: IconProps) {
   const arm = size * 0.34;
-  const style = (top, left, right, bottom, turns) => ({
+  const style = (
+    top: number | undefined,
+    left: number | undefined,
+    right: number | undefined,
+    bottom: number | undefined,
+    turns: Corners,
+  ): ViewStyle => ({
     position: 'absolute',
     top,
     left,
@@ -466,7 +493,7 @@ export function MinimizeIcon({ color, size = 16, thickness = 2 }) {
   );
 }
 
-export function StatsIcon({ color, size = 20, thickness = 2.5 }) {
+export function StatsIcon({ color, size = 20, thickness = 2.5 }: IconProps) {
   const bars = [
     { height: 0.42, offset: 0 },
     { height: 0.68, offset: 0.29 },
@@ -499,7 +526,7 @@ export function StatsIcon({ color, size = 20, thickness = 2.5 }) {
   );
 }
 
-export function PersonIcon({ color, size = 20 }) {
+export function PersonIcon({ color, size = 20 }: IconProps) {
   const stroke = Math.max(1.6, size * 0.1);
   return (
     <View style={{ width: size, height: size, alignItems: 'center' }}>

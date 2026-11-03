@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { DAY_MS, dayKey } from '../utils/date.js';
+import { DAY_MS, dayKey } from '../src/shared/utils/date.ts';
 
 const KEY = 'focus.tracking.v1';
 

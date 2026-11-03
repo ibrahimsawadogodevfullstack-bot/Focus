@@ -6,13 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import ChoiceSheet from '../components/ChoiceSheet';
-import ConfirmSheet from '../components/ConfirmSheet';
-import { PersonIcon } from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import { PersonIcon } from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
 import SettingsRow from '../components/SettingsRow';
 import SettingsSection from '../components/SettingsSection';
-import { colors, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { clearThumbnailCache } from '../services/thumbnails';
 import { PLAYBACK_SPEEDS } from '../services/settings';
 import { useSettings, useUpdateSettings } from '../services/SettingsProvider';
@@ -241,9 +241,9 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxWidth: 680,
+    maxWidth: 720,
     alignSelf: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.xxxl,
     gap: spacing.xl,
   },

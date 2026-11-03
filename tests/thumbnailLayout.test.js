@@ -8,7 +8,7 @@ import {
   isVerticalSource,
   thumbnailRatio,
   visibleSourceWidthFraction,
-} from '../services/thumbnailLayout.js';
+} from '../src/shared/media/thumbnailLayout.ts';
 
 const WIDE = 16 / 9;
 const VERTICAL = 9 / 16;

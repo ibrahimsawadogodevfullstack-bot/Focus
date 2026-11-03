@@ -1,4 +1,4 @@
-export function timeAgo(timestamp) {
+export function timeAgo(timestamp: number | null | undefined) {
   if (!timestamp) return '';
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
   if (seconds < 60) return 'à l’instant';
@@ -22,13 +22,13 @@ export function timeAgo(timestamp) {
   return `il y a ${years} an${years > 1 ? 's' : ''}`;
 }
 
-export function formatClock(seconds) {
+export function formatClock(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const total = Math.floor(seconds);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  const pad = (value) => String(value).padStart(2, '0');
+  const pad = (value: number) => String(value).padStart(2, '0');
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`;
 }
 
@@ -48,12 +48,12 @@ const MONTH_NAMES = [
   'déc.',
 ];
 
-export function formatDateShort(timestamp = Date.now()) {
+export function formatDateShort(timestamp: number = Date.now()) {
   const date = new Date(timestamp);
   return `${DAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_NAMES[date.getMonth()]}`;
 }
 
-export function startOfDay(timestamp) {
+export function startOfDay(timestamp: number) {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
   return date.getTime();

@@ -17,13 +17,13 @@ import {
   MinimizeIcon,
   PauseIcon,
   PlayIcon,
-} from '../components/Icons';
-import ChannelAvatar from '../components/ChannelAvatar';
-import VideoThumbnail from '../components/VideoThumbnail';
+} from '../src/shared/ui/Icons';
+import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
 import YoutubePlayer from '../components/YoutubePlayer';
-import { colors, radius, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
-import { FORMAT_SHORT, FORMAT_VIDEO, formatOf } from '../services/filters';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import { FORMAT_SHORT, FORMAT_VIDEO, formatOf } from '../src/domain/videoFormat';
 import {
   getTracking,
   markOpened,
@@ -31,7 +31,7 @@ import {
   trackPlayback,
   trackReplay,
 } from '../services/tracking';
-import { formatClock, timeAgo } from '../utils/format';
+import { formatClock, timeAgo } from '../src/shared/utils/format';
 
 const RATINGS = [
   { key: 'fragile', label: 'Pas vraiment', hint: 'à revoir' },

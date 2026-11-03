@@ -2,10 +2,10 @@ import { Component } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing } from '../constants/theme';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { saveCrash } from '../services/crashLog';
-import { useThemeStyles } from '../services/ThemeProvider';
-import BrandMark from './BrandMark';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import BrandMark from '../src/shared/ui/BrandMark';
 
 /** Écran lisible quand quelque chose casse : plus de fermeture silencieuse. */
 export function CrashScreen({ error, onRetry }) {

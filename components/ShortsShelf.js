@@ -1,10 +1,10 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
-import { isShort } from '../services/filters';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import { isShort } from '../src/domain/videoFormat';
 import ShortCard, { SHORT_CARD_WIDTH } from './ShortCard';
-import { ShortsIcon } from './Icons';
+import { ShortsIcon } from '../src/shared/ui/Icons';
 
 const GUTTER = spacing.lg; // 16 px, aligné sur la grille
 const GAP = 12;

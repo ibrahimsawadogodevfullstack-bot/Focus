@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
-import VideoThumbnail from './VideoThumbnail';
-import { MoreIcon } from './Icons';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
+import { MoreIcon } from '../src/shared/ui/Icons';
 
 /** Largeur d'une carte Short : 150 à 180 px sur mobile. */
 export const SHORT_CARD_WIDTH = 156;

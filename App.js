@@ -1,18 +1,27 @@
 import * as SplashScreen from 'expo-splash-screen';
+import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
 import TabBar from './components/TabBar';
+import YouTubeRequestBridge from './components/YouTubeRequestBridge';
 import { DEFAULT_SETTINGS, readSettings } from './services/settings';
-import { SettingsProvider, useSettings, useUpdateSettings } from './services/SettingsProvider';
-import { ThemeProvider, useTheme } from './services/ThemeProvider';
+import {
+  SettingsProvider,
+  useSetting,
+  useSettings,
+  useUpdateSettings,
+} from './services/SettingsProvider';
+import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
 import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
+import OfflineScreen from './screens/OfflineScreen';
+import LocalPlayerScreen from './screens/LocalPlayerScreen';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
 import PlayerScreen from './screens/PlayerScreen';
@@ -20,8 +29,20 @@ import StatsScreen from './screens/StatsScreen';
 import YouScreen from './screens/YouScreen';
 import { saveCrash } from './services/crashLog';
 import { loadFeed } from './services/feed';
+import { clearOffline, downloadOffline, readOffline } from './services/offline';
+import {
+  deleteDownload,
+  downloadVideoOffline,
+  readDownloads,
+} from './services/downloads';
+import {
+  deleteLocalVideo,
+  importLocalVideos,
+  readLocalVideos,
+  updateLocalDuration,
+} from './services/localVideos';
 import { resolveChannelAvatars } from './services/channelAvatars';
-import { FORMAT_SHORT, formatOf } from './services/filters';
+import { FORMAT_SHORT, formatOf } from './src/domain/videoFormat';
 import {
   getTracking,
   initTracking,
@@ -52,7 +73,16 @@ const EMPTY_FEED = {
   error: null,
 };
 
-const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'stats', 'you']);
+function withCategorySnapshot(videos, categories) {
+  return (videos ?? []).map((video) => ({
+    ...video,
+    categories: (categories ?? [])
+      .filter((category) => category.channelIds?.includes(video.channelId))
+      .map((category) => ({ id: category.id, name: category.name })),
+  }));
+}
+
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'stats', 'offline', 'you']);
 
 SplashScreen.preventAutoHideAsync().catch((error) => {
   console.warn('Could not keep the native splash screen visible.', error);
@@ -112,16 +142,22 @@ export default function App() {
 
   return (
     <SettingsProvider initialSettings={bootstrapSettings}>
-      <ThemeProvider>
+      <SettingsThemeProvider>
         <SafeAreaProvider>
           <AppContent />
         </SafeAreaProvider>
-      </ThemeProvider>
+      </SettingsThemeProvider>
     </SettingsProvider>
   );
 }
 
+function SettingsThemeProvider({ children }) {
+  const mode = useSetting('theme') ?? 'system';
+  return <ThemeProvider mode={mode}>{children}</ThemeProvider>;
+}
+
 function AppContent() {
+  const youtubeRequestBridgeRef = useRef(null);
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const { colors, resolved } = useTheme();
@@ -139,6 +175,12 @@ function AppContent() {
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const [crash, setCrash] = useState(null);
+  const [offline, setOffline] = useState(null);
+  const [downloads, setDownloads] = useState([]);
+  const [localVideos, setLocalVideos] = useState([]);
+  const [offlineBusy, setOfflineBusy] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(null);
+  const [importing, setImporting] = useState(false);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -160,6 +202,21 @@ function AppContent() {
 
     return () => {
       if (previous) errorUtils.setGlobalHandler(previous);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([readOffline(), readDownloads(), readLocalVideos()]).then(
+      ([offlineSnapshot, savedDownloads, savedLocalVideos]) => {
+        if (!active) return;
+        setOffline(offlineSnapshot);
+        setDownloads(savedDownloads);
+        setLocalVideos(savedLocalVideos);
+      },
+    );
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -356,6 +413,93 @@ function AppContent() {
     setRefreshing(false);
   }, [runLoad]);
 
+  const fetchYouTubeThroughWebView = useCallback((url) => {
+    if (!youtubeRequestBridgeRef.current) {
+      return Promise.reject(new Error('Le réseau YouTube n’est pas initialisé.'));
+    }
+    return youtubeRequestBridgeRef.current.fetch(url);
+  }, []);
+
+  const handleDownloadVideo = useCallback(
+    async (video) => {
+      setOfflineBusy(true);
+      setDownloadProgress({ done: 0, total: 0, percent: 0 });
+      try {
+        const result = await downloadVideoOffline(video, {
+          categories,
+          fetchImpl: fetchYouTubeThroughWebView,
+          onProgress: setDownloadProgress,
+        });
+        setDownloads(result.downloads);
+        Alert.alert('Téléchargement terminé', `${video.title} est disponible hors ligne.`);
+      } catch (error) {
+        Alert.alert(
+          'Téléchargement impossible',
+          error?.message ?? 'Aucun flux direct utilisable pour cette vidéo.',
+        );
+      } finally {
+        setOfflineBusy(false);
+        setDownloadProgress(null);
+      }
+    },
+    [categories, fetchYouTubeThroughWebView],
+  );
+
+  const handleDownloadFeed = useCallback(async () => {
+    if (feed.videos.length === 0) return;
+    setOfflineBusy(true);
+    try {
+      const snapshot = await downloadOffline(
+        withCategorySnapshot(feed.videos, categories),
+        ({ done, total, failed }) =>
+          setDownloadProgress({ done, total, failed, percent: total ? Math.round((done / total) * 100) : 0 }),
+      );
+      setOffline(snapshot);
+    } finally {
+      setOfflineBusy(false);
+      setDownloadProgress(null);
+    }
+  }, [categories, feed.videos]);
+
+  const handleClearOffline = useCallback(async () => {
+    await clearOffline();
+    setOffline(null);
+  }, []);
+
+  const handleImportLocal = useCallback(async () => {
+    setImporting(true);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'video/*',
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (!result.canceled) setLocalVideos(await importLocalVideos(result.assets));
+    } finally {
+      setImporting(false);
+    }
+  }, []);
+
+  const handleDeleteLocal = useCallback(async (entry) => {
+    setLocalVideos(await deleteLocalVideo(entry));
+  }, []);
+
+  const handleRemoveDownload = useCallback(async (video) => {
+    setDownloads(await deleteDownload(video.videoId));
+  }, []);
+
+  const handleOpenLocal = useCallback((entry) => {
+    setRoute({ name: 'localPlayer', entry });
+  }, []);
+
+  const handleOpenDownload = useCallback((video) => {
+    if (video.localUri) {
+      setRoute({ name: 'localPlayer', entry: { ...video, id: video.videoId, uri: video.localUri } });
+      return;
+    }
+    handleOpen(video, downloads);
+  }, [downloads, handleOpen]);
+
   const handleOpenTab = useCallback((name) => setRoute({ name }), []);
 
   const handleOpen = useCallback((video, queue) => {
@@ -493,6 +637,7 @@ function AppContent() {
         dataSaver={settings.dataSaver}
         onRefresh={handleRefresh}
         onOpen={handleOpen}
+        onDownload={handleDownloadVideo}
       />
     );
   } else if (route.name === 'channels') {
@@ -519,6 +664,28 @@ function AppContent() {
           setRoute({ name: 'categoryStats', categoryId })
         }
         onOpenCategories={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else if (route.name === 'offline') {
+    screen = (
+      <OfflineScreen
+        offline={offline}
+        downloads={downloads}
+        localVideos={localVideos}
+        importing={importing}
+        downloading={offlineBusy}
+        progress={downloadProgress}
+        formats={formats}
+        categories={categories}
+        feedCount={feedVideos.length}
+        onDownload={handleDownloadFeed}
+        onClear={handleClearOffline}
+        onOpen={handleOpen}
+        onOpenDownload={handleOpenDownload}
+        onRemoveDownload={handleRemoveDownload}
+        onImportLocal={handleImportLocal}
+        onOpenLocal={handleOpenLocal}
+        onDeleteLocal={handleDeleteLocal}
       />
     );
   } else if (route.name === 'categoryStats') {
@@ -567,6 +734,18 @@ function AppContent() {
         onClose={() => setRoute({ name: 'categories' })}
       />
     );
+  } else if (route.name === 'localPlayer') {
+    screen = (
+      <LocalPlayerScreen
+        entry={route.entry}
+        onBack={() => setRoute({ name: 'offline' })}
+        onDuration={(duration) => {
+          if (route.entry?.id?.startsWith('local-')) {
+            updateLocalDuration(route.entry.id, duration).then(setLocalVideos);
+          }
+        }}
+      />
+    );
   } else {
     screen = (
       <PlayerScreen
@@ -603,7 +782,14 @@ function AppContent() {
           </ErrorBoundary>
         )}
       </View>
-      {showTabBar ? <TabBar active={route.name} onChange={handleOpenTab} /> : null}
+      {showTabBar ? (
+        <TabBar
+          active={route.name}
+          onChange={handleOpenTab}
+          onCenterPress={() => setRoute({ name: 'categories' })}
+        />
+      ) : null}
+      <YouTubeRequestBridge ref={youtubeRequestBridgeRef} />
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
     </View>
   );

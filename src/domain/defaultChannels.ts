@@ -1,7 +1,12 @@
 // Chaînes fournies au premier lancement. L'utilisateur peut en ajouter
 // (identifiant, @handle ou URL) et retirer n'importe laquelle : la liste est
 // ensuite persistée dans le stockage local (services/storage.js).
-export const DEFAULT_CHANNELS = [
+export interface DefaultChannel {
+  id: string;
+  title: string;
+}
+
+export const DEFAULT_CHANNELS: DefaultChannel[] = [
   { id: 'UCStdpl2vQncJxvxmyhUU4vw', title: 'Paul Explique' },
   { id: 'UCMK4KX8mQdCpoAuS1I6jAkw', title: 'Bmn-maths' },
   { id: 'UCDhsYgq7tpshCtFtM-9TFvg', title: 'Parlons Cyber' },
@@ -21,4 +26,4 @@ export const DEFAULT_CHANNELS = [
   { id: 'UCR9eVgWM4pdYaoFzgdPmznw', title: 'English in Minutes' },
 ];
 
-export const DEFAULT_CHANNEL_IDS = DEFAULT_CHANNELS.map((channel) => channel.id);
+export const DEFAULT_CHANNEL_IDS: string[] = DEFAULT_CHANNELS.map((channel) => channel.id);

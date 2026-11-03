@@ -11,15 +11,23 @@
 - ✅ t1.1 [architect] Resolve and document remediation for the five HIGH findings (revalidated 2026-11-02T09:04:02Z→2026-11-02T09:05:55Z, 1m 53s; 5 findings remediated)
 - ✅ t1.2 [architect] Validate mitigation completion with zero remaining HIGH findings (2026-11-02T09:01:14Z→2026-11-02T09:03:34Z, 2m 20s)
 
-### Phase: Architecture Design
+### Phase: Architecture Design 📌 add320e
 - ✅ t2 [architect] Map existing modules to the requested src architecture (2026-11-02T09:11:32Z→2026-11-02T09:16:38Z, 5m 06s) [deps: t1]
 
 ### Phase: Implementation
-- ⏳ t3 [frontend] Restructure application source into the requested TypeScript architecture [deps: t2]
+- ❌ t3 [frontend] Restructure application source into the requested TypeScript architecture (stopped at scope gate; no source changes; superseded by t3.1–t3.5)
+- ❌ t3.1 [frontend] Move shared, domain, and infrastructure modules into src (stopped at scope gate; no source changes; superseded by t3.1a–t3.1c)
+- ✅ t3.1a [frontend] Move domain business types and rules into src/domain (2026-11-02T09:20:51Z→2026-11-02T09:25:09Z, 4m 18s) [deps: t2]
+- 🔄 t3.1b [frontend] Move shared UI, theme, and general utilities into src/shared (dispatched 2026-11-02T09:25:37Z) [deps: t2, t3.1a]
+- ⏳ t3.1c [frontend] Move Expo, storage, network, and YouTube integrations into src/infrastructure [deps: t3.1b]
+- ⏳ t3.2 [frontend] Move feed, channels, and categories feature modules [deps: t3.1c]
+- ⏳ t3.3 [frontend] Move player, stats, settings, and offline feature modules [deps: t3.2]
+- ⏳ t3.4 [frontend] Move app bootstrap, providers, navigation, and root entry [deps: t3.3]
+- ⏳ t3.5 [frontend] Repair imports, TypeScript resolution, and test/config paths [deps: t3.4]
 
 ### Phase: Review & Smoke Test
-- ⏳ t4 [architect] Review implementation against the requested architecture [deps: t3]
-- ⏳ t5 [architect] Run independent build and startup smoke test [deps: t3]
+- ⏳ t4 [architect] Review implementation against the requested architecture [deps: t3.5, t2]
+- ⏳ t5 [architect] Run independent build and startup smoke test [deps: t3.5, t2]
 
 ### Phase: Runtime Validation
 - ⏳ t6 [tester] Run typecheck, tests, lint, and Expo web export [deps: t4, t5]

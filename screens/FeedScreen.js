@@ -14,18 +14,18 @@ import { useTranslation } from 'react-i18next';
 import ActionSheet from '../components/ActionSheet';
 import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
-import ConfirmSheet from '../components/ConfirmSheet';
-import EmptyState from '../components/EmptyState';
+import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import EmptyState from '../src/shared/ui/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ShortsShelf from '../components/ShortsShelf';
 import SyncBar from '../components/SyncBar';
 import VideoCard from '../components/VideoCard';
-import { TrashIcon } from '../components/Icons';
-import { colors, layout, spacing } from '../constants/theme';
-import { isFormatResolved, resolveFormats, splitByFormat } from '../services/filters';
+import { DownloadIcon, TrashIcon } from '../src/shared/ui/Icons';
+import { colors, layout, spacing } from '../src/shared/theme/tokens';
+import { isFormatResolved, resolveFormats, splitByFormat } from '../src/domain/videoFormat';
 import { hasFailedFormat } from '../services/formats';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
-import { timeAgo } from '../utils/format';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import { timeAgo } from '../src/shared/utils/format';
 
 const GUTTER = layout.gridGutter; // 16 px
 const GAP = layout.gridGap; // 16 px
@@ -69,6 +69,7 @@ export default function FeedScreen({
   onRefresh,
   trackingVideos = {},
   onOpen,
+  onDownload,
   onRemoveChannel,
   shortsPosition = 'after-first-row',
   dataSaver = false,
@@ -86,10 +87,12 @@ export default function FeedScreen({
 
   const columns = columnsFor(windowWidth);
 
-  // Largeur utile : jamais plus de 1600 px, le reste est réparti en marges
-  // égales pour centrer le contenu sur les très grands écrans (web, tablette).
-  const contentWidth = Math.min(windowWidth, layout.maxContentWidth);
-  const sidePadding = Math.max(0, (windowWidth - contentWidth) / 2);
+  // Mobile-first : le portrait reste plein largeur. Le centrage n’est appliqué
+  // que sur les grands écrans où le contenu n’a plus besoin d’occuper toute
+  // la largeur de la feuille.
+  const isCompactPhone = windowWidth < layout.twoColumnMinWidth;
+  const contentWidth = isCompactPhone ? windowWidth : Math.min(windowWidth, layout.maxContentWidth);
+  const sidePadding = isCompactPhone ? spacing.md : Math.max(0, (windowWidth - contentWidth) / 2);
   const cardWidth = Math.max(
     0,
     (contentWidth - 2 * GUTTER - (columns - 1) * GAP) / columns,
@@ -410,6 +413,21 @@ export default function FeedScreen({
                             title: menuVideo.channelTitle,
                           });
                           setMenuVideo(null);
+                        },
+                      },
+                    ]
+                  : []),
+                ...(onDownload
+                  ? [
+                      {
+                        key: 'download',
+                        label: 'Télécharger pour hors ligne',
+                        hint: 'Enregistrer si un flux direct est disponible.',
+                        icon: <DownloadIcon color={colors.accentText} size={16} />,
+                        onPress: () => {
+                          const video = menuVideo;
+                          setMenuVideo(null);
+                          onDownload(video);
                         },
                       },
                     ]

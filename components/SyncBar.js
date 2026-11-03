@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
 
-import { colors } from '../constants/theme';
-import { useThemeStyles } from '../services/ThemeProvider';
+import { colors } from '../src/shared/theme/tokens';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 /**
  * Barre de progression type YouTube : fine, collée en haut du contenu, qui se

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Animated,
   PixelRatio,
@@ -6,10 +7,12 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
+import type { ImageLoadEventData } from 'expo-image';
 
-import { colors } from '../constants/theme';
-import { netFetch } from '../services/net';
+import { colors } from '../../theme/tokens';
+import { netFetch } from '../../../../services/net';
 import {
   bestThumbnail,
   cacheThumbnail,
@@ -19,17 +22,65 @@ import {
   isThumbnailSharpEnough,
   isValidThumbnail,
   thumbnailCandidates,
-} from '../services/thumbnails';
-import { thumbnailRatio } from '../services/thumbnailLayout';
+} from '../../../../services/thumbnails';
+import { thumbnailRatio } from '../../media/thumbnailLayout';
 import ThumbnailFallback from './ThumbnailFallback';
-import { useThemeStyles } from '../services/ThemeProvider';
-import { startPerformance } from '../services/performance';
+import { useThemeStyles } from '../../theme/ThemeProvider';
+import { startPerformance } from '../../../../services/performance';
 
 export const MAX_THUMBNAIL_LOAD_MS = 8000;
 const REQUEST_TIMEOUT_MS = 1500;
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
-function dimensionsFromEvent(event) {
+interface ImageDimensions {
+  width: number;
+  height: number;
+}
+
+interface ResolvedThumbnail extends ImageDimensions {
+  url: string;
+  status: number | null;
+  contentType?: string;
+  usefulWidth?: number;
+}
+
+interface ThumbnailState {
+  key: string;
+  index: number;
+  phase: 'loading' | 'loaded' | 'failed';
+  ready: boolean;
+  status: number | null;
+  contentType: string;
+  resolved: ResolvedThumbnail | null;
+  valid: ResolvedThumbnail[];
+}
+
+type ThumbnailLoadEvent = ImageLoadEventData & {
+  nativeEvent?: {
+    source?: Partial<ImageDimensions> & { naturalWidth?: number; naturalHeight?: number };
+    target?: { naturalWidth?: number; naturalHeight?: number };
+    width?: number;
+    height?: number;
+  };
+};
+
+interface VideoThumbnailProps {
+  videoId?: string;
+  thumbnail?: string;
+  format?: 'video' | 'short';
+  style?: StyleProp<ViewStyle>;
+  radius?: number;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  pending?: boolean;
+  dataSaver?: boolean;
+  fallbackText?: string;
+  children?: ReactNode;
+  testID?: string;
+}
+
+function dimensionsFromEvent(event: ThumbnailLoadEvent): ImageDimensions | null {
   const native = event?.nativeEvent ?? {};
   const source = native.source ?? {};
   const target = native.target ?? {};
@@ -42,10 +93,18 @@ function dimensionsFromEvent(event) {
   return width > 0 && height > 0 ? { width, height } : null;
 }
 
-function rejectedLog(url, status, width, height, reason = '') {
+function rejectedLog(
+  url: string,
+  status: number | null | undefined,
+  width: number | null | undefined,
+  height: number | null | undefined,
+  reason = '',
+) {
   if (!__DEV__) return;
+  const safeWidth = Number(width ?? 0);
+  const safeHeight = Number(height ?? 0);
   const dimensions =
-    width > 0 && height > 0 ? `${width}×${height}` : 'dimensions inconnues';
+    safeWidth > 0 && safeHeight > 0 ? `${safeWidth}×${safeHeight}` : 'dimensions inconnues';
   console.warn(
     `[thumbnail] rejetée ${url} — HTTP ${status ?? 'inconnu'} — ${dimensions}${
       reason ? ` — ${reason}` : ''
@@ -53,7 +112,7 @@ function rejectedLog(url, status, width, height, reason = '') {
   );
 }
 
-async function inspectImageAfterError(url) {
+async function inspectImageAfterError(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -64,13 +123,18 @@ async function inspectImageAfterError(url) {
       status: response.status,
       contentType,
       ...imageDimensionsFromBuffer(buffer, contentType),
-    };
+    } satisfies { status: number; contentType: string; width?: number; height?: number };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function initialState(key, candidates, cached, dataSaver) {
+function initialState(
+  key: string,
+  candidates: string[],
+  cached: ResolvedThumbnail | null,
+  dataSaver: boolean,
+): ThumbnailState {
   const cachedForMode = dataSaver && Number(cached?.width) > 480 ? null : cached;
   if (cachedForMode) {
     return {
@@ -110,20 +174,20 @@ export default function VideoThumbnail({
   fallbackText,
   children,
   testID,
-}) {
+}: VideoThumbnailProps) {
   const styles = useThemeStyles(baseStyles);
   const key = `${videoId ?? ''}|${format}|${thumbnail ?? ''}|${dataSaver ? 'lite' : 'full'}`;
   const candidates = useMemo(
     () => thumbnailCandidates(videoId, thumbnail, { dataSaver }),
     [dataSaver, thumbnail, videoId],
   );
-  const [state, setState] = useState(() =>
+  const [state, setState] = useState<ThumbnailState>(() =>
     initialState(key, candidates, getCachedThumbnail(videoId), dataSaver),
   );
   const [displayWidth, setDisplayWidth] = useState(0);
   const imageOpacity = useRef(new Animated.Value(0)).current;
   const shimmerOpacity = useRef(new Animated.Value(0.35)).current;
-  const imageLoadFinishRef = useRef(null);
+  const imageLoadFinishRef = useRef<((result: Record<string, unknown>) => void) | null>(null);
   const requiredWidth = (displayWidth || 156) * PixelRatio.get();
   const activeSource = candidates[state.index];
   const isCurrentState = state.key === key;
@@ -169,7 +233,7 @@ export default function VideoThumbnail({
       videoId,
       variant: activeSource.split('/').pop(),
     });
-    let outcome = { result: 'error' };
+    let outcome: { result: string; status?: number } = { result: 'error' };
 
     netFetch(activeSource, {
       method: 'HEAD',
@@ -341,7 +405,7 @@ export default function VideoThumbnail({
     return () => animation.stop();
   }, [showingSkeleton, shimmerOpacity]);
 
-  const advanceAfterRejection = (index) => {
+  const advanceAfterRejection = (index: number) => {
     setState((current) => {
       if (current.key !== key || current.index !== index) return current;
       const nextIndex = current.index + 1;
@@ -361,15 +425,16 @@ export default function VideoThumbnail({
     });
   };
 
-  const handleCandidateLoad = (event) => {
+  const handleCandidateLoad = (event: ThumbnailLoadEvent) => {
     const dimensions = dimensionsFromEvent(event);
     const index = state.index;
     const status = state.status;
-    const candidate = {
+    const candidate: ResolvedThumbnail = {
       url: activeSource,
-      status,
+      status: status ?? null,
       contentType: state.contentType,
-      ...(dimensions ?? {}),
+      width: dimensions?.width ?? 0,
+      height: dimensions?.height ?? 0,
       usefulWidth: dimensions
         ? dimensions.width *
           Math.min(
@@ -476,14 +541,14 @@ export default function VideoThumbnail({
   return (
     <View
       testID={testID ?? (videoId ? `thumbnail-${videoId}` : undefined)}
-      onLayout={(event) => setDisplayWidth(event.nativeEvent.layout.width)}
+      onLayout={(event: LayoutChangeEvent) => setDisplayWidth(event.nativeEvent.layout.width)}
       style={[
         styles.frame,
         { aspectRatio: thumbnailRatio(format), borderRadius: radius },
         style,
       ]}
     >
-      {showingLoadedImage ? (
+      {showingLoadedImage && state.resolved ? (
         <AnimatedImage
           source={{ uri: state.resolved.url }}
           style={[styles.image, { opacity: imageOpacity }]}

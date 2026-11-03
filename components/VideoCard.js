@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
-import ChannelAvatar from './ChannelAvatar';
-import VideoThumbnail from './VideoThumbnail';
-import { formatClock, timeAgo } from '../utils/format';
-import { MoreIcon } from './Icons';
+import { colors, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
+import { formatClock, timeAgo } from '../src/shared/utils/format';
+import { MoreIcon } from '../src/shared/ui/Icons';
 
 /** Hauteur du bloc texte : 2 lignes de titre + 1 ligne secondaire. */
 const TITLE_HEIGHT = 40;

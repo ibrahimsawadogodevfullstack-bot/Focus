@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { DEFAULT_CHANNELS } from '../constants/channels';
+import { DEFAULT_CHANNELS } from '../src/domain/defaultChannels';
 
 const FEED_KEY = 'focus.feed.v1';
 const SEEN_KEY = 'focus.seen.v1';

@@ -8,7 +8,7 @@ import {
   isShort,
   splitByFormat,
   withFormat,
-} from '../services/filters.js';
+} from '../src/domain/videoFormat.ts';
 
 test('un format déjà calculé est conservé tel quel', () => {
   assert.equal(classifyFormat({ format: 'short' }), FORMAT_SHORT);

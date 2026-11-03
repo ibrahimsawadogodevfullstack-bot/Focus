@@ -1,46 +1,48 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
-import EmptyState from '../components/EmptyState';
-import { Chevron, PlusIcon } from '../components/Icons';
-import ScreenHeader from '../components/ScreenHeader';
-import { colors, radius, spacing } from '../constants/theme';
-import { useTheme, useThemeStyles } from '../services/ThemeProvider';
+import EmptyState from '../src/shared/ui/EmptyState';
+import { Chevron, PlusIcon } from '../src/shared/ui/Icons';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function CategoriesScreen({ categories, channels, onCreate, onEdit }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation(['categories', 'common']);
   const channelById = new Map(channels.map((channel) => [channel.id, channel]));
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ScreenHeader
-          title="Catégories"
+          title={t('categories:title')}
           subtitle={
             categories.length === 0
-              ? 'Aucun regroupement'
-              : `${categories.length} regroupement${categories.length > 1 ? 's' : ''} de chaînes`
+              ? t('categories:empty')
+              : t('categories:count', { count: categories.length })
           }
         />
 
         <Pressable
           onPress={onCreate}
           accessibilityRole="button"
-          accessibilityLabel="Créer une catégorie"
+          accessibilityLabel={t('categories:createCategory')}
           style={({ pressed }) => [styles.createCard, pressed && styles.pressedCard]}
         >
           <View style={styles.createIcon}>
             <PlusIcon color={colors.onAccent} size={16} />
           </View>
           <View style={styles.createTexts}>
-            <Text style={styles.createTitle}>Nouvelle catégorie</Text>
-            <Text style={styles.createSubtitle}>Ex. Maths, Anglais, Tech — combine tes chaînes.</Text>
+            <Text style={styles.createTitle}>{t('categories:createTitle')}</Text>
+            <Text style={styles.createSubtitle}>{t('categories:createSubtitle')}</Text>
           </View>
         </Pressable>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Tes regroupements</Text>
+          <Text style={styles.sectionLabel}>{t('categories:yourGroups')}</Text>
           <View style={styles.sectionRule} />
         </View>
 
@@ -54,7 +56,7 @@ export default function CategoriesScreen({ categories, channels, onCreate, onEdi
               key={category.id}
               onPress={() => onEdit(category)}
               accessibilityRole="button"
-              accessibilityLabel={`Modifier ${category.name}`}
+              accessibilityLabel={t('categories:editCategory', { name: category.name })}
               style={({ pressed }) => [styles.card, pressed && styles.pressedCard]}
             >
               <View style={styles.cardTop}>
@@ -65,7 +67,7 @@ export default function CategoriesScreen({ categories, channels, onCreate, onEdi
               </View>
 
               <Text style={styles.cardMeta}>
-                {members.length} chaîne{members.length > 1 ? 's' : ''}
+                {t('categories:members', { count: members.length })}
               </Text>
 
               {members.length > 0 ? (
@@ -98,9 +100,9 @@ export default function CategoriesScreen({ categories, channels, onCreate, onEdi
 
         {categories.length === 0 ? (
           <EmptyState
-            title="Aucune catégorie"
-            message="Une catégorie rassemble plusieurs chaînes : par exemple « Maths » avec trois profs différents."
-            actionLabel="Créer la première"
+            title={t('categories:noCategories')}
+            message={t('categories:noCategoriesMessage')}
+            actionLabel={t('categories:createFirst')}
             onAction={onCreate}
           />
         ) : null}

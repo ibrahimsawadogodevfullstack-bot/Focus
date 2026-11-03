@@ -1,4 +1,4 @@
-import { DEFAULT_CHANNEL_IDS } from '../constants/channels';
+import { DEFAULT_CHANNEL_IDS } from '../src/domain/defaultChannels';
 import { feedUrl } from './feedUrl';
 import { netFetch } from './net';
 import { parseFeed } from './rssParser';

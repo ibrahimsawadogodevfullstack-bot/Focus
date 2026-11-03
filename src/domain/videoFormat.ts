@@ -16,39 +16,39 @@
 // la sonde `oardefault` (services/formats.js) restent des secours pour les
 // caches anciens et les données sans lien.
 
-/**
- * @typedef {Object} Video
- * @property {string} [videoId]
- * @property {string} [title]
- * @property {string} [url]
- * @property {string} [videoUrl]
- * @property {string} [originalUrl]
- * @property {'feed'|'generated'} [urlSource]
- * @property {'short'|'video'} [format]
- * @property {boolean} [isShort]
- * @property {number} [width]
- * @property {number} [height]
- * @property {number} [duration]
- */
+export interface Video {
+  videoId?: string;
+  title?: string;
+  url?: string;
+  videoUrl?: string;
+  originalUrl?: string;
+  urlSource?: 'feed' | 'generated';
+  format?: VideoFormat;
+  isShort?: boolean;
+  width?: number | string | null;
+  height?: number | string | null;
+  duration?: number;
+}
 
-/** @typedef {'short'|'video'} VideoFormat */
+export type VideoFormat = 'short' | 'video';
+export type ResolvedVideo = Video & { format: VideoFormat };
 
 const SHORTS_TITLE = /#shorts?\b|#shortvideo|#shortsvideo/i;
 const SHORTS_URL = /\/shorts\//i;
 const YOUTUBE_URL = /^https?:\/\/(?:www\.|m\.)?youtube\.com\//i;
 
-export const FORMAT_SHORT = 'short';
-export const FORMAT_VIDEO = 'video';
+export const FORMAT_SHORT: VideoFormat = 'short';
+export const FORMAT_VIDEO: VideoFormat = 'video';
 
 /** Seuil de la règle 3, conservé pour documenter le contrat. */
 export const SHORT_MAX_DURATION_S = 60;
 
-function isFormat(value) {
+function isFormat(value: unknown): value is VideoFormat {
   return value === FORMAT_SHORT || value === FORMAT_VIDEO;
 }
 
 /** Dimensions exploitables (positives et finies). */
-function hasDimensions(video) {
+function hasDimensions(video?: Video | null): boolean {
   const width = Number(video?.width);
   const height = Number(video?.height);
   return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
@@ -57,10 +57,8 @@ function hasDimensions(video) {
 /**
  * Priorité 1 : tout ce que les données déclarent explicitement.
  * Renvoie null si aucun champ exploitable n'est présent.
- * @param {Video|null|undefined} video
- * @returns {VideoFormat|null}
  */
-function declaredFormat(video) {
+function declaredFormat(video?: Video | null): VideoFormat | null {
   if (!video || typeof video !== 'object') return null;
 
   if (isFormat(video.format)) return video.format;
@@ -77,7 +75,7 @@ function declaredFormat(video) {
 }
 
 /** Priorité 2 : l'URL d'origine pointe vers /shorts/. */
-function hasShortsUrl(video) {
+function hasShortsUrl(video?: Video | null): boolean {
   const urls = [video?.url, video?.videoUrl, video?.originalUrl];
   return urls.some((value) => typeof value === 'string' && SHORTS_URL.test(value));
 }
@@ -88,7 +86,7 @@ function hasShortsUrl(video) {
  * fourni par le flux est donc une preuve positive de vidéo longue, plus fiable
  * que la sonde `oardefault` (qui renvoie 404 pour certains Shorts).
  */
-function hasFeedUrl(video) {
+function hasFeedUrl(video?: Video | null): boolean {
   return (
     video?.urlSource === 'feed' &&
     typeof video.url === 'string' &&
@@ -99,10 +97,8 @@ function hasFeedUrl(video) {
 /**
  * Format d'une vidéo, selon la priorité de la spécification.
  * Fonction pure et testable : aucune dépendance au réseau ni au stockage.
- * @param {Video|null|undefined} video
- * @returns {VideoFormat}
  */
-export function getVideoFormat(video) {
+export function getVideoFormat(video?: Video | null): VideoFormat {
   const declared = declaredFormat(video);
   if (declared) return declared;
 
@@ -122,14 +118,14 @@ export function getVideoFormat(video) {
  * placeholder neutre. Le champ `format` n'est fiable que s'il vient des données
  * (API / cache) : `withFormat` n'est plus appliqué au flux brut.
  *
- * @param {Video|null|undefined} video
- * @param {Record<string, VideoFormat>} [formats] Résultats des sondes réseau.
- * @returns {boolean}
  */
-export function isFormatResolved(video, formats = {}) {
+export function isFormatResolved(
+  video?: Video | null,
+  formats: Record<string, VideoFormat> = {},
+): boolean {
   if (!video || typeof video !== 'object') return false;
 
-  if (isFormat(formats?.[video.videoId])) return true;
+  if (video.videoId && isFormat(formats[video.videoId])) return true;
   if (isFormat(video.format)) return true;
   if (typeof video.isShort === 'boolean') return true;
   if (hasDimensions(video)) return true;
@@ -142,10 +138,8 @@ export function isFormatResolved(video, formats = {}) {
 /**
  * Classement applicatif : données déclarées, URL /shorts/ ou /watch du flux,
  * puis hashtag du titre. Le hashtag ne peut jamais contredire ces preuves.
- * @param {Video|null|undefined} video
- * @returns {VideoFormat}
  */
-export function classifyFormat(video) {
+export function classifyFormat(video?: Video | null): VideoFormat {
   const declared = declaredFormat(video);
   if (declared) return declared;
   if (hasShortsUrl(video)) return FORMAT_SHORT;
@@ -158,11 +152,11 @@ export function classifyFormat(video) {
 }
 
 /** Ajoute (ou corrige) le champ `format` d'une vidéo. */
-export function withFormat(video) {
+export function withFormat<T extends Video>(video: T): T & { format: VideoFormat } {
   return { ...video, format: classifyFormat(video) };
 }
 
-export function isShort(video) {
+export function isShort(video?: Video | null): boolean {
   return classifyFormat(video) === FORMAT_SHORT;
 }
 
@@ -174,7 +168,10 @@ export function isShort(video) {
  * champ explicite), car une sonde peut se tromper sur un Short sans
  * `oardefault`. Il sert de secours pour les caches anciens.
  */
-export function formatOf(video, formats = {}) {
+export function formatOf(
+  video?: Video | null,
+  formats: Record<string, VideoFormat> = {},
+): VideoFormat {
   // Les preuves portées par les données passent avant la sonde : le lien RSS
   // /shorts/ ou /watch est définitif, alors que `oardefault` peut manquer pour
   // un vrai Short (404) et le faire passer pour une vidéo longue.
@@ -183,20 +180,23 @@ export function formatOf(video, formats = {}) {
   if (hasShortsUrl(video)) return FORMAT_SHORT;
   if (hasFeedUrl(video)) return FORMAT_VIDEO;
 
-  const probed = formats?.[video?.videoId];
+  const probed = video?.videoId ? formats[video.videoId] : undefined;
   if (isFormat(probed)) return probed;
   return classifyFormat(video);
 }
 
 /** Applique le format effectif à toute une liste. */
-export function resolveFormats(videos = [], formats = {}) {
+export function resolveFormats(
+  videos: Video[] = [],
+  formats: Record<string, VideoFormat> = {},
+): ResolvedVideo[] {
   return videos.map((video) => ({ ...video, format: formatOf(video, formats) }));
 }
 
 /** Sépare un flux en deux listes, sans jamais perdre de vidéo. */
-export function splitByFormat(videos = []) {
-  const shorts = [];
-  const long = [];
+export function splitByFormat(videos: Video[] = []): { shorts: Video[]; long: Video[] } {
+  const shorts: Video[] = [];
+  const long: Video[] = [];
 
   for (const video of videos) {
     if (isShort(video)) shorts.push(video);
