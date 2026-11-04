@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, Platform, StyleSheet, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
@@ -17,6 +17,7 @@ import {
   useUpdateSettings,
 } from './services/SettingsProvider';
 import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
+import { layout } from './src/shared/theme/tokens';
 import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
@@ -161,6 +162,7 @@ function AppContent() {
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const { colors, resolved } = useTheme();
+  const insets = useSafeAreaInsets();
   const [feed, setFeed] = useState(EMPTY_FEED);
   const [channels, setChannels] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -607,6 +609,7 @@ function AppContent() {
   );
 
   const showTabBar = TAB_ROUTES.has(route.name);
+  const tabBarHeight = 6 + layout.tabBar + Math.max(insets.bottom, 6);
 
   let screen = null;
 
@@ -767,7 +770,7 @@ function AppContent() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <View style={styles.body}>
+      <View style={[styles.body, showTabBar && { paddingBottom: tabBarHeight }]}>
         {crash ? (
           <CrashScreen
             error={crash.error}

@@ -110,6 +110,10 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
 
 const styles = StyleSheet.create({
   bar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,

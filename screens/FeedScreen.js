@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import ActionSheet from '../components/ActionSheet';
@@ -75,7 +75,6 @@ export default function FeedScreen({
   dataSaver = false,
 }) {
   const { width: windowWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const { t } = useTranslation(['home', 'common']);
@@ -197,10 +196,6 @@ export default function FeedScreen({
   const syncLabel = syncActive
     ? `${sync.done ?? 0}/${sync.total ?? 0} · ${sync.percent ?? 0} %`
     : '';
-
-  // La barre d'onglets est en flux, sous la liste : sa hauteur exacte est
-  // retirée de la zone visible (padding top 6 + onglets + zone sûre).
-  const tabBarHeight = 6 + layout.tabBar + Math.max(insets.bottom, 6);
 
   const toggleSearch = useCallback(() => {
     setSearching((current) => {
@@ -385,7 +380,7 @@ export default function FeedScreen({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: tabBarHeight + spacing.lg },
+          { paddingBottom: spacing.lg },
         ]}
         initialNumToRender={4}
         windowSize={7}
