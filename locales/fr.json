@@ -39,6 +39,8 @@
     "emptyFeedMessage": "Tire vers le bas pour actualiser, ou ajoute des chaînes à ta bibliothèque.",
     "editCategory": "Modifier la catégorie",
     "manageChannels": "Gérer mes chaînes",
+    "downloadForOffline": "Télécharger pour hors ligne",
+    "downloadHint": "Enregistrer si un flux direct est disponible.",
     "offlineCacheMessage": "Hors ligne : la dernière liste enregistrée est affichée.",
     "partialFailureMessage": "Certaines chaînes n’ont pas répondu.",
     "retry": "Réessayer",

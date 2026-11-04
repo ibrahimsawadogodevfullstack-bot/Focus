@@ -421,8 +421,8 @@ export default function FeedScreen({
                   ? [
                       {
                         key: 'download',
-                        label: 'Télécharger pour hors ligne',
-                        hint: 'Enregistrer si un flux direct est disponible.',
+                        label: t('home:downloadForOffline'),
+                        hint: t('home:downloadHint'),
                         icon: <DownloadIcon color={colors.accentText} size={16} />,
                         onPress: () => {
                           const video = menuVideo;

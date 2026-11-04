@@ -23,7 +23,7 @@ interface TabBarProps {
 
 export default function TabBar({ active, onChange, onCenterPress }: TabBarProps) {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation(['tabs', 'categories']);
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   return (
@@ -45,7 +45,7 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
             onPress={() => onChange(key)}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            accessibilityLabel={t(label)}
+            accessibilityLabel={t(`tabs:${label}`)}
             style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
           >
             <View
@@ -63,7 +63,7 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
                 selected && styles.labelActive,
               ]}
             >
-              {t(label)}
+              {t(`tabs:${label}`)}
             </Text>
           </Pressable>
         );
@@ -86,7 +86,7 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
             onPress={() => onChange(key)}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            accessibilityLabel={t(label)}
+            accessibilityLabel={t(`tabs:${label}`)}
             style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
           >
             <View style={[styles.iconWrap, selected && { backgroundColor: colors.accentSoft }]}>
@@ -99,7 +99,7 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
                 selected && styles.labelActive,
               ]}
             >
-              {t(label)}
+              {t(`tabs:${label}`)}
             </Text>
           </Pressable>
         );
@@ -111,12 +111,17 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 6,
     paddingHorizontal: 8,
+    width: '100%',
+    flexShrink: 0,
   },
   tab: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     height: layout.tabBar,
     alignItems: 'center',
     justifyContent: 'center',
@@ -125,6 +130,8 @@ const styles = StyleSheet.create({
   },
   centerButton: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     height: layout.tabBar,
     alignItems: 'center',
     justifyContent: 'center',
@@ -149,7 +156,8 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '600',
-    letterSpacing: 0.1,
+    letterSpacing: 0,
+    maxWidth: '100%',
   },
   labelActive: {
     fontWeight: '700',

@@ -39,6 +39,8 @@
     "emptyFeedMessage": "Pull down to refresh, or add channels to your library.",
     "editCategory": "Edit category",
     "manageChannels": "Manage my channels",
+    "downloadForOffline": "Download for offline",
+    "downloadHint": "Save this video if a direct stream is available.",
     "offlineCacheMessage": "Offline: showing the last saved list.",
     "partialFailureMessage": "Some channels did not respond.",
     "retry": "Retry",

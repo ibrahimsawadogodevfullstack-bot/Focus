@@ -9,7 +9,7 @@ import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 export default function CategoryChips({ categories, activeId, onSelect, onManage }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
-  const { t } = useTranslation('home');
+  const { t } = useTranslation();
   return (
     <ScrollView
       horizontal
@@ -17,7 +17,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       style={styles.scroll}
       contentContainerStyle={styles.content}
     >
-      <Chip styles={styles} label={t('allCategories')} active={activeId === null} onPress={() => onSelect(null)} />
+      <Chip styles={styles} label={t('home:allCategories')} active={activeId === null} onPress={() => onSelect(null)} />
 
       {categories.map((category) => (
         <Chip
@@ -32,7 +32,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       <Pressable
         onPress={onManage}
         accessibilityRole="button"
-        accessibilityLabel={t('manageCategories')}
+        accessibilityLabel={t('home:manageCategories')}
         style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
       >
         <PlusIcon color={colors.textMuted} size={13} />
