@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
@@ -24,6 +25,7 @@ export default function ShortCard({
   dataSaver = false,
 }) {
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   return (
     <View style={[styles.card, { width }]}>
       <VideoThumbnail
@@ -31,7 +33,10 @@ export default function ShortCard({
         format="short"
         dataSaver={dataSaver}
         onPress={onPress}
-        accessibilityLabel={`Short : ${video.title} — ${video.channelTitle}`}
+        accessibilityLabel={t('home:shortAccessibility', {
+          title: video.title,
+          channel: video.channelTitle,
+        })}
         style={styles.thumbWrap}
       >
         {isNew ? <View pointerEvents="none" style={styles.newDot} /> : null}
@@ -40,7 +45,7 @@ export default function ShortCard({
           <Pressable
             onPress={onMore}
             accessibilityRole="button"
-            accessibilityLabel={`Options pour ${video.channelTitle}`}
+            accessibilityLabel={t('home:videoOptions', { channel: video.channelTitle })}
             hitSlop={4}
             style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
           >
@@ -52,7 +57,7 @@ export default function ShortCard({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Ouvrir ${video.title}`}
+        accessibilityLabel={t('home:openVideo', { title: video.title })}
         style={({ pressed }) => [styles.titlePress, pressed && styles.pressed]}
       >
         <Text style={styles.title} numberOfLines={2}>

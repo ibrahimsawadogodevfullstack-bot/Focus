@@ -32,14 +32,14 @@ function OfflineThumb({ video, formats }) {
   );
 }
 
-function groupByCategory(videos, categories) {
+function groupByCategory(videos, categories, uncategorizedName) {
   const known = new Map((categories ?? []).map((category) => [category.id, category.name]));
   const groups = new Map();
 
   for (const video of videos) {
     const assigned = Array.isArray(video.categories) && video.categories.length > 0
       ? video.categories.map((category) => ({ id: category.id, name: category.name }))
-      : [{ id: 'uncategorized', name: 'Sans catégorie' }];
+      : [{ id: 'uncategorized', name: uncategorizedName }];
 
     for (const category of assigned) {
       const name = known.get(category.id) ?? category.name;
@@ -76,12 +76,13 @@ export default function OfflineScreen({
 }) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
-  const { t } = useTranslation(['offline', 'common']);
+  const { t, i18n } = useTranslation(['offline', 'common']);
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
 
   const videos = offline?.videos ?? [];
   const hasSnapshot = videos.length > 0;
   const channels = new Set(videos.map((video) => video.channelId)).size;
-  const downloadGroups = groupByCategory(downloads, categories);
+  const downloadGroups = groupByCategory(downloads, categories, t('offline:emptyGroup'));
   const ratio = progress && progress.total > 0 ? progress.done / progress.total : 0;
 
   return (
@@ -147,8 +148,9 @@ export default function OfflineScreen({
                     {video.title}
                   </Text>
                   <Text style={styles.rowMeta} numberOfLines={1}>
-                    {formatBytes(video.size)}
-                    {video.duration > 0 ? ` · ${formatClock(video.duration)}` : ''} · hors ligne
+                    {t('offline:deviceVideoMeta', {
+                      size: `${formatBytes(video.size)}${video.duration > 0 ? ` · ${formatClock(video.duration)}` : ''}`,
+                    })}
                   </Text>
                 </View>
               </Pressable>
@@ -196,7 +198,7 @@ export default function OfflineScreen({
                         {video.title}
                       </Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
-                        {video.channelTitle} · {timeAgo(video.savedAt)}
+                        {video.channelTitle} · {timeAgo(video.savedAt, locale)}
                       </Text>
                     </View>
                   </Pressable>
@@ -241,7 +243,7 @@ export default function OfflineScreen({
 
           <Text style={styles.savedAt}>
             {hasSnapshot
-              ? t('offline:savedAt', { time: timeAgo(offline.savedAt) })
+              ? t('offline:savedAt', { time: timeAgo(offline.savedAt, locale) })
               : t('offline:neverSaved')}
           </Text>
 
@@ -315,7 +317,7 @@ export default function OfflineScreen({
                 key={video.videoId}
                 onPress={() => onOpen(video, videos)}
                 accessibilityRole="button"
-                accessibilityLabel={`${video.title} — ${video.channelTitle}`}
+                accessibilityLabel={t('offline:openVideo', { title: video.title })}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
                 <OfflineThumb video={video} formats={formats} />
@@ -324,7 +326,7 @@ export default function OfflineScreen({
                     {video.title}
                   </Text>
                   <Text style={styles.rowMeta} numberOfLines={1}>
-                    {video.channelTitle} · {timeAgo(video.publishedAt)}
+                    {video.channelTitle} · {timeAgo(video.publishedAt, locale)}
                   </Text>
                 </View>
               </Pressable>

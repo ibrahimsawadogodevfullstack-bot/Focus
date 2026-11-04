@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import BrandMark from '../src/shared/ui/BrandMark';
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
@@ -30,6 +31,7 @@ export default function CategoryEditor({
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [name, setName] = useState(category?.name ?? '');
   const [selected, setSelected] = useState(() => new Set(category?.channelIds ?? []));
   const [query, setQuery] = useState('');
@@ -69,7 +71,7 @@ export default function CategoryEditor({
         entry.name.trim().toLowerCase() === trimmedName.toLowerCase(),
     );
     if (duplicate) {
-      setError('Une catégorie porte déjà ce nom.');
+      setError(t('categories:duplicateError'));
       return;
     }
 
@@ -81,8 +83,8 @@ export default function CategoryEditor({
         name: trimmedName,
         channelIds: [...selected],
       });
-    } catch (issue) {
-      setError(issue?.message ?? 'Enregistrement impossible.');
+    } catch {
+      setError(t('categories:saveError'));
       setSaving(false);
     }
   };
@@ -95,14 +97,16 @@ export default function CategoryEditor({
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Fermer"
+          accessibilityLabel={t('common:close')}
           style={({ pressed }) => [styles.close, pressed && styles.closePressed]}
         >
           <CloseIcon color={colors.text} size={13} />
         </Pressable>
 
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {category ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
+          {category
+            ? t('categories:editCategory', { name: category.name })
+            : t('categories:createTitle')}
         </Text>
 
         <BrandMark size={15} textSize={15} style={styles.headerBrand} />
@@ -113,19 +117,19 @@ export default function CategoryEditor({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.nameSection}>
-          <Text style={styles.label}>Nom de la catégorie</Text>
+          <Text style={styles.label}>{t('categories:editorName')}</Text>
           <TextInput
             value={name}
             onChangeText={(value) => {
               setName(value);
               if (error) setError(null);
             }}
-            placeholder="Ex. Maths, Anglais, Tech"
+            placeholder={t('categories:editorPlaceholder')}
             placeholderTextColor={colors.textFaint}
             maxLength={40}
             autoFocus={!category}
             returnKeyType="done"
-            accessibilityLabel="Nom de la catégorie"
+            accessibilityLabel={t('categories:editorName')}
             style={styles.nameInput}
           />
           <Text style={styles.counter}>{name.length} / 40</Text>
@@ -139,9 +143,9 @@ export default function CategoryEditor({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.sectionRow}>
-            <Text style={styles.label}>Chaînes</Text>
+            <Text style={styles.label}>{t('channels:title')}</Text>
             <Text style={styles.selection}>
-              {selected.size} sélectionnée{selected.size > 1 ? 's' : ''}
+              {t('categories:selectedChannels', { count: selected.size })}
             </Text>
           </View>
 
@@ -149,11 +153,11 @@ export default function CategoryEditor({
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Rechercher une chaîne"
+              placeholder={t('categories:searchChannel')}
               placeholderTextColor={colors.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
-              accessibilityLabel="Rechercher une chaîne"
+              accessibilityLabel={t('categories:searchChannel')}
               style={styles.searchInput}
             />
           ) : null}
@@ -188,12 +192,12 @@ export default function CategoryEditor({
             })}
 
             {filtered.length === 0 && channels.length > 0 ? (
-              <Text style={styles.noResult}>Aucune chaîne ne correspond.</Text>
+              <Text style={styles.noResult}>{t('categories:noChannelMatches')}</Text>
             ) : null}
 
             {channels.length === 0 ? (
               <Text style={styles.noResult}>
-                Ajoute d’abord des chaînes depuis l’onglet Chaînes.
+                {t('categories:addChannelsFirst')}
               </Text>
             ) : null}
           </View>
@@ -204,7 +208,7 @@ export default function CategoryEditor({
               accessibilityRole="button"
               style={({ pressed }) => [styles.delete, pressed && styles.deletePressed]}
             >
-              <Text style={styles.deleteText}>Supprimer la catégorie</Text>
+              <Text style={styles.deleteText}>{t('categories:deleteCategoryButton')}</Text>
             </Pressable>
           ) : null}
         </ScrollView>
@@ -212,7 +216,7 @@ export default function CategoryEditor({
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!error && !saving && !trimmedName ? (
-            <Text style={styles.saveHint}>Saisis un nom pour activer l’enregistrement.</Text>
+            <Text style={styles.saveHint}>{t('categories:saveHint')}</Text>
           ) : null}
           <Pressable
             onPress={handleSave}
@@ -226,7 +230,7 @@ export default function CategoryEditor({
             ]}
           >
             <Text style={[styles.saveText, !canSave && styles.saveTextDisabled]}>
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
+              {saving ? t('common:saving') : t('common:save')}
             </Text>
           </Pressable>
         </View>
@@ -234,9 +238,9 @@ export default function CategoryEditor({
 
       <ConfirmSheet
         visible={confirmingDelete}
-        title="Supprimer la catégorie ?"
-        message={`« ${category?.name ?? ''} » sera supprimée. Les chaînes restent dans ta bibliothèque.`}
-        confirmLabel="Supprimer la catégorie"
+        title={t('categories:deleteConfirmTitle')}
+        message={t('categories:deleteConfirmMessage', { name: category?.name ?? '' })}
+        confirmLabel={t('categories:deleteCategoryButton')}
         destructive
         onConfirm={() => {
           setConfirmingDelete(false);

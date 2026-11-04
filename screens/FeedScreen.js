@@ -77,7 +77,8 @@ export default function FeedScreen({
   const { width: windowWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
-  const { t } = useTranslation(['home', 'common']);
+  const { t, i18n } = useTranslation(['home', 'common']);
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
 
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
@@ -354,7 +355,7 @@ export default function FeedScreen({
               </Text>
               <Text style={styles.footerText}>
                 {savedAt
-                  ? t('home:lastSynced', { time: timeAgo(savedAt) })
+                  ? t('home:lastSynced', { time: timeAgo(savedAt, locale) })
                   : t('home:neverSynced')}
                 {fromCache ? ` · ${t('home:localCache')}` : ''}
               </Text>
@@ -390,7 +391,7 @@ export default function FeedScreen({
       <ActionSheet
         visible={Boolean(menuVideo)}
         title={menuVideo?.title}
-        message={menuVideo ? `${menuVideo.channelTitle} · ${timeAgo(menuVideo.publishedAt)}` : null}
+        message={menuVideo ? `${menuVideo.channelTitle} · ${timeAgo(menuVideo.publishedAt, locale)}` : null}
         actions={
           menuVideo
             ? [

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import { Chevron, PlusIcon, TrashIcon } from '../src/shared/ui/Icons';
@@ -22,32 +23,34 @@ export default function StatsScreen({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   const summary = useMemo(
-    () => summarize({ tracking, categories, videos, goal: weeklyGoal }),
-    [tracking, categories, videos, weeklyGoal],
+    () => summarize({ tracking, categories, videos, goal: weeklyGoal, locale }),
+    [tracking, categories, videos, weeklyGoal, locale],
   );
 
-  const insight = useMemo(() => insightFor(summary), [summary]);
+  const insight = useMemo(() => insightFor(summary, t), [summary, t]);
   const goalRatio = Math.min(1, summary.completedThisWeek / summary.goal);
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ScreenHeader title="Ma semaine" subtitle={summary.weekLabel} />
+        <ScreenHeader title={t('stats:weekTitle')} subtitle={summary.weekLabel} />
 
         <View style={styles.cards}>
-          <StatCard value={`${summary.activeDays}/7`} label="jours actifs" />
-          <StatCard value={formatEffort(summary.weekSeconds)} label="temps effectif" />
-          <StatCard value={`${summary.completedThisWeek}`} label="vidéos finies" />
+          <StatCard value={`${summary.activeDays}/7`} label={t('stats:activeDays')} />
+          <StatCard value={formatEffort(summary.weekSeconds, locale)} label={t('stats:effectiveTime')} />
+          <StatCard value={`${summary.completedThisWeek}`} label={t('stats:completedVideos')} />
         </View>
 
         <View style={styles.goalCard}>
           <View style={styles.goalHeader}>
-            <Text style={styles.goalLabel}>Mon objectif</Text>
+            <Text style={styles.goalLabel}>{t('stats:goalTitle')}</Text>
             <Text style={styles.goalValue}>
-              {summary.completedThisWeek} / {summary.goal} vidéos
+              {summary.completedThisWeek} / {summary.goal} {t('stats:videos')}
             </Text>
           </View>
           <View style={styles.track}>
@@ -59,7 +62,7 @@ export default function StatsScreen({
               onPress={() => onChangeGoal?.(Math.max(GOAL_MIN, weeklyGoal - 1))}
               disabled={weeklyGoal <= GOAL_MIN}
               accessibilityRole="button"
-              accessibilityLabel="Réduire l’objectif hebdomadaire"
+              accessibilityLabel={t('stats:decreaseGoal')}
               accessibilityState={{ disabled: weeklyGoal <= GOAL_MIN }}
               style={({ pressed }) => [
                 styles.stepButton,
@@ -70,13 +73,13 @@ export default function StatsScreen({
               <Text style={styles.stepSign}>−</Text>
             </Pressable>
 
-            <Text style={styles.stepHint}>vidéos par semaine</Text>
+            <Text style={styles.stepHint}>{t('stats:videosPerWeek')}</Text>
 
             <Pressable
               onPress={() => onChangeGoal?.(Math.min(GOAL_MAX, weeklyGoal + 1))}
               disabled={weeklyGoal >= GOAL_MAX}
               accessibilityRole="button"
-              accessibilityLabel="Augmenter l’objectif hebdomadaire"
+              accessibilityLabel={t('stats:increaseGoal')}
               accessibilityState={{ disabled: weeklyGoal >= GOAL_MAX }}
               style={({ pressed }) => [
                 styles.stepButton,
@@ -90,7 +93,7 @@ export default function StatsScreen({
         </View>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Par catégorie</Text>
+          <Text style={styles.sectionLabel}>{t('stats:categoriesTitle')}</Text>
           <View style={styles.sectionRule} />
         </View>
 
@@ -100,9 +103,9 @@ export default function StatsScreen({
             accessibilityRole="button"
             style={({ pressed }) => [styles.empty, pressed && styles.pressed]}
           >
-            <Text style={styles.emptyTitle}>Aucune catégorie</Text>
+            <Text style={styles.emptyTitle}>{t('stats:emptyCategory')}</Text>
             <Text style={styles.emptyText}>
-              Regroupe tes chaînes en catégories pour suivre ton temps et ta progression.
+              {t('stats:emptyCategoryMessage')}
             </Text>
           </Pressable>
         ) : (
@@ -111,23 +114,23 @@ export default function StatsScreen({
               key={category.id}
               onPress={() => onOpenCategory(category.id)}
               accessibilityRole="button"
-              accessibilityLabel={`Statistiques de ${category.name}`}
+              accessibilityLabel={t('stats:categoryAccessibility', { name: category.name })}
               style={({ pressed }) => [styles.category, pressed && styles.pressed]}
             >
               <View style={styles.categoryHeader}>
                 <Text style={styles.categoryName} numberOfLines={1}>
                   {category.name}
                 </Text>
-                <StatusPill status={category.status} />
+                <StatusPill status={category.status} count={category.toReview} />
               </View>
 
               <Text style={styles.categoryMeta}>
-                {formatEffort(category.seconds)}
+                {formatEffort(category.seconds, locale)}
                 {category.total > 0
-                  ? ` · ${category.completed} / ${category.total} vidéos`
+                  ? ` · ${category.completed} / ${category.total} ${t('stats:videos')}`
                   : category.lastAt
-                    ? ` · dernière activité il y a ${category.daysSince} j`
-                    : ' · aucune vidéo dans le flux'}
+                    ? ` · ${t('stats:daysAgo', { count: category.daysSince })}`
+                    : ` · ${t('stats:noVideosInFeed')}`}
               </Text>
 
               <View style={styles.track}>
@@ -151,22 +154,22 @@ export default function StatsScreen({
         <Pressable
           onPress={() => setConfirmingReset(true)}
           accessibilityRole="button"
-          accessibilityLabel="Effacer mes données de suivi"
+          accessibilityLabel={t('stats:resetAccessibility')}
           style={({ pressed }) => [styles.reset, pressed && styles.pressed]}
         >
           <TrashIcon color={colors.danger} size={15} />
-          <Text style={styles.resetText}>Effacer mes données</Text>
+          <Text style={styles.resetText}>{t('stats:resetButton')}</Text>
         </Pressable>
         <Text style={styles.resetHint}>
-          Temps, vidéos terminées et auto-évaluations sont supprimés de cet appareil.
+          {t('stats:resetHint')}
         </Text>
       </ScrollView>
 
       <ConfirmSheet
         visible={confirmingReset}
-        title="Effacer mes données ?"
-        message="Ton temps de visionnage, tes vidéos terminées et tes auto-évaluations seront définitivement supprimés. Les chaînes et catégories sont conservées."
-        confirmLabel="Effacer"
+        title={t('stats:resetTitle')}
+        message={t('stats:resetMessage')}
+        confirmLabel={t('stats:resetConfirm')}
         destructive
         onConfirm={() => {
           setConfirmingReset(false);
@@ -190,9 +193,10 @@ function StatCard({ value, label }) {
   );
 }
 
-function StatusPill({ status }) {
+function StatusPill({ status, count }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   const palette = {
     comfort: { bg: colors.successSoft, text: colors.success },
     review: { bg: colors.warnSoft, text: colors.warn },
@@ -204,7 +208,7 @@ function StatusPill({ status }) {
   return (
     <View style={[styles.pill, { backgroundColor: palette.bg }]}>
       <Text style={[styles.pillText, { color: palette.text }]} numberOfLines={1}>
-        {status.label}
+        {t(`stats:status${status.key[0].toUpperCase()}${status.key.slice(1)}`, { count })}
       </Text>
     </View>
   );

@@ -6,23 +6,6 @@
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-const MONTHS = [
-  'janv.',
-  'févr.',
-  'mars',
-  'avr.',
-  'mai',
-  'juin',
-  'juil.',
-  'août',
-  'sept.',
-  'oct.',
-  'nov.',
-  'déc.',
-];
-
-const WEEK_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
 /** Clé locale d'un jour : « 2026-10-29 ». */
 export function dayKey(timestamp: number = Date.now()) {
   const date = new Date(timestamp);
@@ -47,27 +30,28 @@ export function startOfWeek(now: number = Date.now()) {
  * ajouter 86 400 000 ms décale l'heure locale et peut produire deux fois la
  * même clé de jour (ou en sauter une).
  */
-export function weekDays(now: number = Date.now()) {
+export function weekDays(now: number = Date.now(), locale: string = 'fr') {
   const start = new Date(startOfWeek(now));
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return {
       key: dayKey(date.getTime()),
-      label: WEEK_LETTERS[index],
+      label: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date),
       stamp: date.getTime(),
       day: date.getDate(),
     };
   });
 }
 
-export function weekLabel(now: number = Date.now()) {
+export function weekLabel(now: number = Date.now(), locale: string = 'fr') {
   const start = new Date(startOfWeek(now));
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
 
-  const startText = `${start.getDate()} ${MONTHS[start.getMonth()]}`;
-  const endText = `${end.getDate()} ${MONTHS[end.getMonth()]}`;
+  const formatter = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' });
+  const startText = formatter.format(start);
+  const endText = formatter.format(end);
   return `${startText} – ${endText}`;
 }
 

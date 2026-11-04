@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import {
   Chevron,
@@ -34,9 +35,9 @@ import {
 import { formatClock, timeAgo } from '../src/shared/utils/format';
 
 const RATINGS = [
-  { key: 'fragile', label: 'Pas vraiment', hint: 'à revoir' },
-  { key: 'moyen', label: 'À peu près', hint: 'fragile' },
-  { key: 'solide', label: 'Bien compris', hint: 'solide' },
+  { key: 'fragile', labelKey: 'ratingFragile', hintKey: 'ratingFragileHint' },
+  { key: 'moyen', labelKey: 'ratingMedium', hintKey: 'ratingMediumHint' },
+  { key: 'solide', labelKey: 'ratingSolid', hintKey: 'ratingSolidHint' },
 ];
 
 const FLUSH_EVERY = 5;
@@ -65,6 +66,8 @@ function VideoPage({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
 
@@ -266,7 +269,7 @@ function VideoPage({
   };
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
-  const notice = blocked ? 'Sortie bloquée — tu restes dans Focus' : null;
+  const notice = blocked ? t('player:blockedNotice') : null;
 
   // Hauteur du lecteur horizontal : 16:9 quand la place le permet, sinon ce
   // qui reste au-dessus des contrôles (aucun débordement sur petit écran).
@@ -308,8 +311,8 @@ function VideoPage({
               <View style={styles.posterOverlay}>
                 <Text style={styles.offlineText}>
                   {errorCode === 'network'
-                    ? 'Hors ligne : cette vidéo n’est pas enregistrée sur l’appareil.'
-                    : 'Lecture intégrée indisponible.'}
+                    ? t('player:offlineVideo')
+                    : t('player:embedUnavailable')}
                 </Text>
                 <Pressable
                   onPress={() => {
@@ -319,7 +322,7 @@ function VideoPage({
                   accessibilityRole="button"
                   style={({ pressed }) => [styles.retry, pressed && styles.retryPressed]}
                 >
-                  <Text style={styles.retryText}>Réessayer</Text>
+                  <Text style={styles.retryText}>{t('player:retry')}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -329,7 +332,7 @@ function VideoPage({
           <Pressable
             onPress={showControls}
             accessibilityRole="button"
-            accessibilityLabel="Afficher les commandes du lecteur"
+            accessibilityLabel={t('player:showControls')}
             style={StyleSheet.absoluteFill}
           />
         ) : null}
@@ -376,7 +379,7 @@ function VideoPage({
                 onPress={() => playerRef.current?.seekBy(-10)}
                 disabled={!active}
                 accessibilityRole="button"
-                accessibilityLabel="Reculer de dix secondes"
+                accessibilityLabel={t('player:back10')}
                 style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
               >
                 <Text style={styles.roundText}>−10</Text>
@@ -386,7 +389,7 @@ function VideoPage({
                 onPress={() => playerRef.current?.toggle()}
                 disabled={!active}
                 accessibilityRole="button"
-                accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
+                accessibilityLabel={isPlaying ? t('player:pause') : t('player:play')}
                 style={({ pressed }) => [styles.play, pressed && styles.playPressed]}
               >
                 {isPlaying ? <PauseIcon size={17} /> : <PlayIcon size={19} />}
@@ -396,7 +399,7 @@ function VideoPage({
                 onPress={() => playerRef.current?.seekBy(10)}
                 disabled={!active}
                 accessibilityRole="button"
-                accessibilityLabel="Avancer de dix secondes"
+                accessibilityLabel={t('player:forward10')}
                 style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
               >
                 <Text style={styles.roundText}>+10</Text>
@@ -406,7 +409,7 @@ function VideoPage({
                 onPress={() => setImmersive(false)}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  vertical ? 'Afficher les détails' : 'Quitter le plein écran'
+                  vertical ? t('player:showDetails') : t('player:exitFullscreen')
                 }
                 style={({ pressed }) => [styles.overlayRound, pressed && styles.roundPressed]}
               >
@@ -423,7 +426,7 @@ function VideoPage({
                     onPress={() => handleRate(option.key)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={`${option.label} — ${option.hint}`}
+                    accessibilityLabel={`${t(`player:${option.labelKey}`)} — ${t(`player:${option.hintKey}`)}`}
                     style={({ pressed }) => [
                       styles.overlayChip,
                       selected && styles.overlayChipActive,
@@ -434,7 +437,7 @@ function VideoPage({
                       style={[styles.overlayChipText, selected && styles.overlayChipTextActive]}
                       numberOfLines={1}
                     >
-                      {option.label}
+                      {t(`player:${option.labelKey}`)}
                     </Text>
                   </Pressable>
                 );
@@ -452,12 +455,15 @@ function VideoPage({
           onPress={handleTrackPress}
           onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
           accessibilityRole="adjustable"
-          accessibilityLabel="Progression de la vidéo"
+          accessibilityLabel={t('player:progress')}
           accessibilityValue={{
             min: 0,
             max: Math.round(duration),
             now: Math.round(time),
-            text: `${formatClock(time)} sur ${formatClock(duration)}`,
+            text: t('player:progressValue', {
+              current: formatClock(time),
+              duration: formatClock(duration),
+            }),
           }}
           style={styles.trackHit}
         >
@@ -478,7 +484,7 @@ function VideoPage({
             onPress={() => playerRef.current?.seekBy(-10)}
             disabled={!active}
             accessibilityRole="button"
-            accessibilityLabel="Reculer de dix secondes"
+            accessibilityLabel={t('player:back10')}
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
           >
             <Text style={styles.roundText}>−10</Text>
@@ -488,7 +494,7 @@ function VideoPage({
             onPress={() => playerRef.current?.toggle()}
             disabled={!active}
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
+            accessibilityLabel={isPlaying ? t('player:pause') : t('player:play')}
             style={({ pressed }) => [styles.play, pressed && styles.playPressed]}
           >
             {isPlaying ? <PauseIcon size={17} /> : <PlayIcon size={19} />}
@@ -498,7 +504,7 @@ function VideoPage({
             onPress={() => playerRef.current?.seekBy(10)}
             disabled={!active}
             accessibilityRole="button"
-            accessibilityLabel="Avancer de dix secondes"
+            accessibilityLabel={t('player:forward10')}
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
           >
             <Text style={styles.roundText}>+10</Text>
@@ -507,7 +513,7 @@ function VideoPage({
           <Pressable
             onPress={() => setImmersive(true)}
             accessibilityRole="button"
-            accessibilityLabel="Plein écran"
+            accessibilityLabel={t('player:fullscreen')}
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
           >
             <FullscreenIcon color={colors.text} size={15} />
@@ -530,12 +536,12 @@ function VideoPage({
             {video.channelTitle}
           </Text>
           <Text style={styles.dot}>·</Text>
-          <Text style={styles.meta}>{timeAgo(video.publishedAt)}</Text>
+          <Text style={styles.meta}>{timeAgo(video.publishedAt, locale)}</Text>
 
         </View>
 
         <View style={styles.ratingBlock}>
-          <Text style={styles.ratingQuestion}>Tu as compris cette vidéo ?</Text>
+          <Text style={styles.ratingQuestion}>{t('player:ratingQuestion')}</Text>
           <View style={styles.ratingRow}>
             {RATINGS.map((option) => {
               const selected = rating === option.key;
@@ -551,15 +557,15 @@ function VideoPage({
                   onPress={() => handleRate(option.key)}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={`${option.label} — ${option.hint}`}
+                    accessibilityLabel={`${t(`player:${option.labelKey}`)} — ${t(`player:${option.hintKey}`)}`}
                   style={({ pressed }) => [
                     styles.ratingChip,
                     selected && tone,
                     pressed && styles.ratingPressed,
                   ]}
                 >
-                  <Text style={[styles.ratingLabel, selected && styles.ratingLabelActive]}>
-                    {option.label}
+                    <Text style={[styles.ratingLabel, selected && styles.ratingLabelActive]}>
+                    {t(`player:${option.labelKey}`)}
                   </Text>
                 </Pressable>
               );
@@ -568,8 +574,10 @@ function VideoPage({
 
           {rating === 'solide' && replays >= 2 ? (
             <Text style={styles.ratingInsight}>
-              Tu as indiqué bien comprendre, mais tu as revu le passage à{' '}
-              {formatClock(lastReplayAt ?? 0)} {replays} fois.
+              {t('player:ratingInsight', {
+                time: formatClock(lastReplayAt ?? 0),
+                count: replays,
+              })}
             </Text>
           ) : null}
         </View>
@@ -586,15 +594,17 @@ function VideoPage({
         {errorCode ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorTitle}>
-              {errorCode === 'network' ? 'Pas de connexion' : 'Lecture intégrée indisponible'}
+              {errorCode === 'network'
+                ? t('player:noConnection')
+                : t('player:embedError')}
             </Text>
             <Text style={styles.errorText}>
               {errorCode === 'network'
-                ? 'Hors ligne, seuls le titre et la miniature sont conservés : la vidéo demande une connexion. Aucun lien de sortie n’est proposé.'
-                : 'Le propriétaire refuse l’intégration, ou la vidéo n’est plus disponible. Aucun lien de sortie n’est proposé : le mode focus reste actif.'}
+                ? t('player:noConnectionMessage')
+                : t('player:embedErrorMessage')}
             </Text>
             <Text style={styles.errorHint}>
-              {isLast ? 'Fin de la liste.' : 'Glisse vers le haut pour la vidéo suivante.'}
+              {isLast ? t('player:endOfList') : t('player:swipeNext')}
             </Text>
           </View>
         ) : null}
@@ -604,7 +614,7 @@ function VideoPage({
         <View style={styles.lockNote}>
           <LockIcon color={colors.textFaint} size={10} />
           <Text style={styles.lockNoteText}>
-            Lecteur YouTube officiel. Les sorties vers YouTube sont bloquées.
+            {t('player:lockedNote')}
           </Text>
         </View>
 
@@ -612,10 +622,10 @@ function VideoPage({
           {!isLast ? (
             <>
               <Chevron direction="up" color={colors.accentText} size={8} thickness={2} />
-              <Text style={styles.swipeText}>Glisse vers le haut pour la suite</Text>
+              <Text style={styles.swipeText}>{t('player:swipeMore')}</Text>
             </>
           ) : (
-            <Text style={styles.swipeText}>Fin de la liste</Text>
+            <Text style={styles.swipeText}>{t('player:endOfList')}</Text>
           )}
         </View>
       </View>
@@ -641,6 +651,8 @@ export default function PlayerScreen({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
   const listRef = useRef(null);
@@ -689,7 +701,7 @@ export default function PlayerScreen({
   if (!queue || queue.length === 0) {
     return (
       <SafeAreaView style={styles.screen}>
-        <Text style={styles.empty}>Vidéo introuvable.</Text>
+        <Text style={styles.empty}>{t('player:videoNotFound')}</Text>
       </SafeAreaView>
     );
   }
@@ -701,7 +713,7 @@ export default function PlayerScreen({
           onPress={onBack}
           accessibilityRole="button"
           accessibilityLabel={
-            backLabel === 'Accueil' ? 'Retour à l’accueil' : `Retour à l’onglet ${backLabel}`
+            t('player:backTo', { label: backLabel })
           }
           style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
         >
@@ -715,8 +727,8 @@ export default function PlayerScreen({
           accessibilityState={{ checked: Boolean(autoplayNext) }}
           accessibilityLabel={
             autoplayNext
-              ? 'Désactiver la lecture continue'
-              : 'Activer la lecture continue'
+              ? t('player:autoplayOn')
+              : t('player:autoplayOff')
           }
           style={({ pressed }) => [
             styles.autoplay,
@@ -726,7 +738,7 @@ export default function PlayerScreen({
         >
           <PlayIcon color={autoplayNext ? colors.accentText : colors.textFaint} size={9} />
           <Text style={[styles.autoplayText, autoplayNext && styles.autoplayTextOn]}>
-            Enchaîner
+            {t('player:autoplayLabel')}
           </Text>
         </Pressable>
 

@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { saveCrash } from '../services/crashLog';
@@ -10,27 +11,27 @@ import BrandMark from '../src/shared/ui/BrandMark';
 /** Écran lisible quand quelque chose casse : plus de fermeture silencieuse. */
 export function CrashScreen({ error, onRetry }) {
   const styles = useThemeStyles(baseStyles);
-  const message = String(error?.message ?? error ?? 'Erreur inconnue');
+  const { t } = useTranslation();
+  const message = String(error?.message ?? error ?? t('crash:unknown'));
   const stack = String(error?.stack ?? '').split('\n').slice(0, 12).join('\n');
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
         <BrandMark style={styles.brand} />
-        <Text style={styles.title}>Quelque chose a cassé</Text>
+        <Text style={styles.title}>{t('crash:title')}</Text>
         <Text style={styles.lead}>
-          L’application reste ouverte. Le détail ci-dessous permet de corriger
-          précisément le problème.
+          {t('crash:lead')}
         </Text>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Erreur</Text>
+          <Text style={styles.cardLabel}>{t('crash:error')}</Text>
           <Text style={styles.message} selectable>
             {message}
           </Text>
           {stack ? (
             <>
-              <Text style={[styles.cardLabel, styles.stackLabel]}>Trace</Text>
+              <Text style={[styles.cardLabel, styles.stackLabel]}>{t('crash:trace')}</Text>
               <Text style={styles.stack} selectable>
                 {stack}
               </Text>
@@ -43,7 +44,7 @@ export function CrashScreen({ error, onRetry }) {
           accessibilityRole="button"
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <Text style={styles.actionText}>Revenir à l’accueil</Text>
+          <Text style={styles.actionText}>{t('crash:retry')}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

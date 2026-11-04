@@ -2,6 +2,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -162,6 +163,7 @@ function AppContent() {
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const { colors, resolved } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [feed, setFeed] = useState(EMPTY_FEED);
   const [channels, setChannels] = useState([]);
@@ -433,18 +435,21 @@ function AppContent() {
           onProgress: setDownloadProgress,
         });
         setDownloads(result.downloads);
-        Alert.alert('Téléchargement terminé', `${video.title} est disponible hors ligne.`);
-      } catch (error) {
         Alert.alert(
-          'Téléchargement impossible',
-          error?.message ?? 'Aucun flux direct utilisable pour cette vidéo.',
+          t('offline:downloadComplete'),
+          t('offline:downloadCompleteMessage', { title: video.title }),
+        );
+      } catch {
+        Alert.alert(
+          t('offline:downloadFailed'),
+          t('offline:downloadFailedMessage'),
         );
       } finally {
         setOfflineBusy(false);
         setDownloadProgress(null);
       }
     },
-    [categories, fetchYouTubeThroughWebView],
+    [categories, fetchYouTubeThroughWebView, t],
   );
 
   const handleDownloadFeed = useCallback(async () => {
@@ -761,7 +766,7 @@ function AppContent() {
         subtitles={settings.subtitles}
         dataSaver={settings.dataSaver}
         onToggleAutoplay={handleToggleAutoplay}
-        backLabel="Accueil"
+        backLabel={t('tabs:feed')}
         onBack={() => setRoute({ name: 'feed' })}
         onVideoChange={handleVideoChange}
       />

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { DAY_MS, dayKey, weekDays } from '../src/shared/utils/date.ts';
-import { categoryVideos, daysSince, summarize, weekLabel } from '../services/stats.js';
+import { timeAgo } from '../src/shared/utils/format.ts';
+import { categoryVideos, daysSince, formatEffort, summarize, weekLabel } from '../services/stats.js';
 
 const NOW = new Date(2026, 9, 29, 10, 0, 0).getTime(); // jeudi 29 octobre 2026
 
@@ -144,6 +145,15 @@ test('le calcul des jours écoulés est stable', () => {
   assert.equal(daysSince(NOW - DAY_MS, NOW), 1);
   assert.equal(daysSince(NOW, NOW), 0);
   assert.equal(daysSince(null, NOW), null);
+});
+
+test('les dates et durées suivent la locale choisie', () => {
+  assert.notEqual(weekLabel(NOW, 'fr'), weekLabel(NOW, 'en'));
+  assert.notEqual(weekDays(NOW, 'fr')[0].label, weekDays(NOW, 'en')[0].label);
+  assert.match(timeAgo(Date.now() - 3 * 60 * 1000, 'fr'), /il y a/);
+  assert.match(timeAgo(Date.now() - 3 * 60 * 1000, 'en'), /ago/);
+  assert.equal(formatEffort(7320, 'fr'), '2 h 02');
+  assert.equal(formatEffort(7320, 'en'), '2 hr 02 min');
 });
 
 test('categoryVideos fusionne flux et historique sans doublon', () => {

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
@@ -36,6 +37,8 @@ export default function VideoCard({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   // Le flux RSS ne transporte pas la durée : on réutilise celle mémorisée par
   // le suivi de lecture une fois la vidéo ouverte, sinon rien n'est affiché.
   const duration = Number(durationProp ?? video.duration);
@@ -44,9 +47,16 @@ export default function VideoCard({
     ? Math.min(1, Math.max(0, progress))
     : 0;
 
-  const label = `${video.title} — ${video.channelTitle}, ${timeAgo(video.publishedAt)}${
-    hasDuration ? `, ${formatClock(duration)}` : ''
-  }${pending ? ', format en cours de détection' : ''}`;
+  const details = [
+    timeAgo(video.publishedAt, locale),
+    hasDuration ? formatClock(duration) : '',
+    pending ? t('home:formatDetection') : '',
+  ].filter(Boolean).join(', ');
+  const label = t('home:videoAccessibility', {
+    title: video.title,
+    channel: video.channelTitle,
+    details: details ? `, ${details}` : '',
+  });
 
   const initial = (video.channelTitle || '?').trim().charAt(0).toUpperCase();
 
@@ -66,7 +76,7 @@ export default function VideoCard({
           {isNew && !pending ? (
             <View style={styles.newBadge}>
               <View style={styles.newDot} />
-              <Text style={styles.badgeText}>Nouveau</Text>
+              <Text style={styles.badgeText}>{t('home:newVideo')}</Text>
             </View>
           ) : null}
 
@@ -88,7 +98,7 @@ export default function VideoCard({
         <Pressable
           onPress={onPress}
           accessibilityRole="button"
-          accessibilityLabel={`Ouvrir ${video.title}`}
+          accessibilityLabel={t('home:openVideo', { title: video.title })}
           style={({ pressed }) => [styles.info, pressed && styles.pressed]}
         >
           <ChannelAvatar uri={channelAvatar} name={video.channelTitle} size={36} />
@@ -98,7 +108,7 @@ export default function VideoCard({
               {video.title}
             </Text>
             <Text style={styles.meta} numberOfLines={1}>
-              {`${video.channelTitle} · ${timeAgo(video.publishedAt)}`}
+              {`${video.channelTitle} · ${timeAgo(video.publishedAt, locale)}`}
             </Text>
           </View>
         </Pressable>
@@ -107,7 +117,7 @@ export default function VideoCard({
           <Pressable
             onPress={onMore}
             accessibilityRole="button"
-            accessibilityLabel={`Options pour ${video.channelTitle}`}
+            accessibilityLabel={t('home:videoOptions', { channel: video.channelTitle })}
             hitSlop={4}
             style={({ pressed }) => [styles.more, pressed && styles.morePressed]}
           >

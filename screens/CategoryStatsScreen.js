@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { Chevron } from '../src/shared/ui/Icons';
 import ScreenHeader from '../src/shared/ui/ScreenHeader';
@@ -15,20 +16,22 @@ import {
 } from '../services/stats';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
-function lastActivityLabel(timestamp) {
+function lastActivityLabel(timestamp, t) {
   const days = daysSince(timestamp);
-  if (days === null) return 'Aucune activité';
-  if (days <= 0) return "aujourd'hui";
-  if (days === 1) return 'hier';
-  return `il y a ${days} jours`;
+  if (days === null) return t('stats:noActivity');
+  if (days <= 0) return t('stats:today');
+  if (days === 1) return t('stats:yesterday');
+  return t('stats:daysAgo', { count: days });
 }
 
 export default function CategoryStatsScreen({ category, tracking, categories, videos, onBack, onOpen }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   const summary = useMemo(
-    () => summarize({ tracking, categories, videos }),
-    [tracking, categories, videos],
+    () => summarize({ tracking, categories, videos, locale }),
+    [tracking, categories, videos, locale],
   );
 
   const stats = summary.categories.find((item) => item.id === category.id) ?? {
@@ -43,7 +46,7 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
 
   // Détail jour par jour, limité aux chaînes de la catégorie.
   const daily = useMemo(() => {
-    return weekDays().map((day) => {
+    return weekDays(Date.now(), locale).map((day) => {
       const entry = tracking.days?.[day.key];
       let seconds = 0;
       if (entry && typeof entry === 'object') {
@@ -53,7 +56,7 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
       }
       return { ...day, seconds };
     });
-  }, [tracking.days, channelIds]);
+  }, [tracking.days, channelIds, locale]);
 
   const maxSeconds = Math.max(...daily.map((day) => day.seconds), 1);
   const today = new Date().setHours(0, 0, 0, 0);
@@ -69,23 +72,23 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
-          accessibilityLabel="Retour aux statistiques"
+          accessibilityLabel={t('stats:backToStats')}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />
-          <Text style={styles.backLabel}>Stats</Text>
+          <Text style={styles.backLabel}>{t('tabs:stats')}</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           title={category.name}
-          subtitle={`Dernière activité : ${lastActivityLabel(stats.lastAt)}`}
+          subtitle={t('stats:lastActivity', { time: lastActivityLabel(stats.lastAt, t) })}
         />
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Cette semaine</Text>
-          <Text style={styles.bigValue}>{formatEffort(stats.seconds)}</Text>
+          <Text style={styles.cardLabel}>{t('stats:thisWeek')}</Text>
+          <Text style={styles.bigValue}>{formatEffort(stats.seconds, locale)}</Text>
 
           <View style={styles.chart}>
             {daily.map((day) => {
@@ -111,9 +114,9 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
 
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <Text style={styles.cardLabel}>Avancement</Text>
+            <Text style={styles.cardLabel}>{t('stats:progress')}</Text>
             <Text style={styles.cardValue}>
-              {stats.completed} / {stats.total} vidéos
+              {stats.completed} / {stats.total} {t('stats:videos')}
             </Text>
           </View>
           <View style={styles.track}>
@@ -122,13 +125,13 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
         </View>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Mes vidéos</Text>
+          <Text style={styles.sectionLabel}>{t('stats:myVideos')}</Text>
           <View style={styles.sectionRule} />
         </View>
 
         {rows.length === 0 ? (
           <Text style={styles.empty}>
-            Aucune vidéo regardée dans cette catégorie pour le moment.
+            {t('stats:noWatchedVideos')}
           </Text>
         ) : (
           rows.map((row) => (
@@ -136,7 +139,7 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
               key={row.videoId}
               onPress={() => onOpen(row, rows)}
               accessibilityRole="button"
-              accessibilityLabel={`Reprendre ${row.title}`}
+              accessibilityLabel={t('stats:resumeVideo', { title: row.title })}
               style={({ pressed }) => [styles.video, pressed && styles.pressed]}
             >
               <View style={styles.videoTexts}>
@@ -144,7 +147,7 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
                   {row.title}
                 </Text>
                 <Text style={styles.videoMeta} numberOfLines={1}>
-                  {videoMeta(row)}
+                  {videoMeta(row, t, locale)}
                 </Text>
               </View>
               <VideoBadge row={row} />
@@ -156,39 +159,41 @@ export default function CategoryStatsScreen({ category, tracking, categories, vi
   );
 }
 
-function videoMeta(row) {
+function videoMeta(row, t, locale) {
   if (row.completed) {
-    const parts = ['Terminée'];
+    const parts = [t('stats:completedMeta')];
     if (row.replays > 0 && row.lastReplayAt !== null) {
       parts.push(
-        `passage ${formatClockShort(row.lastReplayAt)} revu ${row.replays} fois`,
+        t('stats:replayMeta', { time: formatClockShort(row.lastReplayAt), count: row.replays }),
       );
     } else if (row.duration > 0) {
-      parts.push(formatEffort(row.duration));
+      parts.push(formatEffort(row.duration, locale));
     }
     return parts.join(' · ');
   }
 
   const percent = row.duration > 0 ? Math.round((row.position / row.duration) * 100) : 0;
-  const progress =
-    row.seconds > 0 ? `En cours · ${Math.min(99, Math.max(1, percent))} % vu` : null;
+  const progress = row.seconds > 0
+    ? t('stats:inProgressMeta', { percent: Math.min(99, Math.max(1, percent)) })
+    : null;
 
   if (row.rating === 'fragile') {
-    return progress ? `${progress} · marquée fragile` : 'Marquée fragile · à revoir';
+    return progress ? `${progress} · ${t('stats:markedFragile')}` : t('stats:markedFragileToReview');
   }
   if (progress) return progress;
-  if (row.replays > 0) return `Revue ${row.replays} fois`;
-  return 'Pas encore commencée';
+  if (row.replays > 0) return t('stats:replayedMeta', { count: row.replays });
+  return t('stats:notStarted');
 }
 
 function VideoBadge({ row }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   const { label, bg, color } = badgeFor(row, colors);
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
       <Text style={[styles.badgeText, { color }]} numberOfLines={1}>
-        {label}
+        {t(`stats:${label}`)}
       </Text>
     </View>
   );
@@ -196,18 +201,18 @@ function VideoBadge({ row }) {
 
 function badgeFor(row, colors) {
   if (row.rating === 'solide') {
-    return { label: 'Bien compris', bg: colors.successSoft, color: colors.success };
+    return { label: 'badgeSolid', bg: colors.successSoft, color: colors.success };
   }
   if (row.rating === 'fragile') {
-    return { label: 'À revoir', bg: colors.warnSoft, color: colors.warn };
+    return { label: 'badgeReview', bg: colors.warnSoft, color: colors.warn };
   }
   if (row.completed) {
-    return { label: 'Terminée', bg: colors.accentSoft, color: colors.accentText };
+    return { label: 'badgeComplete', bg: colors.accentSoft, color: colors.accentText };
   }
   if (row.seconds > 0) {
-    return { label: 'Reprendre', bg: colors.surfaceAlt, color: colors.textMuted };
+    return { label: 'badgeResume', bg: colors.surfaceAlt, color: colors.textMuted };
   }
-  return { label: 'Nouvelle', bg: colors.surfaceAlt, color: colors.textFaint };
+  return { label: 'badgeNew', bg: colors.surfaceAlt, color: colors.textFaint };
 }
 
 const baseStyles = StyleSheet.create({

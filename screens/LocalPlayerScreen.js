@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { Chevron, DownloadIcon, PauseIcon, PlayIcon } from '../src/shared/ui/Icons';
 import { colors, radius, spacing } from '../src/shared/theme/tokens';
@@ -19,6 +20,7 @@ const SPEEDS = [1, 1.25, 1.5, 2];
 
 /** Lecteur local : un fichier vidéo de l'appareil, sans réseau. */
 export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
+  const { t } = useTranslation();
   const [trackWidth, setTrackWidth] = useState(0);
   const [trackX, setTrackX] = useState(0);
   const trackRef = useRef(null);
@@ -66,7 +68,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
   if (!entry) {
     return (
       <SafeAreaView edges={['top']} style={styles.screen}>
-        <Text style={styles.errorText}>Vidéo introuvable.</Text>
+        <Text style={styles.errorText}>{t('player:videoNotFound')}</Text>
       </SafeAreaView>
     );
   }
@@ -109,16 +111,16 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
-          accessibilityLabel="Retour à l’onglet Hors ligne"
+          accessibilityLabel={t('offline:backToOffline')}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
         >
           <Chevron direction="left" color={colors.text} size={9} thickness={2} />
-          <Text style={styles.backLabel}>Hors ligne</Text>
+          <Text style={styles.backLabel}>{t('tabs:offline')}</Text>
         </Pressable>
 
         <View style={styles.pill}>
           <DownloadIcon color={colors.accentText} size={11} thickness={2} />
-          <Text style={styles.pillText}>Lecture locale</Text>
+          <Text style={styles.pillText}>{t('offline:localPlayerTitle')}</Text>
         </View>
       </View>
 
@@ -139,7 +141,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
 
         {failed ? (
           <View style={styles.loading}>
-            <Text style={styles.errorText}>Fichier illisible sur cet appareil.</Text>
+            <Text style={styles.errorText}>{t('offline:fileUnreadable')}</Text>
           </View>
         ) : null}
       </View>
@@ -149,7 +151,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           ref={trackRef}
           onPress={seekFromPress}
           accessibilityRole="adjustable"
-          accessibilityLabel="Progression de la vidéo"
+          accessibilityLabel={t('offline:videoProgress')}
           accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(currentTime) }}
           style={styles.trackTouch}
           onLayout={(event) => {
@@ -172,7 +174,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           <Pressable
             onPress={() => player.seekBy(-10)}
             accessibilityRole="button"
-            accessibilityLabel="Reculer de dix secondes"
+            accessibilityLabel={t('offline:seekBack')}
             style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
           >
             <Text style={styles.skipText}>−10</Text>
@@ -181,7 +183,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           <Pressable
             onPress={() => (isPlaying ? player.pause() : player.play())}
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Mettre en pause' : 'Lire'}
+            accessibilityLabel={isPlaying ? t('offline:pause') : t('offline:play')}
             style={({ pressed }) => [styles.play, pressed && styles.pressed]}
           >
             {isPlaying ? (
@@ -194,7 +196,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           <Pressable
             onPress={() => player.seekBy(10)}
             accessibilityRole="button"
-            accessibilityLabel="Avancer de dix secondes"
+            accessibilityLabel={t('offline:seekForward')}
             style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
           >
             <Text style={styles.skipText}>+10</Text>
@@ -203,7 +205,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           <Pressable
             onPress={cycleSpeed}
             accessibilityRole="button"
-            accessibilityLabel={`Vitesse de lecture ${rate} fois`}
+            accessibilityLabel={t('offline:playbackSpeed', { rate })}
             style={({ pressed }) => [styles.speed, pressed && styles.pressed]}
           >
             <Text style={styles.speedText}>{rate}×</Text>
@@ -216,7 +218,7 @@ export default function LocalPlayerScreen({ entry, onBack, onDuration }) {
           {entry.title}
         </Text>
         <Text style={styles.meta}>
-          Vidéo de l’appareil · {formatBytes(entry.size)} · lisible sans réseau
+          {t('offline:localVideoMeta', { size: formatBytes(entry.size) })}
         </Text>
       </View>
     </SafeAreaView>

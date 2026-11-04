@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
@@ -23,6 +24,7 @@ import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, onRemoveChannel }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -38,14 +40,14 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
     try {
       const resolved = await resolveChannelInput(draft.trim());
       if (channels.some((channel) => channel.id === resolved.id)) {
-        setError('Cette chaîne est déjà dans ta bibliothèque.');
+        setError(t('channels:alreadyAdded'));
       } else {
         await onAddChannel(resolved);
         setDraft('');
         Keyboard.dismiss();
       }
-    } catch (issue) {
-      setError(issue?.message ?? 'Ajout impossible pour le moment.');
+    } catch {
+      setError(t('channels:addFailed'));
     } finally {
       setBusy(false);
     }
@@ -66,14 +68,12 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader
-          title="Chaînes"
-          subtitle={`${channels.length} chaîne${channels.length > 1 ? 's' : ''} suivie${
-            channels.length > 1 ? 's' : ''
-          }`}
+          title={t('channels:title')}
+          subtitle={t('channels:followed', { count: channels.length })}
         />
 
         <View style={styles.addCard}>
-          <Text style={styles.fieldLabel}>Ajouter une chaîne</Text>
+          <Text style={styles.fieldLabel}>{t('channels:addTitle')}</Text>
           <TextInput
             value={draft}
             onChangeText={(value) => {
@@ -81,17 +81,17 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
               if (error) setError(null);
             }}
             onSubmitEditing={handleAdd}
-            placeholder="UC…, @handle ou lien YouTube"
+            placeholder={t('channels:inputPlaceholder')}
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"
             editable={!busy}
-            accessibilityLabel="Identifiant, handle ou URL de la chaîne à ajouter"
+            accessibilityLabel={t('channels:inputAccessibility')}
             style={styles.input}
           />
           <Text style={styles.helper}>
-            Identifiant de chaîne, @handle, URL de chaîne ou de vidéo.
+            {t('channels:addHint')}
           </Text>
 
           {error ? (
@@ -104,7 +104,7 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
             onPress={handleAdd}
             disabled={!canSubmit}
             accessibilityRole="button"
-            accessibilityLabel="Ajouter la chaîne"
+            accessibilityLabel={t('channels:add')}
             accessibilityState={{ disabled: !canSubmit, busy }}
             style={({ pressed }) => [
               styles.submit,
@@ -116,14 +116,14 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
               <ActivityIndicator color={colors.onAccent} size="small" />
             ) : (
               <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>
-                Ajouter la chaîne
+                {t('channels:add')}
               </Text>
             )}
           </Pressable>
         </View>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Suivies</Text>
+          <Text style={styles.sectionLabel}>{t('channels:followedSection')}</Text>
           <View style={styles.sectionRule} />
         </View>
 
@@ -137,7 +137,7 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
 
             <View style={styles.rowTexts}>
               <Text style={styles.rowTitle} numberOfLines={1}>
-                {channel.title || 'Chaîne sans titre'}
+                {channel.title || t('channels:untitled')}
               </Text>
               <Text style={styles.rowId} numberOfLines={1}>
                 {channel.id}
@@ -147,7 +147,9 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
             <Pressable
               onPress={() => setPendingRemove(channel)}
               accessibilityRole="button"
-              accessibilityLabel={`Retirer ${channel.title || channel.id}`}
+              accessibilityLabel={t('channels:removeAccessibility', {
+                title: channel.title || channel.id,
+              })}
               hitSlop={4}
               style={({ pressed }) => [styles.remove, pressed && styles.removePressed]}
             >
@@ -158,17 +160,19 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
 
         {channels.length === 0 ? (
           <EmptyState
-            title="Aucune chaîne"
-            message="Colle un lien YouTube ci-dessus pour composer ton accueil."
+            title={t('channels:emptyTitle')}
+            message={t('channels:emptyMessage')}
           />
         ) : null}
       </ScrollView>
 
       <ConfirmSheet
         visible={Boolean(pendingRemove)}
-        title="Retirer cette chaîne ?"
-        message={`« ${pendingRemove?.title || pendingRemove?.id || ''} » quittera ta bibliothèque, ton accueil et tes catégories.`}
-        confirmLabel="Retirer la chaîne"
+        title={t('channels:removeConfirmTitle')}
+        message={t('channels:removeConfirmMessage', {
+          title: pendingRemove?.title || pendingRemove?.id || '',
+        })}
+        confirmLabel={t('channels:remove')}
         destructive
         onConfirm={handleRemove}
         onCancel={() => setPendingRemove(null)}

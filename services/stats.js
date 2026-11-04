@@ -12,12 +12,17 @@ export { dayKey, startOfWeek, weekDays, weekLabel, daysSince };
 export const WEEKLY_GOAL = 8;
 
 /** « 3 h 05 », « 25 min », « < 1 min ». */
-export function formatEffort(seconds = 0) {
+export function formatEffort(seconds = 0, locale = 'fr') {
   const total = Math.max(0, Math.round(seconds));
+  const french = locale.toLowerCase().startsWith('fr');
   if (total < 60) return total === 0 ? '0 min' : '< 1 min';
   const hours = Math.floor(total / 3600);
   const minutes = Math.round((total % 3600) / 60);
-  if (hours > 0) return `${hours} h ${`${minutes}`.padStart(2, '0')}`;
+  if (hours > 0) {
+    return french
+      ? `${hours} h ${`${minutes}`.padStart(2, '0')}`
+      : `${hours} hr ${`${minutes}`.padStart(2, '0')} min`;
+  }
   return `${minutes} min`;
 }
 
@@ -42,8 +47,15 @@ function statusOf({ hasActivity, days, toReview, ratio }) {
  * Agrège les statistiques de la semaine et par catégorie.
  * `goal` vient des réglages (objectif personnalisable).
  */
-export function summarize({ tracking, categories, videos, goal = WEEKLY_GOAL, now = Date.now() }) {
-  const days = weekDays(now);
+export function summarize({
+  tracking,
+  categories,
+  videos,
+  goal = WEEKLY_GOAL,
+  now = Date.now(),
+  locale = 'fr',
+}) {
+  const days = weekDays(now, locale);
   const tracked = Object.values(tracking.videos ?? {});
 
   const weekKeys = new Set(days.map((day) => day.key));
@@ -117,7 +129,7 @@ export function summarize({ tracking, categories, videos, goal = WEEKLY_GOAL, no
     daily,
     categories: perCategory,
     goal,
-    weekLabel: weekLabel(now),
+    weekLabel: weekLabel(now, locale),
   };
 }
 
@@ -174,11 +186,11 @@ export function categoryVideos({ tracking, category, videos }) {
 }
 
 /** Phrase de synthèse façon « Belle avancée en maths… ». */
-export function insightFor(summary) {
+export function insightFor(summary, t) {
   const active = summary.categories.filter((category) => category.seconds > 0 || category.completed > 0);
 
   if (active.length === 0) {
-    return 'Ouvre une vidéo pour commencer : ton temps, ta progression et tes révisions apparaîtront ici.';
+    return t('stats:insightStart');
   }
 
   const best = [...active].sort((a, b) => b.seconds - a.seconds)[0];
@@ -192,18 +204,14 @@ export function insightFor(summary) {
   const parts = [];
   const celebrate = best && best.seconds > 0 && !(review && review.id === best.id);
   if (celebrate) {
-    parts.push(`Belle avancée dans « ${best.name} ».`);
+    parts.push(t('stats:insightCelebrate', { name: best.name }));
   }
   if (neglected) {
-    parts.push(`« ${neglected.name} » est resté de côté depuis ${neglected.daysSince} jours.`);
+    parts.push(t('stats:insightNeglected', { name: neglected.name, days: neglected.daysSince }));
   }
   if (review) {
-    parts.push(
-      `${review.toReview} vidéo${review.toReview > 1 ? 's' : ''} de « ${review.name} » ${
-        review.toReview > 1 ? 'sont' : 'est'
-      } à revoir.`,
-    );
+    parts.push(t('stats:insightReview', { count: review.toReview, name: review.name }));
   }
 
-  return parts.join(' ') || 'Continue : ta régularité construit tes progrès.';
+  return parts.join(' ') || t('stats:insightContinue');
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
@@ -22,6 +23,7 @@ export default function FeedSkeleton({
   sidePadding = 0,
 }) {
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   const pulse = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function FeedSkeleton({
   const padding = sidePadding + spacing.lg;
 
   return (
-    <View accessibilityLabel="Chargement du flux" accessibilityRole="progressbar">
+    <View accessibilityLabel={t('home:loadingFeed')} accessibilityRole="progressbar">
       {withShorts ? (
         <Animated.View style={[styles.shelf, { paddingHorizontal: padding, opacity: pulse }]}>
           <View style={styles.shelfTitle} />

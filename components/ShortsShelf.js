@@ -1,4 +1,5 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
@@ -27,6 +28,7 @@ export default function ShortsShelf({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
+  const { t } = useTranslation();
   const shorts = (videos ?? []).filter((video) => isShort(video));
   if (shorts.length === 0) return null;
 
@@ -36,7 +38,7 @@ export default function ShortsShelf({
     <View style={styles.wrap}>
       <View style={[styles.header, { paddingHorizontal: padding }]}>
         <ShortsIcon color={colors.accentText} size={16} />
-        <Text style={styles.title}>Shorts</Text>
+        <Text style={styles.title}>{t('home:shorts')}</Text>
         <Text style={styles.count}>{shorts.length}</Text>
       </View>
 
@@ -45,7 +47,7 @@ export default function ShortsShelf({
         data={shorts}
         keyExtractor={(item) => item.videoId}
         showsHorizontalScrollIndicator={false}
-        accessibilityLabel="Rangée des Shorts"
+        accessibilityLabel={t('home:shortsShelf')}
         contentContainerStyle={[styles.list, { paddingHorizontal: padding }]}
         initialNumToRender={4}
         windowSize={5}
