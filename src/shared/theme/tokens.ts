@@ -20,7 +20,7 @@ export const DARK_COLORS = {
   textFaint: '#7186A8',
 
   // Accent
-  accent: '#2F7BFF',
+  accent: '#3B82F6',
   accentText: '#7FAFFF',
   accentSoft: 'rgba(47, 123, 255, 0.14)',
   accentLine: 'rgba(47, 123, 255, 0.32)',

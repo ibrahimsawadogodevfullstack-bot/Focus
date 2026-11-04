@@ -19,6 +19,11 @@
 export interface Video {
   videoId?: string;
   title?: string;
+  channelId?: string;
+  channelTitle?: string;
+  publishedAt?: number | null;
+  thumbnail?: string;
+  viewCount?: number | null;
   url?: string;
   videoUrl?: string;
   originalUrl?: string;

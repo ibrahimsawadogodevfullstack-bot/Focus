@@ -71,6 +71,8 @@
     "retry": "Réessayer",
     "video_one": "{{count}} vidéo",
     "video_other": "{{count}} vidéos",
+    "views_one": "{{count}} vue",
+    "views_other": "{{count}} vues",
     "short_one": "{{count}} Short",
     "short_other": "{{count}} Shorts",
     "channel_one": "{{count}} chaîne",

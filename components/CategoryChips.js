@@ -6,7 +6,7 @@ import { PlusIcon } from '../src/shared/ui/Icons';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 /** Filtres de catégories, dans l'esprit des puces de la page d'accueil YouTube. */
-export default function CategoryChips({ categories, activeId, onSelect, onManage }) {
+export default function CategoryChips({ categories, activeId, onSelect, onCreate }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const { t } = useTranslation();
@@ -14,6 +14,7 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       style={styles.scroll}
       contentContainerStyle={styles.content}
     >
@@ -30,7 +31,8 @@ export default function CategoryChips({ categories, activeId, onSelect, onManage
       ))}
 
       <Pressable
-        onPress={onManage}
+        onPress={onCreate}
+        hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('home:manageCategories')}
         style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
@@ -45,6 +47,7 @@ function Chip({ label, active, onPress, styles }) {
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={4}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={({ pressed }) => [
@@ -75,7 +78,7 @@ const baseStyles = StyleSheet.create({
     height: 56,
   },
   chip: {
-    height: 32,
+    height: 40,
     paddingHorizontal: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -99,8 +102,8 @@ const baseStyles = StyleSheet.create({
     color: colors.bg,
   },
   add: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',

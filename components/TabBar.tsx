@@ -43,6 +43,7 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
           <Pressable
             key={key}
             onPress={() => onChange(key)}
+            hitSlop={4}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             accessibilityLabel={t(`tabs:${label}`)}
@@ -54,12 +55,12 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
                 selected && { backgroundColor: colors.accentSoft },
               ]}
             >
-              <Icon color={selected ? colors.accentText : colors.textFaint} size={20} />
+              <Icon color={selected ? colors.accent : colors.textFaint} size={20} />
             </View>
             <Text
               style={[
                 styles.label,
-                { color: selected ? colors.accentText : colors.textFaint },
+                { color: selected ? colors.accent : colors.textFaint },
                 selected && styles.labelActive,
               ]}
             >
@@ -70,8 +71,9 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
       })}
       <Pressable
         onPress={onCenterPress}
+        hitSlop={4}
         accessibilityRole="button"
-        accessibilityLabel={t('categories:createCategory')}
+        accessibilityLabel={t('channels:addTitle')}
         style={({ pressed }) => [styles.centerButton, pressed && styles.tabPressed]}
       >
         <View style={[styles.plusWrap, { backgroundColor: colors.accentText }]}>
@@ -84,18 +86,19 @@ export default function TabBar({ active, onChange, onCenterPress }: TabBarProps)
           <Pressable
             key={key}
             onPress={() => onChange(key)}
+            hitSlop={4}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             accessibilityLabel={t(`tabs:${label}`)}
             style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
           >
             <View style={[styles.iconWrap, selected && { backgroundColor: colors.accentSoft }]}>
-              <Icon color={selected ? colors.accentText : colors.textFaint} size={20} />
+              <Icon color={selected ? colors.accent : colors.textFaint} size={20} />
             </View>
             <Text
               style={[
                 styles.label,
-                { color: selected ? colors.accentText : colors.textFaint },
+                { color: selected ? colors.accent : colors.textFaint },
                 selected && styles.labelActive,
               ]}
             >
@@ -114,6 +117,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 10,
+    elevation: 10,
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,

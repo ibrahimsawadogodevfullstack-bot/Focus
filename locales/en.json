@@ -71,6 +71,8 @@
     "retry": "Retry",
     "video_one": "{{count}} video",
     "video_other": "{{count}} videos",
+    "views_one": "{{count}} view",
+    "views_other": "{{count}} views",
     "short_one": "{{count}} Short",
     "short_other": "{{count}} Shorts",
     "channel_one": "{{count}} channel",

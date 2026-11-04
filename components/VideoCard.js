@@ -48,6 +48,9 @@ export default function VideoCard({
     : 0;
 
   const details = [
+    video.viewCount != null
+      ? t('home:views', { count: video.viewCount })
+      : '',
     timeAgo(video.publishedAt, locale),
     hasDuration ? formatClock(duration) : '',
     pending ? t('home:formatDetection') : '',
@@ -70,16 +73,10 @@ export default function VideoCard({
         fallbackText={initial}
         onPress={onPress}
         accessibilityLabel={label}
+        radius={0}
         style={styles.thumbWrap}
       >
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          {isNew && !pending ? (
-            <View style={styles.newBadge}>
-              <View style={styles.newDot} />
-              <Text style={styles.badgeText}>{t('home:newVideo')}</Text>
-            </View>
-          ) : null}
-
           {hasDuration && !pending ? (
             <View style={styles.durationBadge}>
               <Text style={styles.badgeText}>{formatClock(duration)}</Text>
@@ -107,9 +104,14 @@ export default function VideoCard({
             <Text style={styles.title} numberOfLines={2}>
               {video.title}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {`${video.channelTitle} · ${timeAgo(video.publishedAt, locale)}`}
-            </Text>
+            <View style={styles.metaRow}>
+              {isNew && !pending ? <View style={styles.newDot} /> : null}
+              <Text style={styles.meta} numberOfLines={1}>
+                {[video.channelTitle, video.viewCount != null ? t('home:views', { count: video.viewCount }) : null, timeAgo(video.publishedAt, locale)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
           </View>
         </Pressable>
 
@@ -138,18 +140,6 @@ const baseStyles = StyleSheet.create({
   },
   thumbWrap: {
     width: '100%',
-  },
-  newBadge: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: 'rgba(5, 7, 14, 0.82)',
   },
   durationBadge: {
     position: 'absolute',
@@ -212,10 +202,16 @@ const baseStyles = StyleSheet.create({
     minHeight: TITLE_HEIGHT,
   },
   meta: {
+    flex: 1,
     color: colors.textFaint,
     fontSize: 12.5,
     fontWeight: '500',
     lineHeight: META_HEIGHT,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   more: {
     width: 44,

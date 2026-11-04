@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -29,6 +30,8 @@ import { timeAgo } from '../src/shared/utils/format';
 
 const GUTTER = layout.gridGutter; // 16 px
 const GAP = layout.gridGap; // 16 px
+const INITIAL_ROW_COUNT = 5;
+const ROW_PAGE_SIZE = 5;
 
 /** La rangée Shorts arrive après ce nombre de vidéos longues. */
 export const SHORTS_SHELF_POSITION = 2;
@@ -55,6 +58,7 @@ export default function FeedScreen({
   activeCategoryId,
   onSelectCategory,
   onOpenCategories,
+  onCreateCategory,
   onOpenChannels,
   onOpenProfile,
   seenIds,
@@ -84,6 +88,11 @@ export default function FeedScreen({
   const [query, setQuery] = useState('');
   const [menuVideo, setMenuVideo] = useState(null);
   const [menuChannel, setMenuChannel] = useState(null);
+  const [visibleRowCount, setVisibleRowCount] = useState(INITIAL_ROW_COUNT);
+
+  useEffect(() => {
+    setVisibleRowCount(INITIAL_ROW_COUNT);
+  }, [activeCategoryId, query]);
 
   const columns = columnsFor(windowWidth);
 
@@ -92,10 +101,11 @@ export default function FeedScreen({
   // la largeur de la feuille.
   const isCompactPhone = windowWidth < layout.twoColumnMinWidth;
   const contentWidth = isCompactPhone ? windowWidth : Math.min(windowWidth, layout.maxContentWidth);
-  const sidePadding = isCompactPhone ? spacing.md : Math.max(0, (windowWidth - contentWidth) / 2);
+  const sidePadding = isCompactPhone ? 0 : Math.max(0, (windowWidth - contentWidth) / 2);
+  const rowPadding = isCompactPhone ? 0 : sidePadding + GUTTER;
   const cardWidth = Math.max(
     0,
-    (contentWidth - 2 * GUTTER - (columns - 1) * GAP) / columns,
+    (contentWidth - 2 * rowPadding - (columns - 1) * GAP) / columns,
   );
 
   const activeCategory = useMemo(
@@ -187,6 +197,12 @@ export default function FeedScreen({
 
     return list;
   }, [long, shorts.length, columns, shortsPosition]);
+  const visibleRows = rows.slice(0, visibleRowCount);
+  const hasMoreRows = visibleRows.length < rows.length;
+  const loadMoreRows = useCallback(() => {
+    if (!hasMoreRows) return;
+    setVisibleRowCount((count) => Math.min(count + ROW_PAGE_SIZE, rows.length));
+  }, [hasMoreRows, rows.length]);
 
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
@@ -231,7 +247,7 @@ export default function FeedScreen({
       }
 
       return (
-        <View style={[styles.gridRow, { paddingHorizontal: sidePadding + GUTTER }]}>
+        <View style={[styles.gridRow, { paddingHorizontal: rowPadding }]}>
           {item.videos.map((video) => (
             <VideoCard
               key={video.videoId}
@@ -263,6 +279,7 @@ export default function FeedScreen({
       seen,
       shorts,
       sidePadding,
+      rowPadding,
       styles.gridRow,
       trackingVideos,
     ],
@@ -285,13 +302,14 @@ export default function FeedScreen({
         categories={categories}
         activeId={activeCategoryId}
         onSelect={onSelectCategory}
-        onManage={onOpenCategories}
+        onCreate={onCreateCategory}
       />
 
       <FlatList
-        data={rows}
+        style={styles.list}
+        data={visibleRows}
         keyExtractor={(item) => item.key}
-        extraData={`${columns}-${cardWidth}-${shortsPosition}-${sidePadding}`}
+        extraData={`${columns}-${cardWidth}-${shortsPosition}-${rowPadding}`}
         renderItem={renderItem}
         ListHeaderComponent={
           error ? (
@@ -340,8 +358,12 @@ export default function FeedScreen({
           )
         }
         ListFooterComponent={
-          visibleVideos.length > 0 ? (
-            <View style={styles.footer}>
+          <View style={styles.footer}>
+            {loading && visibleVideos.length > 0 ? (
+              <ActivityIndicator color={colors.accent} size="small" />
+            ) : null}
+            {visibleVideos.length > 0 ? (
+              <>
               <Text style={styles.footerText}>
                 {t('home:video', { count: long.length })}
                 {shorts.length > 0
@@ -366,8 +388,9 @@ export default function FeedScreen({
               >
                 <Text style={styles.footerAction}>{t('home:refresh')}</Text>
               </Pressable>
-            </View>
-          ) : null
+              </>
+            ) : null}
+          </View>
         }
         refreshControl={
           <RefreshControl
@@ -378,6 +401,8 @@ export default function FeedScreen({
             progressBackgroundColor={colors.surface}
           />
         }
+        onEndReached={loadMoreRows}
+        onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
@@ -455,6 +480,9 @@ const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  list: {
+    flex: 1,
   },
   listContent: {
     paddingTop: spacing.xs,

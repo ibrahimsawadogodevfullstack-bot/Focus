@@ -9,6 +9,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
 import TabBar from './components/TabBar';
+import AddChannelSheet from './components/AddChannelSheet';
 import YouTubeRequestBridge from './components/YouTubeRequestBridge';
 import { DEFAULT_SETTINGS, readSettings } from './services/settings';
 import {
@@ -44,6 +45,7 @@ import {
   updateLocalDuration,
 } from './services/localVideos';
 import { resolveChannelAvatars } from './services/channelAvatars';
+import { resolveChannelInput } from './services/channelResolver';
 import { FORMAT_SHORT, formatOf } from './src/domain/videoFormat';
 import {
   getTracking,
@@ -185,6 +187,7 @@ function AppContent() {
   const [offlineBusy, setOfflineBusy] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [addChannelVisible, setAddChannelVisible] = useState(false);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -507,7 +510,10 @@ function AppContent() {
     handleOpen(video, downloads);
   }, [downloads, handleOpen]);
 
-  const handleOpenTab = useCallback((name) => setRoute({ name }), []);
+  const handleOpenTab = useCallback((name) => {
+    setCrash(null);
+    setRoute({ name });
+  }, []);
 
   const handleOpen = useCallback((video, queue) => {
     const index = Math.max(0, queue.findIndex((item) => item.videoId === video.videoId));
@@ -545,6 +551,14 @@ function AppContent() {
     },
     [channels],
   );
+
+  const handleAddSource = useCallback(async (input) => {
+    const channel = await resolveChannelInput(input);
+    if (channels.some((entry) => entry.id === channel.id)) {
+      throw new Error('Channel already added');
+    }
+    await handleAddChannel(channel);
+  }, [channels, handleAddChannel]);
 
   const handleRemoveChannel = useCallback(
     async (channelId) => {
@@ -614,6 +628,9 @@ function AppContent() {
   );
 
   const showTabBar = TAB_ROUTES.has(route.name);
+  const activeTab = ['channels', 'categories', 'stats', 'editor', 'categoryStats'].includes(route.name)
+    ? 'categories'
+    : route.name;
   const tabBarHeight = 6 + layout.tabBar + Math.max(insets.bottom, 6);
 
   let screen = null;
@@ -628,6 +645,7 @@ function AppContent() {
         activeCategoryId={activeCategoryId}
         onSelectCategory={setActiveCategoryId}
         onOpenCategories={() => setRoute({ name: 'categories' })}
+        onCreateCategory={() => setRoute({ name: 'editor', category: null })}
         onOpenChannels={() => setRoute({ name: 'channels' })}
         onOpenProfile={() => setRoute({ name: 'you' })}
         trackingVideos={tracking.videos}
@@ -785,16 +803,25 @@ function AppContent() {
             }}
           />
         ) : (
-          <ErrorBoundary onReset={() => setRoute({ name: 'feed' })}>
+          <ErrorBoundary key={route.name} onReset={() => setRoute({ name: 'feed' })}>
             {screen}
           </ErrorBoundary>
         )}
       </View>
       {showTabBar ? (
         <TabBar
-          active={route.name}
+          active={activeTab}
           onChange={handleOpenTab}
-          onCenterPress={() => setRoute({ name: 'categories' })}
+          onCenterPress={() => {
+            setCrash(null);
+            setAddChannelVisible(true);
+          }}
+        />
+      ) : null}
+      {addChannelVisible ? (
+        <AddChannelSheet
+          onClose={() => setAddChannelVisible(false)}
+          onSubmit={handleAddSource}
         />
       ) : null}
       <YouTubeRequestBridge ref={youtubeRequestBridgeRef} />
