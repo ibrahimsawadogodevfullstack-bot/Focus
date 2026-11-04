@@ -1,4 +1,5 @@
 import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
 import { getLocales } from 'expo-localization';
 
 import en from './locales/en.json';
@@ -20,7 +21,7 @@ export function resolveLanguage(preference = 'system', systemLocale) {
 
 export const i18nReady = i18next.isInitialized
   ? Promise.resolve(i18next)
-  : i18next.init({
+  : i18next.use(initReactI18next).init({
     resources: { en, fr },
     lng: FALLBACK_LANGUAGE,
     fallbackLng: FALLBACK_LANGUAGE,

@@ -1,26 +1,38 @@
 export function timeAgo(timestamp: number | null | undefined, locale: string = 'fr') {
   if (!timestamp) return '';
-  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
+  const english = locale.toLowerCase().startsWith('en');
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  if (seconds < 60) return relative.format(0, 'second');
+  if (seconds < 60) return english ? 'just now' : 'à l’instant';
 
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return relative.format(-minutes, 'minute');
+  if (minutes < 60) return english ? `${minutes} min ago` : `il y a ${minutes} min`;
 
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return relative.format(-hours, 'hour');
+  if (hours < 24) return english ? `${hours} hr ago` : `il y a ${hours} h`;
 
   const days = Math.round(hours / 24);
-  if (days < 7) return relative.format(-days, 'day');
+  if (days < 7) {
+    return english
+      ? `${days} day${days === 1 ? '' : 's'} ago`
+      : `il y a ${days} j`;
+  }
 
   const weeks = Math.round(days / 7);
-  if (weeks < 5) return relative.format(-weeks, 'week');
+  if (weeks < 5) {
+    return english
+      ? `${weeks} week${weeks === 1 ? '' : 's'} ago`
+      : `il y a ${weeks} sem`;
+  }
 
   const months = Math.round(days / 30);
-  if (months < 12) return relative.format(-months, 'month');
+  if (months < 12) {
+    return english ? `${months} mo ago` : `il y a ${months} mois`;
+  }
 
   const years = Math.round(days / 365);
-  return relative.format(-years, 'year');
+  return english
+    ? `${years} year${years === 1 ? '' : 's'} ago`
+    : `il y a ${years} an${years === 1 ? '' : 's'}`;
 }
 
 export function formatClock(seconds: number) {

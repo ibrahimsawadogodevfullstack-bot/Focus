@@ -156,6 +156,17 @@ test('les dates et durées suivent la locale choisie', () => {
   assert.equal(formatEffort(7320, 'en'), '2 hr 02 min');
 });
 
+test('timeAgo fonctionne sur Hermes sans Intl.RelativeTimeFormat', () => {
+  const relativeTimeFormat = Intl.RelativeTimeFormat;
+  try {
+    Intl.RelativeTimeFormat = undefined;
+    assert.match(timeAgo(Date.now() - 3 * 60 * 1000, 'fr'), /il y a 3 min/);
+    assert.match(timeAgo(Date.now() - 3 * 60 * 1000, 'en'), /3 min ago/);
+  } finally {
+    Intl.RelativeTimeFormat = relativeTimeFormat;
+  }
+});
+
 test('categoryVideos fusionne flux et historique sans doublon', () => {
   const rows = categoryVideos({
     tracking: trackingFixture(),
