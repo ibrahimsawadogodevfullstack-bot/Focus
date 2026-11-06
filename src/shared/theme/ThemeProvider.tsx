@@ -4,7 +4,7 @@ import { StyleSheet, useColorScheme } from 'react-native';
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 
 import type { ThemePreference } from '../../domain/settings';
-import { DARK_COLORS, LIGHT_COLORS } from './tokens';
+import { DARK_COLORS, LIGHT_COLORS } from './colors';
 
 const PALETTES = { dark: DARK_COLORS, light: LIGHT_COLORS };
 type ResolvedTheme = keyof typeof PALETTES;

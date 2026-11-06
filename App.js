@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, BackHandler, Platform, StyleSheet, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
@@ -19,7 +19,6 @@ import {
   useUpdateSettings,
 } from './services/SettingsProvider';
 import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
-import { layout } from './src/shared/theme/tokens';
 import CategoriesScreen from './screens/CategoriesScreen';
 import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
@@ -147,7 +146,7 @@ export default function App() {
   return (
     <SettingsProvider initialSettings={bootstrapSettings}>
       <SettingsThemeProvider>
-        <SafeAreaProvider>
+        <SafeAreaProvider style={{ flex: 1 }}>
           <AppContent />
         </SafeAreaProvider>
       </SettingsThemeProvider>
@@ -166,7 +165,6 @@ function AppContent() {
   const updateSettings = useUpdateSettings();
   const { colors, resolved } = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const [feed, setFeed] = useState(EMPTY_FEED);
   const [channels, setChannels] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -631,7 +629,6 @@ function AppContent() {
   const activeTab = ['channels', 'categories', 'stats', 'editor', 'categoryStats'].includes(route.name)
     ? 'categories'
     : route.name;
-  const tabBarHeight = 6 + layout.tabBar + Math.max(insets.bottom, 6);
 
   let screen = null;
 
@@ -793,7 +790,7 @@ function AppContent() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <View style={[styles.body, showTabBar && { paddingBottom: tabBarHeight }]}>
+      <View style={styles.body}>
         {crash ? (
           <CrashScreen
             error={crash.error}
@@ -836,5 +833,6 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    minHeight: 0,
   },
 });

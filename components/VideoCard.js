@@ -67,6 +67,7 @@ export default function VideoCard({
     <View style={[styles.card, width ? { width } : null]}>
       <VideoThumbnail
         videoId={video.videoId}
+        thumbnail={video.thumbnail}
         format="video"
         pending={pending}
         dataSaver={dataSaver}
@@ -149,10 +150,10 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: 7,
     borderRadius: 6,
     justifyContent: 'center',
-    backgroundColor: 'rgba(5, 7, 14, 0.86)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   badgeText: {
-    color: colors.text,
+    color: '#FFFFFF',
     fontSize: 10.5,
     fontWeight: '700',
     letterSpacing: 0.1,

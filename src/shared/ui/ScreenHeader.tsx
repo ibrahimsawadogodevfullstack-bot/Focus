@@ -34,7 +34,7 @@ export default function ScreenHeader({
       </View>
 
       {subtitle ? (
-        <Text style={themedStyles.subtitle} numberOfLines={2}>
+        <Text style={themedStyles.subtitle}>
           {subtitle}
         </Text>
       ) : null}

@@ -13,13 +13,15 @@ import {
 } from '../src/shared/ui/Icons';
 import ScreenHeader from '../src/shared/ui/ScreenHeader';
 import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { radius, spacing } from '../src/shared/theme/tokens';
+import { colors } from '../src/shared/theme/tokens';
+import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { FORMAT_SHORT, formatOf } from '../src/domain/videoFormat';
 import { formatBytes } from '../services/localVideos';
 import { formatClock, timeAgo } from '../src/shared/utils/format';
 
 /** Vignette de liste : 16:9 pour une vidéo, 9:16 pour un Short. */
-function OfflineThumb({ video, formats }) {
+function OfflineThumb({ video, formats }: any) {
   const format = formatOf(video, formats);
   return (
     <VideoThumbnail
@@ -27,18 +29,18 @@ function OfflineThumb({ video, formats }) {
       thumbnail={video.thumbnail}
       format={format}
       radius={radius.sm}
-      style={format === FORMAT_SHORT ? styles.shortThumb : styles.thumb}
+      style={format === FORMAT_SHORT ? baseStyles.shortThumb : baseStyles.thumb}
     />
   );
 }
 
-function groupByCategory(videos, categories, uncategorizedName) {
-  const known = new Map((categories ?? []).map((category) => [category.id, category.name]));
+function groupByCategory(videos: any, categories: any, uncategorizedName: any) {
+  const known = new Map((categories ?? []).map((category: any) => [category.id, category.name]));
   const groups = new Map();
 
-  for (const video of videos) {
+  for (const video of videos as any) {
     const assigned = Array.isArray(video.categories) && video.categories.length > 0
-      ? video.categories.map((category) => ({ id: category.id, name: category.name }))
+      ? video.categories
       : [{ id: 'uncategorized', name: uncategorizedName }];
 
     for (const category of assigned) {
@@ -55,40 +57,44 @@ function groupByCategory(videos, categories, uncategorizedName) {
  * Bibliothèque hors ligne : fichiers locaux, téléchargements directs disponibles
  * et cache des fiches du flux.
  */
-export default function OfflineScreen({
-  offline,
-  downloads = [],
-  localVideos = [],
-  importing = false,
-  downloading,
-  progress,
-  formats = {},
-  feedCount,
-  onDownload,
-  onClear,
-  onOpen,
-  onOpenDownload,
-  onRemoveDownload,
-  onImportLocal,
-  onOpenLocal,
-  onDeleteLocal,
-  categories = [],
-}) {
+export default function OfflineScreen(props: any) {
+  const {
+    offline,
+    downloads = [],
+    localVideos = [],
+    importing = false,
+    downloading,
+    progress,
+    formats = {},
+    feedCount,
+    onDownload,
+    onClear,
+    onOpen,
+    onOpenDownload,
+    onRemoveDownload,
+    onImportLocal,
+    onOpenLocal,
+    onDeleteLocal,
+    categories = [],
+  } = props;
   const [confirmClear, setConfirmClear] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState<any>(null);
   const { t, i18n } = useTranslation(['offline', 'common']);
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
+  const { colors } = useTheme();
 
   const videos = offline?.videos ?? [];
   const hasSnapshot = videos.length > 0;
-  const channels = new Set(videos.map((video) => video.channelId)).size;
+  const channels = new Set(videos.map((video: any) => video.channelId)).size;
   const downloadGroups = groupByCategory(downloads, categories, t('offline:emptyGroup'));
   const ratio = progress && progress.total > 0 ? progress.done / progress.total : 0;
+
+  const styles = useThemeStyles(baseStyles);
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
       >
         <ScreenHeader
@@ -130,7 +136,7 @@ export default function OfflineScreen({
             {t('offline:deviceHint')}
           </Text>
         ) : (
-          localVideos.map((video) => (
+          localVideos.map((video: any) => (
             <View key={video.id} style={styles.downloadRow}>
               <Pressable
                 onPress={() => onOpenLocal(video)}
@@ -184,7 +190,7 @@ export default function OfflineScreen({
           downloadGroups.map((group) => (
             <View key={group.id} style={styles.categoryBlock}>
               <Text style={styles.categoryTitle}>{group.name}</Text>
-              {group.videos.map((video) => (
+              {group.videos.map((video: any) => (
                 <View key={`${group.id}-${video.videoId}`} style={styles.downloadRow}>
                   <Pressable
                     onPress={() => onOpenDownload(video)}
@@ -312,7 +318,7 @@ export default function OfflineScreen({
               <View style={styles.sectionRule} />
             </View>
 
-            {videos.map((video) => (
+            {videos.map((video: any) => (
               <Pressable
                 key={video.videoId}
                 onPress={() => onOpen(video, videos)}
@@ -370,7 +376,7 @@ export default function OfflineScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,

@@ -30,6 +30,7 @@ export default function ShortCard({
     <View style={[styles.card, { width }]}>
       <VideoThumbnail
         videoId={video.videoId}
+        thumbnail={video.thumbnail}
         format="short"
         dataSaver={dataSaver}
         onPress={onPress}

@@ -40,6 +40,7 @@ export default function ChannelAvatar({
 
 const baseStyles = StyleSheet.create({
   image: {
+    overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.lineStrong,

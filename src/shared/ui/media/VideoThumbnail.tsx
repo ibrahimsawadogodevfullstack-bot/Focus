@@ -82,13 +82,13 @@ interface VideoThumbnailProps {
 
 function dimensionsFromEvent(event: ThumbnailLoadEvent): ImageDimensions | null {
   const native = event?.nativeEvent ?? {};
-  const source = native.source ?? {};
+  const source = event?.source ?? native.source ?? {};
   const target = native.target ?? {};
   const width = Number(
-    source.width ?? target.naturalWidth ?? native.width ?? source.naturalWidth,
+    source.width ?? target.naturalWidth ?? native.width,
   );
   const height = Number(
-    source.height ?? target.naturalHeight ?? native.height ?? source.naturalHeight,
+    source.height ?? target.naturalHeight ?? native.height,
   );
   return width > 0 && height > 0 ? { width, height } : null;
 }
@@ -246,26 +246,10 @@ export default function VideoThumbnail({
           result: contentType.toLowerCase().startsWith('image/') ? 'ok' : 'invalid',
           status: response.status,
         };
-        if (!contentType.toLowerCase().startsWith('image/')) {
+        // Certains serveurs refusent HEAD alors que le chargement de l'image
+        // fonctionne. La réponse GET de l'image tranchera avec ses dimensions.
+        if (!response.ok || !contentType.toLowerCase().startsWith('image/')) {
           rejectedLog(activeSource, response.status, null, null, contentType);
-          setState((current) => {
-            if (current.key !== key || current.index !== state.index) return current;
-            const nextIndex = current.index + 1;
-            if (nextIndex < candidates.length) {
-              return {
-                ...current,
-                index: nextIndex,
-                ready: false,
-                status: null,
-                contentType: '',
-              };
-            }
-            const best = bestThumbnail(current.valid, requiredWidth);
-            return best
-              ? { ...current, phase: 'loaded', resolved: best }
-              : { ...current, phase: 'failed' };
-          });
-          return;
         }
 
         setState((current) =>
@@ -283,23 +267,11 @@ export default function VideoThumbnail({
         if (cancelled) return;
         outcome = { result: 'error' };
         rejectedLog(activeSource, null, null, null, 'requête HEAD échouée');
-        setState((current) => {
-          if (current.key !== key || current.index !== state.index) return current;
-          const nextIndex = current.index + 1;
-          if (nextIndex < candidates.length) {
-            return {
-              ...current,
-              index: nextIndex,
-              ready: false,
-              status: null,
-              contentType: '',
-            };
-          }
-          const best = bestThumbnail(current.valid, requiredWidth);
-          return best
-            ? { ...current, phase: 'loaded', resolved: best }
-            : { ...current, phase: 'failed' };
-        });
+        setState((current) =>
+          current.key === key && current.index === state.index
+            ? { ...current, ready: true, status: null, contentType: '' }
+            : current,
+        );
       })
       .finally(() => {
         clearTimeout(timer);
@@ -431,7 +403,8 @@ export default function VideoThumbnail({
     const status = state.status;
     const candidate: ResolvedThumbnail = {
       url: activeSource,
-      status: status ?? null,
+      // onLoad confirme que le GET a réussi, même si la sonde HEAD a échoué.
+      status: 200,
       contentType: state.contentType,
       width: dimensions?.width ?? 0,
       height: dimensions?.height ?? 0,

@@ -1,7 +1,8 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
+import { SHORT_ASPECT } from '../src/shared/media/thumbnailLayout';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { isShort } from '../src/domain/videoFormat';
 import ShortCard, { SHORT_CARD_WIDTH } from './ShortCard';
@@ -27,12 +28,14 @@ export default function ShortsShelf({
   dataSaver = false,
 }) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const styles = useThemeStyles(baseStyles);
   const { t } = useTranslation();
   const shorts = (videos ?? []).filter((video) => isShort(video));
   if (shorts.length === 0) return null;
 
   const padding = sidePadding + GUTTER;
+  const cardHeight = Math.ceil(SHORT_CARD_WIDTH / SHORT_ASPECT + spacing.sm * 2 + 34 * fontScale);
 
   return (
     <View style={styles.wrap}>
@@ -44,6 +47,7 @@ export default function ShortsShelf({
 
       <FlatList
         horizontal
+        style={[styles.carousel, { height: cardHeight }]}
         data={shorts}
         keyExtractor={(item) => item.videoId}
         showsHorizontalScrollIndicator={false}
@@ -89,6 +93,10 @@ const baseStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+  },
+  carousel: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
   list: {
     gap: GAP,
