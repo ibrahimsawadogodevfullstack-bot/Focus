@@ -1,122 +1,51 @@
-# Focus — YouTube sans distraction
+# Focus: YouTube Sans Distraction
 
-Application Expo (SDK 54) qui rassemble les vidéos des chaînes que tu choisis et
-les lit **dans un lecteur verrouillé**, sans recommandations : l'accueil ne
-montre que tes chaînes, présentées comme sur YouTube. Tout passe par YouTube :
-pas de serveur intermédiaire, pas de clé API.
+One app to watch YouTube your way—vertical, distraction-free, and offline-ready.
 
-## Fonctionnalités
+> **See a feature you like?** Understand how it works, from the UI to the offline cache.
 
-- **Flux fusionné** : flux Atom publics
-  (`https://www.youtube.com/feeds/videos.xml?channel_id=UC...`), 15 dernières
-  vidéos par chaîne, tri par date. 17 chaînes fournies au premier lancement.
-- **Bibliothèque personnelle** : ajout d'une chaîne par
-  - identifiant brut `UC…` (24 caractères),
-  - `@handle`,
-  - URL de chaîne (`/channel/UC…`, `/c/…`, `/user/…`, `/@handle`, y compris les
-    onglets `/videos`, `/about`…),
-  - URL de vidéo (`youtu.be/…`, `watch?v=…`), résolue via oEmbed.
+---
 
-  Le titre officiel est récupéré depuis le flux RSS, ce qui valide la chaîne au
-  passage. Les chaînes ajoutées, comme celles retirées, sont persistées.
-- **Préférences « Vous »** : langue française/anglaise ou système, thème clair,
-  sombre ou système, lecture automatique, vitesse par défaut, sous-titres,
-  masquage des Shorts, miniatures en résolution réduite et suppression du cache
-  des miniatures.
-- **Données hors ligne préexistantes** : l'interface et les actions hors ligne
-  ont été retirées. Les anciennes données locales ne sont ni lues ni supprimées
-  par cette version ; réinstaller l'app ou effacer ses données système reste
-  une action destructive distincte.
-- **Accueil façon YouTube** : barre du haut avec le logo, la recherche (titre ou
-  chaîne, insensible aux accents) et un accès à « Vous » ; rangée de puces
-  « Tous » + catégories ; grandes cartes 16:9 avec avatar, titre, chaîne et date.
-- **Catégories** : regroupements nommés de plusieurs chaînes (« Maths »,
-  « Anglais », « Tech »…). Une catégorie devient un filtre du flux et peut être
-  modifiée ou supprimée à tout moment ; retirer une chaîne la retire aussi des
-  catégories.
-- **Lecture** : page `youtube.com/embed/…` dans une `WebView`, avec un
-  `Referer` neutre (YouTube refuse la lecture avec un referer YouTube : erreurs
-  152/153). Les commandes de l'interface (lecture, ±10 s, progression) pilotent
-  le lecteur via un pont JavaScript injecté. La navigation hors du lecteur est
-  bloquée, la fin de vidéo enchaîne sur la suivante, et toute sortie vers
-  YouTube demande une confirmation. En plein écran, le titre et les commandes
-  se masquent après 2 secondes et réapparaissent au toucher.
-- **Cache** : flux gardé dans `AsyncStorage` (TTL 10 min, invalidé quand la
-  liste des chaînes change), cache périmé affiché pendant l'actualisation,
-  titres appris puis stockés.
-- **Thèmes et langues** : réglages persistés et migrés sans effacer la
-  bibliothèque ni les statistiques déjà présentes.
-- **Vidéos déjà vues** : pastille « nouveau » sur les vidéos non encore ouvertes.
-- **Suivi et statistiques** : onglet Stats « Ma semaine » (jours actifs, temps
-  effectif, vidéos finies, objectif hebdomadaire) puis, par catégorie, le temps
-  de la semaine, la progression et un état (« À l'aise », « 2 à revoir »,
-  « Négligé »). Le détail d'une catégorie montre le graphique jour par jour,
-  l'avancement et les vidéos suivies. Dans le lecteur, une auto-évaluation
-  (« Pas vraiment / À peu près / Bien compris ») et la détection des passages
-  revus alimentent la synthèse.
-- **Gestion des chaînes** : ajout par identifiant, handle ou URL ; suppression
-  depuis l'onglet Chaînes ou directement depuis l'accueil (menu « … »), avec
-  confirmation dans les deux cas.
+[![Expo SDK](https://img.shields.io/badge/Expo-SDK%2054-000020?logo=expo)](https://docs.expo.dev/versions/v54.0.0/)
+[![platform](https://img.shields.io/badge/platform-react--native-blue)](https://reactnative.dev/)
+[![GitHub](https://img.shields.io/badge/source-GitHub-181717?logo=github)](https://github.com/ibrahimsawadogodevfullstack-bot/Focus)
 
-## Limites assumées
+---
 
-- Les vidéos dont l'intégration est désactivée (ou âge/région restreintes) ne
-  peuvent pas être lues dans l'app : un message propose de les ouvrir dans
-  YouTube en connaissance de cause.
-- On ne masque ni le logo YouTube, ni les publicités, ni les contrôles du
-  lecteur : c'est interdit par les conditions d'utilisation de l'embed.
-- Le flux RSS ne donne ni durée ni distinction Shorts/vidéos longues.
-- Les statistiques sont locales (AsyncStorage) : temps réellement joué,
-  vidéos terminées quand elles atteignent la fin, passages revus = retours en
-  arrière de plus de 3 secondes. Rien n'est envoyé sur un serveur.
-- L'ajout par `@handle` dépend du HTML public de YouTube ; l'identifiant `UC…`
-  reste la méthode la plus fiable.
+## ⭐ Features
 
-## Structure
+- **Vertical YouTube Experience**: Mobile-first, portrait-optimized layout.
+- **Offline Mode**: Download videos and keep your feed cached for true offline viewing.
+- **No Recommendations**: Only your chosen channels, no distractions.
+- **Categories & Stats**: Group channels, track your viewing, and set goals.
+- **Full i18n**: French and English, system language detection.
+- **Privacy First**: No server, no tracking, all data stays on your device.
 
-```
-App.js                     état (bibliothèque, catégories, route) + chargement
-constants/channels.js      chaînes par défaut et leurs titres
-constants/theme.js         jetons de design (couleurs, espacements, rayons)
-services/feedUrl.js        URL du flux Atom d'une chaîne
-services/feed.js           fetch RSS, fusion, tri, cache par périmètre
-services/rssParser.js      analyse Atom (sans dépendance XML)
-services/storage.js        AsyncStorage : flux, vu, chaînes, catégories
-services/tracking.js       temps vu, progression, révisions, auto-évaluation
-services/stats.js          agrégats semaine/catégorie, états, synthèse
-services/channelResolver.js résolution identifiant / @handle / URL / vidéo
-services/channelCandidates.js extraction des UC… depuis une page de chaîne
-services/net.js            fetch direct (mobile) ou via proxy (web)
-services/playerEmbed.js    URL d'embed + pont de contrôle injecté
-components/YoutubePlayer   WebView verrouillée + commandes impératives
-components/YoutubePlayer.web  iframe YouTube pilotée par l'IFrame API (web)
-services/performance.js    mesures de diagnostic en développement uniquement
-components/FocusMark       logo « focus »
-components/AppBar          logo, recherche, accès bibliothèque
-components/ConfirmSheet    confirmation en feuille basse (web + mobile)
-components/ActionSheet     menu « … » (retirer la chaîne)
-components/VideoCard       carte vidéo façon YouTube
-components/CategoryChips   puces « Tous » + catégories
-screens/FeedScreen         accueil, puces, recherche, pull-to-refresh
-screens/ChannelsScreen     bibliothèque de chaînes (ajout/retrait)
-screens/YouScreen          préférences, cache des miniatures, version
-screens/StatsScreen        « Ma semaine », objectif, par catégorie
-screens/CategoryStatsScreen détail d'une catégorie (graphique, vidéos)
-screens/CategoriesScreen   liste des catégories
-screens/CategoryEditor     création/édition d'une catégorie
-screens/PlayerScreen       flux vertical paginé, contrôles, sortie bloquée
-metro.config.js            proxy YouTube pour l'aperçu web (dev uniquement)
-```
+---
 
-## Lancer
+---
+
+## Getting Started
 
 ```sh
 npm install
-npm start          # Expo Go, ou
-npm run android    # appareil/émulateur connecté
+npm run android # or npm start for Expo Go
 ```
 
-## Aperçu web (localhost)
+---
+
+## Requirements
+
+- Expo SDK 54+
+- React Native 0.81+
+- Node.js 18+
+
+---
+
+## License
+
+MIT
+
 
 ```sh
 npm run web        # http://localhost:8081
