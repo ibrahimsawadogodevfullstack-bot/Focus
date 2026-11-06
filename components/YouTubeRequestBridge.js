@@ -73,6 +73,11 @@ const YouTubeRequestBridge = forwardRef(function YouTubeRequestBridge(_, ref) {
       ref={webViewRef}
       source={{ uri: pageUrl }}
       style={styles.bridge}
+      // react-native-webview wraps the native view in a View that defaults to
+      // `flex: 1`. Without this, that wrapper becomes a flex sibling of the
+      // screens and steals half of the available height. containerStyle moves
+      // the wrapper out of the flow, exactly like `style` does for the inner view.
+      containerStyle={styles.bridge}
       originWhitelist={['https://www.youtube.com', 'https://m.youtube.com', 'about:blank']}
       javaScriptEnabled
       domStorageEnabled
