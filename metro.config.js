@@ -9,6 +9,10 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
+// `expo-sqlite` charge un module WebAssembly sur le Web. Sans cette extension
+// dans les assets, Metro refuse de le résoudre et aucun écran ne se charge.
+config.resolver.assetExts.push('wasm');
+
 const PROXY_PREFIX = '/__youtube';
 const ALLOWED_HOSTS = new Set([
   'www.youtube.com',

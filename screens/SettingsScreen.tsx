@@ -1,14 +1,13 @@
 import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ChoiceSheet from '../components/ChoiceSheet';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
-import { PersonIcon } from '../src/shared/ui/Icons';
-import ScreenHeader from '../src/shared/ui/ScreenHeader';
+import PageHeader from '../src/shared/ui/PageHeader';
 import SettingsRow from '../components/SettingsRow';
 import SettingsSection from '../components/SettingsSection';
 import { colors, spacing } from '../src/shared/theme/tokens';
@@ -16,41 +15,43 @@ import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { clearThumbnailCache } from '../services/thumbnails';
 import { PLAYBACK_SPEEDS } from '../services/settings';
 import { useSettings, useUpdateSettings } from '../services/SettingsProvider';
+import type { Settings } from '../src/domain/settings';
 
-const CHOICE_OPTIONS = {
-  language: [
-    { value: 'system', labelKey: 'systemLanguage' },
-    { value: 'fr', labelKey: 'french' },
-    { value: 'en', labelKey: 'english' },
-  ],
-  theme: [
-    { value: 'system', labelKey: 'themeSystem' },
-    { value: 'light', labelKey: 'light' },
-    { value: 'dark', labelKey: 'dark' },
-  ],
-  playbackSpeed: PLAYBACK_SPEEDS.map((value) => ({
-    value,
-    label: `${value}×`,
-  })),
-};
+const LANGUAGE_OPTIONS = [
+  { value: 'system', labelKey: 'systemLanguage' },
+  { value: 'fr', labelKey: 'french' },
+  { value: 'en', labelKey: 'english' },
+] as const;
 
-function ChoiceValue({ setting, value, t }) {
-  const option = CHOICE_OPTIONS[setting].find((item) => item.value === value);
-  return option?.label ?? t(`you:${option?.labelKey ?? 'themeSystem'}`);
-}
+const THEME_OPTIONS = [
+  { value: 'system', labelKey: 'themeSystem' },
+  { value: 'light', labelKey: 'light' },
+  { value: 'dark', labelKey: 'dark' },
+] as const;
 
-export default function YouScreen() {
-  const { t } = useTranslation(['you', 'common']);
+export default function SettingsScreen({
+  onBack,
+  backLabel,
+  onOpenStatsSettings,
+}: {
+  onBack: () => void;
+  backLabel?: string;
+  onOpenStatsSettings: () => void;
+}) {
+  const { t } = useTranslation(['settings', 'you', 'common', 'errors']);
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const themedStyles = useThemeStyles(styles);
-  const [activeChoice, setActiveChoice] = useState(null);
+
+  const [activeChoice, setActiveChoice] = useState<
+    'language' | 'theme' | 'playbackSpeed' | null
+  >(null);
   const [confirmingCache, setConfirmingCache] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
-  const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const save = async (patch) => {
+  const save = async (patch: Partial<Settings>) => {
     setError(null);
     setNotice(null);
     try {
@@ -61,15 +62,30 @@ export default function YouScreen() {
     }
   };
 
-  const options = activeChoice ? CHOICE_OPTIONS[activeChoice] : [];
-  const choices = options.map((option) => ({
-    value: option.value,
-    label: option.label ?? t(`you:${option.labelKey}`),
-  }));
+  const languageLabel = t(
+    `you:${LANGUAGE_OPTIONS.find((option) => option.value === settings.language)?.labelKey ?? 'systemLanguage'}`,
+  );
+  const themeLabel = t(
+    `you:${THEME_OPTIONS.find((option) => option.value === settings.theme)?.labelKey ?? 'themeSystem'}`,
+  );
+
+  const choices =
+    activeChoice === 'language'
+      ? LANGUAGE_OPTIONS.map((option) => ({ value: option.value, label: t(`you:${option.labelKey}`) }))
+      : activeChoice === 'theme'
+        ? THEME_OPTIONS.map((option) => ({ value: option.value, label: t(`you:${option.labelKey}`) }))
+        : PLAYBACK_SPEEDS.map((value) => ({ value, label: `${value}×` }));
+
+  const title =
+    activeChoice === 'language'
+      ? t('language')
+      : activeChoice === 'theme'
+        ? t('theme')
+        : t('defaultSpeed');
 
   const clearCache = async () => {
     if (Platform.OS === 'web') {
-      setError(t('you:cacheClearUnavailable'));
+      setError(t('cacheClearUnavailable'));
       return;
     }
     setClearingCache(true);
@@ -84,7 +100,7 @@ export default function YouScreen() {
         throw new Error('The image cache could not be cleared.');
       }
       clearThumbnailCache();
-      setNotice(t('you:clearCacheDone'));
+      setNotice(t('clearCacheDone'));
     } catch (issue) {
       console.error('Unable to clear the image cache.', issue);
       setError(t('errors:cacheClear'));
@@ -94,103 +110,114 @@ export default function YouScreen() {
     }
   };
 
-  const speedLabel = `${settings.playbackSpeed}×`;
-  const appVersion =
-    Constants.expoConfig?.version ??
-    Constants.manifest?.version ??
-    '—';
+  const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? '—';
 
   return (
     <SafeAreaView edges={['top']} style={themedStyles.screen}>
-      <ScrollView
-        contentContainerStyle={themedStyles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <ScreenHeader title={t('you:title')} />
+      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
+        <PageHeader title={t('title')} backLabel={backLabel} onBack={onBack} />
 
-        <View style={themedStyles.profile}>
-          <View style={themedStyles.profileAvatar}>
-            <PersonIcon color={colors.onAccent} size={22} />
-          </View>
-          <Text style={themedStyles.profileNote}>{t('you:profileUnavailable')}</Text>
-        </View>
-
-        <SettingsSection title={t('you:appearanceSection')}>
+        <SettingsSection title={t('generalSection')}>
           <SettingsRow
             kind="choice"
-            label={t('you:language')}
-            value={<ChoiceValue setting="language" value={settings.language} t={t} />}
+            label={t('language')}
+            value={languageLabel}
             onPress={() => setActiveChoice('language')}
             accessibilityLabel={t('you:choiceAccessibility', {
-              label: t('you:language'),
-              value: t(`you:${CHOICE_OPTIONS.language.find((item) => item.value === settings.language)?.labelKey}`),
+              label: t('language'),
+              value: languageLabel,
             })}
           />
           <SettingsRow
             kind="choice"
-            label={t('you:theme')}
-            value={<ChoiceValue setting="theme" value={settings.theme} t={t} />}
+            label={t('theme')}
+            value={themeLabel}
             onPress={() => setActiveChoice('theme')}
+            accessibilityLabel={t('you:choiceAccessibility', {
+              label: t('theme'),
+              value: themeLabel,
+            })}
             last
           />
         </SettingsSection>
 
-        <SettingsSection title={t('you:playbackSection')}>
+        <SettingsSection title={t('playbackSection')}>
           <SettingsRow
             kind="switch"
-            label={t('you:autoplay')}
-            description={t('you:autoplayDescription')}
+            label={t('autoplay')}
+            description={t('autoplayDescription')}
             value={settings.autoplayNext}
             onValueChange={(value) => save({ autoplayNext: value })}
           />
           <SettingsRow
             kind="choice"
-            label={t('you:defaultSpeed')}
-            value={speedLabel}
+            label={t('defaultSpeed')}
+            value={`${settings.playbackSpeed}×`}
             onPress={() => setActiveChoice('playbackSpeed')}
           />
           <SettingsRow
             kind="switch"
-            label={t('you:subtitles')}
-            description={t('you:subtitlesDescription')}
+            label={t('subtitles')}
+            description={t('subtitlesDescription')}
             value={settings.subtitles}
             onValueChange={(value) => save({ subtitles: value })}
             last
           />
         </SettingsSection>
 
-        <SettingsSection title={t('you:focusSection')}>
+        <SettingsSection title={t('focusSection')}>
           <SettingsRow
             kind="switch"
-            label={t('you:hideShorts')}
-            description={t('you:hideShortsDescription')}
+            label={t('hideShorts')}
+            description={t('hideShortsDescription')}
             value={settings.hideShorts}
             onValueChange={(value) => save({ hideShorts: value })}
             last
           />
         </SettingsSection>
 
-        <SettingsSection title={t('you:dataSection')}>
+        <SettingsSection title={t('dataSection')}>
           <SettingsRow
             kind="switch"
-            label={t('you:dataSaver')}
-            description={t('you:dataSaverDescription')}
+            label={t('dataSaver')}
+            description={t('dataSaverDescription')}
             value={settings.dataSaver}
             onValueChange={(value) => save({ dataSaver: value })}
-            last
           />
           <SettingsRow
             kind="action"
-            label={t('you:clearCache')}
-            description={Platform.OS === 'web' ? t('you:cacheClearUnavailable') : undefined}
+            label={t('clearCache')}
+            description={Platform.OS === 'web' ? t('cacheClearUnavailable') : undefined}
             value={clearingCache ? t('common:loading') : null}
             onPress={() => setConfirmingCache(true)}
             disabled={clearingCache || Platform.OS === 'web'}
+            last
           />
         </SettingsSection>
 
-        <SettingsSection title={t('you:aboutSection')}>
-          <SettingsRow kind="information" label={t('you:version')} value={appVersion} last />
+        <SettingsSection title={t('statisticsSection')}>
+          <SettingsRow
+            kind="action"
+            label={t('myStats')}
+            description={t('myStatsDescription')}
+            value={t('open')}
+            onPress={onOpenStatsSettings}
+            accessibilityLabel={t('myStats')}
+            last
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t('accountSection')}>
+          <SettingsRow
+            kind="information"
+            label={t('accountLocal')}
+            description={t('accountLocalDescription')}
+            last
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t('aboutSection')}>
+          <SettingsRow kind="information" label={t('version')} value={appVersion} last />
         </SettingsSection>
 
         {error || notice ? (
@@ -205,28 +232,22 @@ export default function YouScreen() {
 
       <ChoiceSheet
         visible={Boolean(activeChoice)}
-        title={
-          activeChoice === 'language'
-            ? t('you:language')
-            : activeChoice === 'theme'
-              ? t('you:theme')
-              : t('you:defaultSpeed')
-        }
+        title={title}
         choices={choices}
         selectedValue={activeChoice ? settings[activeChoice] : undefined}
-        onChoose={(value) => {
+        onChoose={(value: string | number) => {
           const setting = activeChoice;
           setActiveChoice(null);
-          if (setting) save({ [setting]: value });
+          if (setting) save({ [setting]: value } as Partial<Settings>);
         }}
         onClose={() => setActiveChoice(null)}
       />
 
       <ConfirmSheet
         visible={confirmingCache}
-        title={t('you:clearCacheConfirmTitle')}
-        message={t('you:clearCacheConfirmMessage')}
-        confirmLabel={t('you:clearCache')}
+        title={t('clearCacheConfirmTitle')}
+        message={t('clearCacheConfirmMessage')}
+        confirmLabel={t('clearCache')}
         onConfirm={clearCache}
         onCancel={() => setConfirmingCache(false)}
       />
@@ -246,32 +267,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xxxl,
     gap: spacing.xl,
-  },
-  profile: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
-  },
-  profileAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-  },
-  profileNote: {
-    flex: 1,
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
   },
   error: {
     color: colors.danger,

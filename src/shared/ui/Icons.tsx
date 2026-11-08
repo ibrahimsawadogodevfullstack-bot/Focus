@@ -556,3 +556,37 @@ export function PersonIcon({ color, size = 20 }: IconProps) {
     </View>
   );
 }
+
+/** Roue crantée : dessinée avec des vues, sans police ni image. */
+export function SettingsIcon({ color, size = 20 }: IconProps) {
+  const teeth = 8;
+  const toothWidth = Math.max(2, size * 0.16);
+  const toothHeight = Math.max(3, size * 0.3);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      {Array.from({ length: teeth }).map((_, index) => (
+        <View
+          key={index}
+          style={{
+            position: 'absolute',
+            width: toothWidth,
+            height: toothHeight,
+            borderRadius: toothWidth / 3,
+            backgroundColor: color,
+            transform: [{ rotate: `${index * (360 / teeth)}deg` }, { translateY: -size * 0.34 }],
+          }}
+        />
+      ))}
+      <View
+        style={{
+          width: size * 0.62,
+          height: size * 0.62,
+          borderRadius: size * 0.31,
+          borderWidth: Math.max(2, size * 0.13),
+          borderColor: color,
+          backgroundColor: 'transparent',
+        }}
+      />
+    </View>
+  );
+}

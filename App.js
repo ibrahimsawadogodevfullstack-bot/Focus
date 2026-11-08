@@ -2,7 +2,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { Alert, AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { applyLanguage, i18nReady } from './i18n';
@@ -21,13 +21,14 @@ import ActionSheet from './components/ActionSheet';
 import CategoriesScreen from './screens/CategoriesScreen.tsx';
 import CategoryDetailScreen from './screens/CategoryDetailScreen.tsx';
 import CategoryEditor from './screens/CategoryEditor';
-import CategoryStatsScreen from './screens/CategoryStatsScreen';
 import OfflineScreen from './screens/OfflineScreen.tsx';
 import OfflinePlayerScreen from './screens/OfflinePlayerScreen.tsx';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
 import PlayerScreen from './screens/PlayerScreen';
-import StatsScreen from './screens/StatsScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import StatsDetailScreen from './screens/StatsDetailScreen';
+import StatsSettingsScreen from './screens/StatsSettingsScreen';
 import YouScreen from './screens/YouScreen';
 import { saveCrash } from './services/crashLog';
 import {
@@ -49,9 +50,12 @@ import { FORMAT_SHORT, formatOf } from './src/domain/videoFormat';
 import {
   getTracking,
   initTracking,
-  resetTracking,
   subscribeTracking,
 } from './services/tracking';
+import {
+  flushViewingStats,
+  initViewingStats,
+} from './services/viewingStats';
 import {
   detectFormats,
   getFormats,
@@ -76,7 +80,7 @@ const EMPTY_FEED = {
   error: null,
 };
 
-const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'stats', 'offline', 'you']);
+const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'offline', 'you']);
 
 SplashScreen.preventAutoHideAsync().catch((error) => {
   console.warn('Could not keep the native splash screen visible.', error);
@@ -97,6 +101,14 @@ export default function App() {
         await applyLanguage(settings.language);
       } catch (error) {
         console.error('Unable to initialize the application language.', error);
+      }
+      try {
+        // Les statistiques sont chargées avant le premier rendu : les écrans
+        // n'ont jamais à attendre, et une lecture ouverte tout de suite est
+        // comptée. Un échec ne bloque jamais le démarrage.
+        await initViewingStats();
+      } catch (error) {
+        console.warn('Unable to initialize viewing statistics.', error);
       }
       if (!active) return;
       completed = true;
@@ -208,6 +220,15 @@ function AppContent() {
     };
   }, []);
 
+  // Statistiques de visionnage : écriture immédiate dès que l'application
+  // passe en arrière-plan, pour ne rien perdre si elle est fermée ensuite.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') flushViewingStats();
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Bibliothèque locale : chaînes et catégories personnalisées.
   useEffect(() => {
     let cancelled = false;
@@ -238,8 +259,14 @@ function AppContent() {
   }, []);
 
   // Avatars des chaînes : cache local d'abord, puis récupération progressive.
+  // En économie de données, aucune requête d'avatar n'est lancée : les
+  // initiales suffisent et le réglage change donc vraiment quelque chose.
   useEffect(() => {
     if (!libraryReady) return undefined;
+    if (settings.dataSaver) {
+      setAvatars({});
+      return undefined;
+    }
     const ids = channelKey ? channelKey.split(',') : [];
     if (ids.length === 0) {
       setAvatars({});
@@ -256,7 +283,7 @@ function AppContent() {
     return () => {
       active = false;
     };
-  }, [libraryReady, channelKey]);
+  }, [libraryReady, channelKey, settings.dataSaver]);
 
   // Formats réels (vertical / horizontal) : cache local, puis sondes réseau.
   useEffect(() => {
@@ -363,20 +390,24 @@ function AppContent() {
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      const current = routeRef.current.name;
-      if (current === 'player') {
+      const current = routeRef.current;
+      if (current.name === 'player') {
         setRoute({ name: 'feed' });
         return true;
       }
-      if (current === 'editor') {
+      if (current.name === 'editor') {
         setRoute({ name: 'categories' });
         return true;
       }
-      if (current === 'categoryStats') {
-        setRoute({ name: 'stats' });
+      if (current.name === 'settings' || current.name === 'statsDetail') {
+        setRoute({ name: 'you' });
         return true;
       }
-      if (current !== 'feed') {
+      if (current.name === 'statsSettings') {
+        setRoute(current.returnTo ?? { name: 'you' });
+        return true;
+      }
+      if (current.name !== 'feed') {
         setRoute({ name: 'feed' });
         return true;
       }
@@ -453,20 +484,9 @@ function AppContent() {
     ? feed.videos.filter((video) => formatOf(video, formats) !== FORMAT_SHORT)
     : feed.videos;
 
-  const handleChangeGoal = useCallback(
-    (goal) => {
-      updateSettings({ weeklyGoal: goal });
-    },
-    [updateSettings],
-  );
-
   const handleToggleAutoplay = useCallback(() => {
     updateSettings({ autoplayNext: !settings.autoplayNext });
   }, [settings.autoplayNext, updateSettings]);
-
-  const handleResetData = useCallback(async () => {
-    await resetTracking();
-  }, []);
 
   const handleAddChannel = useCallback(
     async (channel) => {
@@ -595,7 +615,7 @@ function AppContent() {
   }, [categoryDeletePrompt, finalizeDeleteCategory, t]);
 
   const showTabBar = TAB_ROUTES.has(route.name);
-  const activeTab = ['channels', 'categories', 'stats', 'editor', 'categoryStats'].includes(route.name)
+  const activeTab = ['channels', 'categories', 'editor', 'categoryDetail'].includes(route.name)
     ? 'categories'
     : route.name;
 
@@ -642,20 +662,39 @@ function AppContent() {
       />
     );
   } else if (route.name === 'you') {
-    screen = <YouScreen />;
-  } else if (route.name === 'stats') {
     screen = (
-      <StatsScreen
-        tracking={tracking}
+      <YouScreen
         categories={categories}
-        videos={feedVideos}
-        weeklyGoal={settings.weeklyGoal}
-        onChangeGoal={handleChangeGoal}
-        onResetData={handleResetData}
-        onOpenCategory={(categoryId) =>
-          setRoute({ name: 'categoryStats', categoryId })
+        onOpenSettings={() => setRoute({ name: 'settings' })}
+        onOpenStats={(section) => setRoute({ name: 'statsDetail', section: section ?? null })}
+        onOpenStatsSettings={() =>
+          setRoute({ name: 'statsSettings', returnTo: { name: 'you' } })
         }
-        onOpenCategories={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else if (route.name === 'settings') {
+    screen = (
+      <SettingsScreen
+        backLabel={t('tabs:you')}
+        onBack={() => setRoute({ name: 'you' })}
+        onOpenStatsSettings={() =>
+          setRoute({ name: 'statsSettings', returnTo: { name: 'settings' } })
+        }
+      />
+    );
+  } else if (route.name === 'statsDetail') {
+    screen = (
+      <StatsDetailScreen
+        categories={categories}
+        initialSection={route.section ?? null}
+        onBack={() => setRoute({ name: 'you' })}
+      />
+    );
+  } else if (route.name === 'statsSettings') {
+    screen = (
+      <StatsSettingsScreen
+        backLabel={route.returnTo?.name === 'settings' ? t('settings:title') : t('tabs:you')}
+        onBack={() => setRoute(route.returnTo ?? { name: 'you' })}
       />
     );
   } else if (route.name === 'offline') {
@@ -664,31 +703,6 @@ function AppContent() {
         categories={categories}
         onOpenCategories={() => setRoute({ name: 'categories' })}
         onOpenDownload={handleOpenDownloaded}
-      />
-    );
-  } else if (route.name === 'categoryStats') {
-    const category = categories.find((item) => item.id === route.categoryId);
-    screen = category ? (
-      <CategoryStatsScreen
-        category={category}
-        tracking={tracking}
-        categories={categories}
-        videos={feedVideos}
-        onBack={() => setRoute({ name: 'stats' })}
-        onOpen={handleOpen}
-      />
-    ) : (
-      <StatsScreen
-        tracking={tracking}
-        categories={categories}
-        videos={feedVideos}
-        weeklyGoal={settings.weeklyGoal}
-        onChangeGoal={handleChangeGoal}
-        onResetData={handleResetData}
-        onOpenCategory={(categoryId) =>
-          setRoute({ name: 'categoryStats', categoryId })
-        }
-        onOpenCategories={() => setRoute({ name: 'categories' })}
       />
     );
   } else if (route.name === 'categories') {
@@ -727,6 +741,7 @@ function AppContent() {
     screen = (
       <OfflinePlayerScreen
         download={route.download}
+        categories={categories}
         onBack={() => setRoute({ name: 'offline' })}
       />
     );
@@ -751,6 +766,7 @@ function AppContent() {
         initialIndex={route.index}
         avatars={avatars}
         formats={formats}
+        categories={categories}
         autoplayNext={settings.autoplayNext}
         playbackSpeed={settings.playbackSpeed}
         subtitles={settings.subtitles}

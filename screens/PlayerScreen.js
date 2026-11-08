@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   FlatList,
   Platform,
   Pressable,
@@ -25,6 +26,7 @@ import YoutubePlayer from '../components/YoutubePlayer';
 import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { FORMAT_SHORT, FORMAT_VIDEO, formatOf } from '../src/domain/videoFormat';
+import { resolveVideoCategory } from '../src/domain/categories';
 import {
   getTracking,
   markOpened,
@@ -32,6 +34,12 @@ import {
   trackPlayback,
   trackReplay,
 } from '../services/tracking';
+import {
+  viewingBegin,
+  viewingEnd,
+  viewingProgress,
+  viewingSetPlaying,
+} from '../services/viewingStats';
 import { formatClock, timeAgo } from '../src/shared/utils/format';
 
 const RATINGS = [
@@ -57,6 +65,7 @@ function VideoPage({
   active,
   isLast,
   avatars,
+  categories = [],
   formats = {},
   playbackSpeed = 1,
   subtitles = false,
@@ -163,6 +172,41 @@ function VideoPage({
     markOpened(video);
   }, [active, onSeen, video]);
 
+  // Statistiques de visionnage : une lecture commence quand la page devient
+  // active. Le temps est mesuré par `viewingStats` avec l'horloge murale.
+  useEffect(() => {
+    if (!active) return undefined;
+    const category = resolveVideoCategory(video, categories);
+    viewingBegin({
+      videoId: video.videoId,
+      title: video.title,
+      channelId: video.channelId,
+      channelTitle: video.channelTitle,
+      format: vertical ? 'short' : 'long',
+      categoryId: category?.id ?? null,
+      categoryName: category?.name ?? null,
+      source: 'online',
+    });
+    return () => {
+      viewingEnd();
+    };
+  }, [active, video, categories, vertical]);
+
+  // Arrière-plan et écran verrouillé ne comptent pas : on met en pause dès que
+  // l'application n'est plus active, et on reprend seulement si la vidéo joue.
+  useEffect(() => {
+    if (!active) return undefined;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        if (playingRef.current) viewingSetPlaying(true, playbackSpeed);
+      } else {
+        viewingSetPlaying(false);
+        flush(false);
+      }
+    });
+    return () => subscription.remove();
+  }, [active, flush, playbackSpeed]);
+
   useEffect(() => {
     if (!blocked) return undefined;
     const timer = setTimeout(() => setBlocked(false), 2600);
@@ -176,6 +220,7 @@ function VideoPage({
           const playing = event.state === 'playing';
           playingRef.current = playing;
           setIsPlaying(playing);
+          viewingSetPlaying(playing, playbackSpeed);
           if (event.state === 'paused' || event.state === 'ended') flush(false);
           if (event.state === 'ended') {
             flush(true);
@@ -207,6 +252,10 @@ function VideoPage({
             setDuration(event.duration);
             durationRef.current = event.duration;
           }
+          viewingProgress({
+            position: current,
+            duration: event.duration || durationRef.current,
+          });
           break;
         }
         case 'ready':
@@ -641,6 +690,7 @@ export default function PlayerScreen({
   backLabel = 'Accueil',
   avatars = {},
   formats = {},
+  categories = [],
   autoplayNext = false,
   playbackSpeed = 1,
   subtitles = false,
@@ -764,6 +814,7 @@ export default function PlayerScreen({
                 isLast={itemIndex === queue.length - 1}
                 avatars={avatars}
                 formats={formats}
+                categories={categories}
                 playbackSpeed={playbackSpeed}
                 subtitles={subtitles}
                 dataSaver={dataSaver}

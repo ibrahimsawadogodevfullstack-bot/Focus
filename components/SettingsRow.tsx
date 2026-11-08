@@ -1,7 +1,22 @@
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
 
 import { colors, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+
+export type SettingsRowKind = 'information' | 'choice' | 'action' | 'switch';
+
+interface SettingsRowProps {
+  label: string;
+  description?: string;
+  value?: ReactNode;
+  kind?: SettingsRowKind;
+  onPress?: () => void;
+  onValueChange?: (value: boolean) => void;
+  last?: boolean;
+  disabled?: boolean;
+  accessibilityLabel?: string;
+}
 
 export default function SettingsRow({
   label,
@@ -13,7 +28,7 @@ export default function SettingsRow({
   last = false,
   disabled = false,
   accessibilityLabel,
-}) {
+}: SettingsRowProps) {
   const { colors: themeColors } = useTheme();
   const themedStyles = useThemeStyles(styles);
   const content = (

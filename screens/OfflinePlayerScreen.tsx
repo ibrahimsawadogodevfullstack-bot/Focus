@@ -1,4 +1,3 @@
-import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,25 +5,70 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import { colors, radius, spacing } from '../src/shared/theme/tokens';
-import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import * as DM from '../services/downloadManager';
+import {
+  viewingBegin,
+  viewingEnd,
+  viewingProgress,
+  viewingSetPlaying,
+} from '../services/viewingStats';
+import type { CategoryLike } from '../src/domain/categories';
 import type { DownloadRecord } from '../src/db/downloads';
 
 export default function OfflinePlayerScreen({
   download,
+  categories = [],
   onBack,
 }: {
   download: DownloadRecord;
+  categories?: CategoryLike[];
   onBack: () => void;
 }) {
-  const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const { t } = useTranslation(['downloads', 'common']);
   const player = useVideoPlayer(download.filePath ?? '', (p) => {
     p.loop = false;
   });
   const [rate, setRate] = useState(1);
+  const rateRef = useRef(1);
   const viewRef = useRef<any>(null);
+
+  // Statistiques locales : une lecture hors ligne compte comme les autres.
+  useEffect(() => {
+    const category = download.categoryId
+      ? categories.find((entry) => entry.id === download.categoryId) ?? null
+      : null;
+    viewingBegin({
+      videoId: download.videoId,
+      title: download.title,
+      channelId: download.channelName ?? '',
+      channelTitle: download.channelName ?? '',
+      format: 'long',
+      categoryId: category?.id ?? download.categoryId ?? null,
+      categoryName: category?.name ?? null,
+      source: 'offline',
+    });
+    return () => {
+      viewingEnd();
+    };
+  }, [download, categories]);
+
+  useEffect(() => {
+    const playingSubscription = player.addListener('playingChange', ({ isPlaying }) => {
+      viewingSetPlaying(isPlaying, rateRef.current);
+    });
+    const timeSubscription = player.addListener('timeUpdate', ({ currentTime }) => {
+      viewingProgress({
+        position: currentTime ?? 0,
+        duration: player.duration || download.durationSec || 0,
+      });
+    });
+    return () => {
+      playingSubscription.remove();
+      timeSubscription.remove();
+    };
+  }, [player, download.durationSec]);
 
   useEffect(() => {
     if (download.lastPositionSec && download.lastPositionSec > 0) {
@@ -59,7 +103,9 @@ export default function OfflinePlayerScreen({
           onPress={() => {
             const next = speeds[(speeds.indexOf(rate) + 1) % speeds.length];
             setRate(next);
+            rateRef.current = next;
             player.playbackRate = next;
+            if (player.playing) viewingSetPlaying(true, next);
           }}
           style={styles.btn}
         >
