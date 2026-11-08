@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,22 +16,25 @@ import ActionSheet from '../components/ActionSheet';
 import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
+import DownloadProgressRow from '../components/DownloadProgressRow';
 import EmptyState from '../src/shared/ui/EmptyState';
 import FeedSkeleton from '../components/FeedSkeleton';
-import ShortsShelf from '../components/ShortsShelf';
+import ShortsShelf, { shortsShelfHeight } from '../components/ShortsShelf';
+import ScreenHeader from '../src/shared/ui/ScreenHeader';
 import SyncBar from '../components/SyncBar';
-import VideoCard from '../components/VideoCard';
-import { DownloadIcon, TrashIcon } from '../src/shared/ui/Icons';
+import VideoCard, { videoCardHeight } from '../components/VideoCard';
+import { CheckIcon, Chevron, DownloadIcon, TrashIcon } from '../src/shared/ui/Icons';
 import { colors, layout, spacing } from '../src/shared/theme/tokens';
 import { isFormatResolved, resolveFormats, splitByFormat } from '../src/domain/videoFormat';
 import { hasFailedFormat } from '../services/formats';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { timeAgo } from '../src/shared/utils/format';
+import { useDownloads } from '../hooks/useDownloads';
+import * as DM from '../services/downloadManager';
+import { toDownloadedFeedVideos } from '../services/downloadFeed';
 
 const GUTTER = layout.gridGutter; // 16 px
 const GAP = layout.gridGap; // 16 px
-const INITIAL_ROW_COUNT = 5;
-const ROW_PAGE_SIZE = 5;
 
 /** La rangée Shorts arrive après ce nombre de vidéos longues. */
 export const SHORTS_SHELF_POSITION = 2;
@@ -51,48 +54,49 @@ function columnsFor(width) {
 }
 
 export default function FeedScreen({
-  videos,
+  source = 'remote',
+  videos = [],
   formats = {},
-  channels,
-  categories,
-  activeCategoryId,
-  onSelectCategory,
+  channels = [],
+  categories = [],
+  activeCategoryId = null,
+  onSelectCategory = () => {},
   onOpenCategories,
   onCreateCategory,
   onOpenChannels,
   onOpenProfile,
-  seenIds,
+  seenIds = [],
   avatars = {},
-  loading,
-  refreshing,
+  loading = false,
+  refreshing = false,
   sync,
   error,
-  fromCache,
+  fromCache = false,
   savedAt,
   failedChannels = [],
   onRefresh,
   trackingVideos = {},
-  onOpen,
+  onOpen = () => {},
   onDownload,
   onRemoveChannel,
+  showCategoryChips = true,
+  headerTitle,
+  onBack,
   shortsPosition = 'after-first-row',
   dataSaver = false,
 }) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
-  const { t, i18n } = useTranslation(['home', 'common']);
+  const { t, i18n } = useTranslation(['home', 'common', 'downloads', 'offline']);
+  const downloadRecords = useDownloads();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
 
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [menuVideo, setMenuVideo] = useState(null);
   const [menuChannel, setMenuChannel] = useState(null);
-  const [visibleRowCount, setVisibleRowCount] = useState(INITIAL_ROW_COUNT);
-
-  useEffect(() => {
-    setVisibleRowCount(INITIAL_ROW_COUNT);
-  }, [activeCategoryId, query]);
+  const [downloadToRemove, setDownloadToRemove] = useState(null);
 
   const columns = columnsFor(windowWidth);
 
@@ -113,15 +117,44 @@ export default function FeedScreen({
     [categories, activeCategoryId],
   );
 
+  const visibleSourceVideos = useMemo(
+    () => source === 'downloaded'
+      ? toDownloadedFeedVideos(downloadRecords, activeCategoryId)
+      : videos,
+    [source, downloadRecords, activeCategoryId, videos],
+  );
+
+  const visibleDownloadTasks = useMemo(
+    () => source === 'downloaded'
+      ? downloadRecords.filter((download) =>
+          (activeCategoryId == null || download.categoryId === activeCategoryId) &&
+          ['queued', 'downloading', 'failed'].includes(download.status),
+        )
+      : [],
+    [source, downloadRecords, activeCategoryId],
+  );
+
+  const downloadByVideo = useMemo(() => {
+    const records = new Map();
+    for (const download of downloadRecords) {
+      if (source === 'downloaded') {
+        records.set(download.id, download);
+      } else if (activeCategoryId && download.categoryId === activeCategoryId) {
+        records.set(download.videoId, download);
+      }
+    }
+    return records;
+  }, [downloadRecords, source, activeCategoryId]);
+
   const scopeIds = useMemo(
     () => (activeCategory ? new Set(activeCategory.channelIds) : null),
     [activeCategory],
   );
 
   const scopedVideos = useMemo(() => {
-    if (!scopeIds) return videos;
-    return videos.filter((video) => scopeIds.has(video.channelId));
-  }, [videos, scopeIds]);
+    if (source === 'downloaded' || !scopeIds) return visibleSourceVideos;
+    return visibleSourceVideos.filter((video) => scopeIds.has(video.channelId));
+  }, [source, visibleSourceVideos, scopeIds]);
 
   // Format effectif appliqué une fois : la grille, la rangée Shorts et le
   // lecteur lisent ensuite le même champ `format`.
@@ -197,17 +230,49 @@ export default function FeedScreen({
 
     return list;
   }, [long, shorts.length, columns, shortsPosition]);
-  const visibleRows = rows.slice(0, visibleRowCount);
-  const hasMoreRows = visibleRows.length < rows.length;
-  const loadMoreRows = useCallback(() => {
-    if (!hasMoreRows) return;
-    setVisibleRowCount((count) => Math.min(count + ROW_PAGE_SIZE, rows.length));
-  }, [hasMoreRows, rows.length]);
+
+  const listRows = useMemo(
+    () => [
+      ...visibleDownloadTasks.map((download) => ({
+        type: 'download',
+        key: `download-${download.id}`,
+        download,
+      })),
+      ...rows,
+    ],
+    [rows, visibleDownloadTasks],
+  );
+
+  // `FlatList` a besoin des positions des lignes pour virtualiser proprement.
+  // Sans elles, la zone défilante se construit au fil des mesures et la barre
+  // de défilement saute ; les cellules déjà rendues restent alors la seule
+  // partie du flux réellement atteignable.
+  const rowHeight = videoCardHeight(cardWidth);
+  const shortsRowHeight = shortsShelfHeight(fontScale);
+  const rowOffsets = useMemo(() => {
+    let offset = 0;
+    return listRows.map((row, index) => {
+      const length = row.type === 'shorts'
+        ? shortsRowHeight
+        : row.type === 'download'
+          ? 94
+          : rowHeight;
+      const frame = { index, length, offset };
+      offset += length;
+      return frame;
+    });
+  }, [listRows, rowHeight, shortsRowHeight]);
+
+  const getItemLayout = useCallback(
+    (_data, index) =>
+      rowOffsets[index] ?? { index, length: rowHeight, offset: rowHeight * index },
+    [rowOffsets, rowHeight],
+  );
 
   const seen = useMemo(() => new Set(seenIds), [seenIds]);
   const hasHistory = seenIds.length > 0;
   const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
-  const isFirstLoad = loading && videos.length === 0;
+  const isFirstLoad = source === 'remote' && loading && videos.length === 0;
 
   const syncActive = Boolean(sync?.active);
   const syncLabel = syncActive
@@ -232,6 +297,16 @@ export default function FeedScreen({
 
   const renderItem = useCallback(
     ({ item }) => {
+      if (item.type === 'download') {
+        return (
+          <DownloadProgressRow
+            download={item.download}
+            onCancel={() => DM.cancelDownload(item.download.id)}
+            onRetry={() => DM.retryDownload(item.download.id)}
+          />
+        );
+      }
+
       if (item.type === 'shorts') {
         return (
           <ShortsShelf
@@ -241,7 +316,7 @@ export default function FeedScreen({
             sidePadding={sidePadding}
             dataSaver={dataSaver}
             onOpen={onOpen}
-            onMore={onRemoveChannel ? setMenuVideo : undefined}
+            onMore={onRemoveChannel || onDownload ? setMenuVideo : undefined}
           />
         );
       }
@@ -249,19 +324,29 @@ export default function FeedScreen({
       return (
         <View style={[styles.gridRow, { paddingHorizontal: rowPadding }]}>
           {item.videos.map((video) => (
-            <VideoCard
-              key={video.videoId}
-              width={cardWidth}
-              video={video}
-              pending={pendingIds.has(video.videoId)}
-              progress={progressFor(video)}
-              duration={trackingVideos?.[video.videoId]?.duration}
-              isNew={hasHistory && !seen.has(video.videoId)}
-              onPress={() => onOpen(video, long)}
-              dataSaver={dataSaver}
-              channelAvatar={avatars[video.channelId]}
-              onMore={onRemoveChannel ? () => setMenuVideo(video) : undefined}
-            />
+            (() => {
+              const record = downloadByVideo.get(
+                source === 'downloaded' ? video.downloadId : video.videoId,
+              );
+              const isDownloading = record?.status === 'queued' || record?.status === 'downloading';
+              return (
+                <VideoCard
+                  key={video.feedItemId || video.downloadId || video.videoId}
+                  width={cardWidth}
+                  video={video}
+                  pending={pendingIds.has(video.videoId)}
+                  progress={isDownloading ? record.progress : source === 'downloaded' ? 0 : progressFor(video)}
+                  duration={video.duration ?? trackingVideos?.[video.videoId]?.duration}
+                  isNew={source === 'remote' && hasHistory && !seen.has(video.videoId)}
+                  onPress={() => onOpen(video, long)}
+                  dataSaver={dataSaver}
+                  channelAvatar={avatars[video.channelId]}
+                  onMore={onRemoveChannel || onDownload || source === 'downloaded'
+                    ? () => setMenuVideo(video)
+                    : undefined}
+                />
+              );
+            })()
           ))}
         </View>
       );
@@ -282,33 +367,54 @@ export default function FeedScreen({
       rowPadding,
       styles.gridRow,
       trackingVideos,
+      downloadByVideo,
+      source,
+      onDownload,
     ],
   );
 
+  const menuDownload = menuVideo
+    ? downloadByVideo.get(source === 'downloaded' ? menuVideo.downloadId : menuVideo.videoId)
+    : null;
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
-      <AppBar
-        searching={searching}
-        query={query}
-        onChangeQuery={setQuery}
-        onToggleSearch={toggleSearch}
-        onOpenProfile={onOpenProfile}
-        syncLabel={syncLabel}
-      />
+      {headerTitle ? (
+        <ScreenHeader
+          title={headerTitle}
+          right={(
+            <Pressable onPress={onBack} hitSlop={8} accessibilityRole="button">
+              <Chevron direction="left" color={colors.text} size={11} />
+            </Pressable>
+          )}
+        />
+      ) : (
+        <AppBar
+          searching={searching}
+          query={query}
+          onChangeQuery={setQuery}
+          onToggleSearch={toggleSearch}
+          onOpenProfile={onOpenProfile}
+          syncLabel={source === 'remote' ? syncLabel : ''}
+        />
+      )}
 
-      <SyncBar active={syncActive} percent={sync?.percent ?? 0} />
+      {source === 'remote' ? <SyncBar active={syncActive} percent={sync?.percent ?? 0} /> : null}
 
-      <CategoryChips
-        categories={categories}
-        activeId={activeCategoryId}
-        onSelect={onSelectCategory}
-        onCreate={onCreateCategory}
-      />
+      {showCategoryChips ? (
+        <CategoryChips
+          categories={categories}
+          activeId={activeCategoryId}
+          onSelect={onSelectCategory}
+          onCreate={source === 'remote' ? onCreateCategory : undefined}
+        />
+      ) : null}
 
       <FlatList
         style={styles.list}
-        data={visibleRows}
+        data={listRows}
         keyExtractor={(item) => item.key}
+        getItemLayout={getItemLayout}
         extraData={`${columns}-${cardWidth}-${shortsPosition}-${rowPadding}`}
         renderItem={renderItem}
         ListHeaderComponent={
@@ -326,7 +432,7 @@ export default function FeedScreen({
           ) : null
         }
         ListEmptyComponent={
-          isFirstLoad ? (
+          visibleDownloadTasks.length > 0 ? null : isFirstLoad ? (
             <FeedSkeleton
               columns={columns}
               cardWidth={cardWidth}
@@ -341,24 +447,35 @@ export default function FeedScreen({
               onAction={toggleSearch}
             />
           ) : (
-            <EmptyState
-              title={activeCategory ? t('home:emptyCategory') : t('home:nothingToShow')}
-              message={
-                activeCategory
-                  ? t('home:emptyCategoryMessage')
-                  : t('home:emptyFeedMessage')
-              }
-              actionLabel={
-                activeCategory
-                  ? t('home:editCategory')
-                  : t('home:manageChannels')
-              }
-              onAction={activeCategory ? onOpenCategories : onOpenChannels}
-            />
+            source === 'downloaded' ? (
+              <EmptyState
+                title={t('downloads:emptyTitle')}
+                message={activeCategory
+                  ? t('downloads:emptyCategoryMessage')
+                  : t('downloads:emptyMessage')}
+                actionLabel={t('downloads:goToCategories')}
+                onAction={onOpenCategories}
+              />
+            ) : (
+              <EmptyState
+                title={activeCategory ? t('home:emptyCategory') : t('home:nothingToShow')}
+                message={
+                  activeCategory
+                    ? t('home:emptyCategoryMessage')
+                    : t('home:emptyFeedMessage')
+                }
+                actionLabel={
+                  activeCategory
+                    ? t('home:editCategory')
+                    : t('home:manageChannels')
+                }
+                onAction={activeCategory ? onOpenCategories : onOpenChannels}
+              />
+            )
           )
         }
         ListFooterComponent={
-          <View style={styles.footer}>
+          source === 'remote' ? <View style={styles.footer}>
             {loading && visibleVideos.length > 0 ? (
               <ActivityIndicator color={colors.accent} size="small" />
             ) : null}
@@ -390,26 +507,22 @@ export default function FeedScreen({
               </Pressable>
               </>
             ) : null}
-          </View>
+          </View> : null
         }
         refreshControl={
-          <RefreshControl
+          source === 'remote' ? <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.accent}
             colors={[colors.accent]}
             progressBackgroundColor={colors.surface}
-          />
+          /> : undefined
         }
-        onEndReached={loadMoreRows}
-        onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: spacing.lg },
         ]}
-        initialNumToRender={4}
-        windowSize={7}
         keyboardShouldPersistTaps="handled"
       />
 
@@ -438,21 +551,61 @@ export default function FeedScreen({
                       },
                     ]
                   : []),
-                ...(onDownload
-                  ? [
-                      {
-                        key: 'download',
-                        label: t('home:downloadForOffline'),
-                        hint: t('home:downloadHint'),
-                        icon: <DownloadIcon color={colors.accentText} size={16} />,
-                        onPress: () => {
-                          const video = menuVideo;
-                          setMenuVideo(null);
-                          onDownload(video);
-                        },
+                ...(source === 'downloaded'
+                  ? [{
+                      key: 'remove-download',
+                      label: t('offline:delete'),
+                      hint: t('offline:deleteConfirmMessage', { title: menuVideo.title }),
+                      destructive: true,
+                      icon: <TrashIcon color={colors.danger} size={16} />,
+                      onPress: () => {
+                        setDownloadToRemove(menuDownload);
+                        setMenuVideo(null);
                       },
-                    ]
-                  : []),
+                    }]
+                  : onDownload
+                    ? [menuDownload?.status === 'completed'
+                      ? {
+                          key: 'downloaded',
+                          label: t('downloads:downloaded'),
+                          hint: t('downloads:alreadyDownloaded'),
+                          icon: <CheckIcon color={colors.accentText} size={16} />,
+                          onPress: () => setMenuVideo(null),
+                        }
+                      : menuDownload?.status === 'queued' || menuDownload?.status === 'downloading'
+                        ? {
+                            key: 'cancel-download',
+                            label: t('downloads:cancelDownload'),
+                            hint: t('downloads:downloadInProgress'),
+                            destructive: true,
+                            onPress: () => {
+                              void DM.cancelDownload(menuDownload.id);
+                              setMenuVideo(null);
+                            },
+                          }
+                        : menuDownload?.status === 'failed'
+                          ? {
+                              key: 'retry-download',
+                              label: t('common:retry'),
+                              hint: t('downloads:downloadFailed'),
+                              icon: <DownloadIcon color={colors.accentText} size={16} />,
+                              onPress: () => {
+                                void DM.retryDownload(menuDownload.id);
+                                setMenuVideo(null);
+                              },
+                            }
+                          : {
+                              key: 'download',
+                              label: t('home:downloadForOffline'),
+                              hint: t('home:downloadHint'),
+                              icon: <DownloadIcon color={colors.accentText} size={16} />,
+                              onPress: () => {
+                                const video = menuVideo;
+                                setMenuVideo(null);
+                                onDownload(video, activeCategoryId);
+                              },
+                            }]
+                    : []),
               ]
             : []
         }
@@ -471,6 +624,20 @@ export default function FeedScreen({
           if (channel?.id) onRemoveChannel(channel.id);
         }}
         onCancel={() => setMenuChannel(null)}
+      />
+
+      <ConfirmSheet
+        visible={Boolean(downloadToRemove)}
+        title={t('offline:deleteConfirmTitle')}
+        message={t('offline:deleteConfirmMessage', { title: downloadToRemove?.title ?? '' })}
+        confirmLabel={t('offline:delete')}
+        destructive
+        onConfirm={() => {
+          const download = downloadToRemove;
+          setDownloadToRemove(null);
+          if (download) void DM.removeDownload(download.id);
+        }}
+        onCancel={() => setDownloadToRemove(null)}
       />
     </SafeAreaView>
   );

@@ -40,7 +40,9 @@ export default function CategoryEditor({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const trimmedName = name.trim();
-  const canSave = trimmedName.length > 0 && selected.size > 0 && !saving;
+  // Les catégories de téléchargement peuvent exister sans chaîne : on n'exige
+  // plus de sélection de chaînes pour enregistrer.
+  const canSave = trimmedName.length > 0 && !saving;
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();

@@ -34,12 +34,19 @@ export default function FeedSkeleton({
           duration: 900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
+          // Animation décorative en boucle : elle ne doit jamais retenir un
+          // « interaction handle ». Sinon `InteractionManager` croit qu'une
+          // interaction est toujours en cours et `FlatList` ne met plus jamais
+          // à jour sa fenêtre de rendu (la liste reste bloquée sur ses
+          // premières lignes).
+          isInteraction: false,
         }),
         Animated.timing(pulse, {
           toValue: 0.35,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
+          isInteraction: false,
         }),
       ]),
     );

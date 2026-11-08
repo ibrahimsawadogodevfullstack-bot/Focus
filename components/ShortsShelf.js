@@ -10,6 +10,27 @@ import { ShortsIcon } from '../src/shared/ui/Icons';
 
 const GUTTER = spacing.lg; // 16 px, aligné sur la grille
 const GAP = 12;
+/** Hauteur de ligne du titre, fixée pour rendre la hauteur de la rangée calculable. */
+const TITLE_LINE_HEIGHT = 20;
+/** Marges et en-tête autour du carrousel : paddingTop + titre + paddingBottom. */
+const SHELF_CHROME_HEIGHT =
+  spacing.lg + TITLE_LINE_HEIGHT + spacing.md + spacing.sm;
+
+/** Hauteur d'une carte Short (vignette 9:16 + bloc texte). */
+export function shortCardHeight(fontScale = 1) {
+  return Math.ceil(SHORT_CARD_WIDTH / SHORT_ASPECT + spacing.sm * 2 + 34 * fontScale);
+}
+
+/**
+ * Hauteur totale de la rangée Shorts, en-tête compris.
+ *
+ * Exportée pour que `FeedScreen` puisse fournir `getItemLayout` à sa liste
+ * verticale : la rangée Shorts y occupe une seule cellule dont la hauteur doit
+ * être connue sans attendre la mesure.
+ */
+export function shortsShelfHeight(fontScale = 1) {
+  return SHELF_CHROME_HEIGHT + shortCardHeight(fontScale);
+}
 
 /**
  * Rangée « Shorts » : défilement horizontal, cartes 9:16.
@@ -35,7 +56,7 @@ export default function ShortsShelf({
   if (shorts.length === 0) return null;
 
   const padding = sidePadding + GUTTER;
-  const cardHeight = Math.ceil(SHORT_CARD_WIDTH / SHORT_ASPECT + spacing.sm * 2 + 34 * fontScale);
+  const cardHeight = shortCardHeight(fontScale);
 
   return (
     <View style={styles.wrap}>
@@ -50,6 +71,11 @@ export default function ShortsShelf({
         style={[styles.carousel, { height: cardHeight }]}
         data={shorts}
         keyExtractor={(item) => item.videoId}
+        getItemLayout={(_data, index) => ({
+          index,
+          length: SHORT_CARD_WIDTH + GAP,
+          offset: (SHORT_CARD_WIDTH + GAP) * index,
+        })}
         showsHorizontalScrollIndicator={false}
         accessibilityLabel={t('home:shortsShelf')}
         contentContainerStyle={[styles.list, { paddingHorizontal: padding }]}
@@ -85,6 +111,7 @@ const baseStyles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: 16,
+    lineHeight: TITLE_LINE_HEIGHT,
     fontWeight: '800',
     letterSpacing: -0.3,
   },

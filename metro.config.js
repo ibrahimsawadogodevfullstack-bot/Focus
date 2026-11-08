@@ -64,12 +64,14 @@ function handleProxy(req, res) {
         response.headers.get('content-type') || 'text/plain; charset=utf-8',
       );
       res.setHeader('cache-control', 'no-store');
-      const contentLength = response.headers.get('content-length');
-      if (contentLength) {
-        res.setHeader('content-length', contentLength);
-      } else if (!isHead) {
-        res.setHeader('content-length', body.length);
-      }
+      // `fetch` décompresse le corps (gzip/br), mais l'en-tête `content-length`
+      // de YouTube décrit la version compressée. Le relayer tel quel tronquait
+      // chaque flux RSS à quelques entrées, ce qui faisait disparaître des
+      // chaînes entières de l'accueil. On annonce donc toujours la taille du
+      // corps réellement envoyé, et on retire `content-encoding` puisqu'il ne
+      // correspond plus aux octets transmis.
+      res.removeHeader('content-encoding');
+      if (!isHead) res.setHeader('content-length', body.length);
       res.end(body);
     })
     .catch((error) => {

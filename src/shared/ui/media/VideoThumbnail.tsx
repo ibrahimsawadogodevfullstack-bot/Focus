@@ -189,11 +189,14 @@ export default function VideoThumbnail({
   const shimmerOpacity = useRef(new Animated.Value(0.35)).current;
   const imageLoadFinishRef = useRef<((result: Record<string, unknown>) => void) | null>(null);
   const requiredWidth = (displayWidth || 156) * PixelRatio.get();
+  const isLocalThumbnail = /^(?:file|content):\/\//i.test(thumbnail ?? '');
   const activeSource = candidates[state.index];
   const isCurrentState = state.key === key;
-  const showingLoadedImage = isCurrentState && state.phase === 'loaded' && !pending;
-  const showingFallback = isCurrentState && state.phase === 'failed';
-  const showingSkeleton = !showingFallback && (!showingLoadedImage || Boolean(state.resolved));
+  const showingLoadedImage =
+    isLocalThumbnail || (isCurrentState && state.phase === 'loaded' && !pending);
+  const showingFallback = !isLocalThumbnail && isCurrentState && state.phase === 'failed';
+  const showingSkeleton =
+    !isLocalThumbnail && !showingFallback && (!showingLoadedImage || Boolean(state.resolved));
 
   useEffect(() => {
     setState(initialState(key, candidates, getCachedThumbnail(videoId), dataSaver));
@@ -219,6 +222,7 @@ export default function VideoThumbnail({
   useEffect(() => {
     if (
       !isCurrentState ||
+      isLocalThumbnail ||
       state.phase !== 'loading' ||
       state.ready ||
       !activeSource
@@ -287,6 +291,7 @@ export default function VideoThumbnail({
   }, [
     activeSource,
     candidates,
+    isLocalThumbnail,
     isCurrentState,
     key,
     requiredWidth,
@@ -299,6 +304,7 @@ export default function VideoThumbnail({
   useEffect(() => {
     if (
       !isCurrentState ||
+      isLocalThumbnail ||
       state.phase !== 'loading' ||
       !state.ready ||
       !activeSource
@@ -314,7 +320,7 @@ export default function VideoThumbnail({
       imageLoadFinishRef.current?.({ result: 'cancelled' });
       imageLoadFinishRef.current = null;
     };
-  }, [activeSource, isCurrentState, state.phase, state.ready, videoId]);
+  }, [activeSource, isLocalThumbnail, isCurrentState, state.phase, state.ready, videoId]);
 
   useEffect(() => {
     if (!isCurrentState || state.phase !== 'loaded' || !state.resolved) return;
@@ -350,6 +356,7 @@ export default function VideoThumbnail({
         toValue: 1,
         duration: 180,
         useNativeDriver: true,
+        isInteraction: false,
       }).start();
       return undefined;
     }
@@ -365,11 +372,16 @@ export default function VideoThumbnail({
           toValue: 0.75,
           duration: 700,
           useNativeDriver: true,
+          // Boucle décorative : ne jamais bloquer `InteractionManager`, sinon
+          // les listes virtualisées (grille et rangée Shorts) cessent de rendre
+          // de nouvelles cellules pendant le chargement des vignettes.
+          isInteraction: false,
         }),
         Animated.timing(shimmerOpacity, {
           toValue: 0.3,
           duration: 700,
           useNativeDriver: true,
+          isInteraction: false,
         }),
       ]),
     );
@@ -521,7 +533,17 @@ export default function VideoThumbnail({
         style,
       ]}
     >
-      {showingLoadedImage && state.resolved ? (
+      {isLocalThumbnail && !pending ? (
+        <Image
+          source={{ uri: thumbnail }}
+          style={styles.image}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
+
+      {!isLocalThumbnail && showingLoadedImage && state.resolved ? (
         <AnimatedImage
           source={{ uri: state.resolved.url }}
           style={[styles.image, { opacity: imageOpacity }]}

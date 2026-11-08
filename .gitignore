@@ -42,3 +42,7 @@ yarn-error.*
 
 # artefacts de build
 *.apk
+
+# artefacts Gradle des modules natifs
+modules/**/android/.gradle/
+modules/**/android/build/

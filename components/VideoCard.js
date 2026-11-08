@@ -11,6 +11,27 @@ import { MoreIcon } from '../src/shared/ui/Icons';
 /** Hauteur du bloc texte : 2 lignes de titre + 1 ligne secondaire. */
 const TITLE_HEIGHT = 40;
 const META_HEIGHT = 17;
+/** `paddingTop` du bloc texte, qui s'ajoute à sa hauteur minimale. */
+const TEXTS_PADDING_TOP = 1;
+
+/**
+ * Hauteur totale d'une carte pour une largeur donnée.
+ *
+ * La grille s'en sert pour `getItemLayout` : les lignes ont toutes la même
+ * hauteur, donc la liste peut calculer ses positions exactes sans attendre la
+ * mesure du rendu (barre de défilement juste, pas de saut de mise en page).
+ */
+export function videoCardHeight(width) {
+  return (
+    (width * 9) / 16 +
+    spacing.md +
+    TITLE_HEIGHT +
+    META_HEIGHT +
+    3 +
+    TEXTS_PADDING_TOP +
+    spacing.lg
+  );
+}
 
 /**
  * Carte vidéo longue (16:9) : miniature, puis avatar + titre + chaîne.
@@ -191,7 +212,7 @@ const baseStyles = StyleSheet.create({
   texts: {
     flex: 1,
     gap: 3,
-    paddingTop: 1,
+    paddingTop: TEXTS_PADDING_TOP,
     minHeight: TITLE_HEIGHT + META_HEIGHT + 3,
   },
   title: {

@@ -1,5 +1,4 @@
 import * as SplashScreen from 'expo-splash-screen';
-import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +9,6 @@ import { applyLanguage, i18nReady } from './i18n';
 import ErrorBoundary, { CrashScreen } from './components/ErrorBoundary';
 import TabBar from './components/TabBar';
 import AddChannelSheet from './components/AddChannelSheet';
-import YouTubeRequestBridge from './components/YouTubeRequestBridge';
 import { DEFAULT_SETTINGS, readSettings } from './services/settings';
 import {
   SettingsProvider,
@@ -19,30 +17,32 @@ import {
   useUpdateSettings,
 } from './services/SettingsProvider';
 import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
-import CategoriesScreen from './screens/CategoriesScreen';
+import ActionSheet from './components/ActionSheet';
+import CategoriesScreen from './screens/CategoriesScreen.tsx';
+import CategoryDetailScreen from './screens/CategoryDetailScreen.tsx';
 import CategoryEditor from './screens/CategoryEditor';
 import CategoryStatsScreen from './screens/CategoryStatsScreen';
-import OfflineScreen from './screens/OfflineScreen';
-import LocalPlayerScreen from './screens/LocalPlayerScreen';
+import OfflineScreen from './screens/OfflineScreen.tsx';
+import OfflinePlayerScreen from './screens/OfflinePlayerScreen.tsx';
 import ChannelsScreen from './screens/ChannelsScreen';
 import FeedScreen from './screens/FeedScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import StatsScreen from './screens/StatsScreen';
 import YouScreen from './screens/YouScreen';
 import { saveCrash } from './services/crashLog';
+import {
+  cancelDownload,
+  getDownloadsSnapshot,
+  initDownloadManager,
+  moveDownloadToCategory,
+  removeDownload,
+} from './services/downloadManager';
+import {
+  deleteCategory as deleteDbCategory,
+  listDownloads,
+  upsertCategory,
+} from './src/db';
 import { loadFeed } from './services/feed';
-import { clearOffline, downloadOffline, readOffline } from './services/offline';
-import {
-  deleteDownload,
-  downloadVideoOffline,
-  readDownloads,
-} from './services/downloads';
-import {
-  deleteLocalVideo,
-  importLocalVideos,
-  readLocalVideos,
-  updateLocalDuration,
-} from './services/localVideos';
 import { resolveChannelAvatars } from './services/channelAvatars';
 import { resolveChannelInput } from './services/channelResolver';
 import { FORMAT_SHORT, formatOf } from './src/domain/videoFormat';
@@ -75,15 +75,6 @@ const EMPTY_FEED = {
   failedChannels: [],
   error: null,
 };
-
-function withCategorySnapshot(videos, categories) {
-  return (videos ?? []).map((video) => ({
-    ...video,
-    categories: (categories ?? [])
-      .filter((category) => category.channelIds?.includes(video.channelId))
-      .map((category) => ({ id: category.id, name: category.name })),
-  }));
-}
 
 const TAB_ROUTES = new Set(['feed', 'channels', 'categories', 'stats', 'offline', 'you']);
 
@@ -160,7 +151,6 @@ function SettingsThemeProvider({ children }) {
 }
 
 function AppContent() {
-  const youtubeRequestBridgeRef = useRef(null);
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const { colors, resolved } = useTheme();
@@ -179,13 +169,8 @@ function AppContent() {
   const [avatars, setAvatars] = useState({});
   const [tracking, setTracking] = useState(getTracking());
   const [crash, setCrash] = useState(null);
-  const [offline, setOffline] = useState(null);
-  const [downloads, setDownloads] = useState([]);
-  const [localVideos, setLocalVideos] = useState([]);
-  const [offlineBusy, setOfflineBusy] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(null);
-  const [importing, setImporting] = useState(false);
   const [addChannelVisible, setAddChannelVisible] = useState(false);
+  const [categoryDeletePrompt, setCategoryDeletePrompt] = useState(null);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -207,21 +192,6 @@ function AppContent() {
 
     return () => {
       if (previous) errorUtils.setGlobalHandler(previous);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([readOffline(), readDownloads(), readLocalVideos()]).then(
-      ([offlineSnapshot, savedDownloads, savedLocalVideos]) => {
-        if (!active) return;
-        setOffline(offlineSnapshot);
-        setDownloads(savedDownloads);
-        setLocalVideos(savedLocalVideos);
-      },
-    );
-    return () => {
-      active = false;
     };
   }, []);
 
@@ -257,6 +227,9 @@ function AppContent() {
       setCategories(storedCategories);
       setSeenIds(seen);
       setLibraryReady(true);
+      initDownloadManager(storedCategories.map((c) => ({ id: c.id, name: c.name }))).catch((e) =>
+        console.warn('download manager init failed', e),
+      );
     })();
 
     return () => {
@@ -418,95 +391,44 @@ function AppContent() {
     setRefreshing(false);
   }, [runLoad]);
 
-  const fetchYouTubeThroughWebView = useCallback((url) => {
-    if (!youtubeRequestBridgeRef.current) {
-      return Promise.reject(new Error('Le réseau YouTube n’est pas initialisé.'));
-    }
-    return youtubeRequestBridgeRef.current.fetch(url);
-  }, []);
-
   const handleDownloadVideo = useCallback(
-    async (video) => {
-      setOfflineBusy(true);
-      setDownloadProgress({ done: 0, total: 0, percent: 0 });
+    async (video, categoryId = activeCategoryId) => {
+      const videoId = video?.videoId;
+      if (!videoId || !categoryId || categoryId === 'all') {
+        Alert.alert(t('offline:downloadFailed'), t('offline:downloadFailedMessage'));
+        return;
+      }
+      const existing = getDownloadsSnapshot().find(
+        (download) => download.videoId === videoId && download.categoryId === categoryId,
+      );
+      if (existing) return;
       try {
-        const result = await downloadVideoOffline(video, {
-          categories,
-          fetchImpl: fetchYouTubeThroughWebView,
-          onProgress: setDownloadProgress,
+        const { Ytdlp } = await import('./modules/ytdlp');
+        if (!Ytdlp) throw new Error(t('downloads:errorPlatform'));
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const meta = await Ytdlp.getMetadata(url);
+        await (await import('./services/downloadManager')).enqueueDownload({
+          url,
+          categoryId,
+          format: 'video',
+          quality: '720p',
+          metadata: {
+            videoId: meta.videoId || videoId,
+            title: meta.title || video.title || 'Vidéo',
+            channelName: meta.channelName || video.channelTitle || '',
+            durationSec: meta.durationSec || 0,
+            thumbnailUrl: meta.thumbnailUrl || '',
+          },
         });
-        setDownloads(result.downloads);
-        Alert.alert(
-          t('offline:downloadComplete'),
-          t('offline:downloadCompleteMessage', { title: video.title }),
-        );
-      } catch {
+      } catch (error) {
         Alert.alert(
           t('offline:downloadFailed'),
-          t('offline:downloadFailedMessage'),
+          error?.message || t('downloads:downloadFailed'),
         );
-      } finally {
-        setOfflineBusy(false);
-        setDownloadProgress(null);
       }
     },
-    [categories, fetchYouTubeThroughWebView, t],
+    [t, activeCategoryId],
   );
-
-  const handleDownloadFeed = useCallback(async () => {
-    if (feed.videos.length === 0) return;
-    setOfflineBusy(true);
-    try {
-      const snapshot = await downloadOffline(
-        withCategorySnapshot(feed.videos, categories),
-        ({ done, total, failed }) =>
-          setDownloadProgress({ done, total, failed, percent: total ? Math.round((done / total) * 100) : 0 }),
-      );
-      setOffline(snapshot);
-    } finally {
-      setOfflineBusy(false);
-      setDownloadProgress(null);
-    }
-  }, [categories, feed.videos]);
-
-  const handleClearOffline = useCallback(async () => {
-    await clearOffline();
-    setOffline(null);
-  }, []);
-
-  const handleImportLocal = useCallback(async () => {
-    setImporting(true);
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'video/*',
-        copyToCacheDirectory: true,
-        multiple: true,
-      });
-      if (!result.canceled) setLocalVideos(await importLocalVideos(result.assets));
-    } finally {
-      setImporting(false);
-    }
-  }, []);
-
-  const handleDeleteLocal = useCallback(async (entry) => {
-    setLocalVideos(await deleteLocalVideo(entry));
-  }, []);
-
-  const handleRemoveDownload = useCallback(async (video) => {
-    setDownloads(await deleteDownload(video.videoId));
-  }, []);
-
-  const handleOpenLocal = useCallback((entry) => {
-    setRoute({ name: 'localPlayer', entry });
-  }, []);
-
-  const handleOpenDownload = useCallback((video) => {
-    if (video.localUri) {
-      setRoute({ name: 'localPlayer', entry: { ...video, id: video.videoId, uri: video.localUri } });
-      return;
-    }
-    handleOpen(video, downloads);
-  }, [downloads, handleOpen]);
 
   const handleOpenTab = useCallback((name) => {
     setCrash(null);
@@ -516,6 +438,11 @@ function AppContent() {
   const handleOpen = useCallback((video, queue) => {
     const index = Math.max(0, queue.findIndex((item) => item.videoId === video.videoId));
     setRoute({ name: 'player', queue, index });
+  }, []);
+
+  const handleOpenDownloaded = useCallback((video) => {
+    const download = getDownloadsSnapshot().find((entry) => entry.id === video.downloadId);
+    if (download) setRoute({ name: 'offlinePlayer', download });
   }, []);
 
   const handleVideoChange = useCallback((video) => {
@@ -594,36 +521,78 @@ function AppContent() {
 
   const handleSaveCategory = useCallback(
     async ({ id, name, channelIds }) => {
-      const category = {
-        id: id ?? `cat-${Date.now()}`,
-        name,
-        channelIds,
-      };
+      try {
+        const category = {
+          id: id ?? `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: String(name ?? '').trim(),
+          channelIds: Array.isArray(channelIds) ? channelIds : [],
+        };
+        if (!category.name) throw new Error('Nom de catégorie vide');
 
-      const next = id
-        ? categories.map((entry) => (entry.id === id ? category : entry))
-        : [...categories, category];
+        const next = id
+          ? categories.map((entry) => (entry.id === id ? category : entry))
+          : [...categories, category];
 
-      setCategories(next);
-      await writeCategories(next);
+        setCategories(next);
+        await writeCategories(next);
+        await upsertCategory(category.id, category.name);
 
-      if (!id) setActiveCategoryId(category.id);
-      setRoute({ name: 'categories' });
+        if (!id) setActiveCategoryId(category.id);
+        setRoute({ name: 'categories' });
+      } catch (error) {
+        console.error('handleSaveCategory failed', error);
+        throw error;
+      }
     },
     [categories],
   );
 
-  const handleDeleteCategory = useCallback(
+  const finalizeDeleteCategory = useCallback(
     async (categoryId) => {
       const next = categories.filter((category) => category.id !== categoryId);
       setCategories(next);
       await writeCategories(next);
-
+      await deleteDbCategory(categoryId);
       if (activeCategoryId === categoryId) setActiveCategoryId(null);
       setRoute({ name: 'categories' });
     },
     [activeCategoryId, categories],
   );
+
+  const handleDeleteCategory = useCallback(async (categoryId) => {
+    const records = (await listDownloads()).filter((download) => download.categoryId === categoryId);
+    if (records.length === 0) {
+      await finalizeDeleteCategory(categoryId);
+      return;
+    }
+    setCategoryDeletePrompt({ categoryId, records, mode: 'decision' });
+  }, [finalizeDeleteCategory]);
+
+  const resolveCategoryDelete = useCallback(async (targetCategoryId = null) => {
+    if (!categoryDeletePrompt) return;
+    const { categoryId, records } = categoryDeletePrompt;
+    try {
+      if (targetCategoryId) {
+        for (const download of records) {
+          if (download.status === 'queued' || download.status === 'downloading') {
+            await cancelDownload(download.id);
+          }
+          await moveDownloadToCategory(download.id, targetCategoryId);
+        }
+      } else {
+        for (const download of records) {
+          if (download.status === 'queued' || download.status === 'downloading') {
+            await cancelDownload(download.id);
+          }
+          await removeDownload(download.id);
+        }
+      }
+      setCategoryDeletePrompt(null);
+      await finalizeDeleteCategory(categoryId);
+    } catch (error) {
+      Alert.alert(t('categories:deleteError'), error?.message ?? '');
+    }
+  }, [categoryDeletePrompt, finalizeDeleteCategory, t]);
 
   const showTabBar = TAB_ROUTES.has(route.name);
   const activeTab = ['channels', 'categories', 'stats', 'editor', 'categoryStats'].includes(route.name)
@@ -660,7 +629,7 @@ function AppContent() {
         dataSaver={settings.dataSaver}
         onRefresh={handleRefresh}
         onOpen={handleOpen}
-        onDownload={handleDownloadVideo}
+        onDownload={activeCategoryId && activeCategoryId !== 'all' ? handleDownloadVideo : undefined}
       />
     );
   } else if (route.name === 'channels') {
@@ -692,23 +661,9 @@ function AppContent() {
   } else if (route.name === 'offline') {
     screen = (
       <OfflineScreen
-        offline={offline}
-        downloads={downloads}
-        localVideos={localVideos}
-        importing={importing}
-        downloading={offlineBusy}
-        progress={downloadProgress}
-        formats={formats}
         categories={categories}
-        feedCount={feedVideos.length}
-        onDownload={handleDownloadFeed}
-        onClear={handleClearOffline}
-        onOpen={handleOpen}
-        onOpenDownload={handleOpenDownload}
-        onRemoveDownload={handleRemoveDownload}
-        onImportLocal={handleImportLocal}
-        onOpenLocal={handleOpenLocal}
-        onDeleteLocal={handleDeleteLocal}
+        onOpenCategories={() => setRoute({ name: 'categories' })}
+        onOpenDownload={handleOpenDownloaded}
       />
     );
   } else if (route.name === 'categoryStats') {
@@ -738,36 +693,56 @@ function AppContent() {
     );
   } else if (route.name === 'categories') {
     screen = (
-      <CategoriesScreen
+      <ErrorBoundary>
+        <CategoriesScreen
+          categories={categories ?? []}
+          onCreate={() => setRoute({ name: 'editor', category: null })}
+          onEdit={(category) => setRoute({ name: 'editor', category })}
+          onOpenCategory={(id) => {
+            const c = (categories ?? []).find((x) => x.id === id);
+            setRoute({ name: 'categoryDetail', categoryId: id, categoryName: c?.name ?? '' });
+          }}
+        />
+      </ErrorBoundary>
+    );
+  } else if (route.name === 'categoryDetail') {
+    screen = (
+      <CategoryDetailScreen
+        categoryId={route.categoryId}
+        categoryName={route.categoryName}
         categories={categories}
+        videos={feedVideos}
+        formats={formats}
         channels={channels}
-        onCreate={() => setRoute({ name: 'editor', category: null })}
-        onEdit={(category) => setRoute({ name: 'editor', category })}
+        seenIds={seenIds}
+        avatars={avatars}
+        trackingVideos={tracking.videos}
+        dataSaver={settings.dataSaver}
+        onOpen={handleOpen}
+        onDownload={handleDownloadVideo}
+        onBack={() => setRoute({ name: 'categories' })}
+      />
+    );
+  } else if (route.name === 'offlinePlayer') {
+    screen = (
+      <OfflinePlayerScreen
+        download={route.download}
+        onBack={() => setRoute({ name: 'offline' })}
       />
     );
   } else if (route.name === 'editor') {
     screen = (
-      <CategoryEditor
-        category={route.category}
-        channels={channels}
-        categories={categories}
-        avatars={avatars}
-        onSave={handleSaveCategory}
-        onDelete={handleDeleteCategory}
-        onClose={() => setRoute({ name: 'categories' })}
-      />
-    );
-  } else if (route.name === 'localPlayer') {
-    screen = (
-      <LocalPlayerScreen
-        entry={route.entry}
-        onBack={() => setRoute({ name: 'offline' })}
-        onDuration={(duration) => {
-          if (route.entry?.id?.startsWith('local-')) {
-            updateLocalDuration(route.entry.id, duration).then(setLocalVideos);
-          }
-        }}
-      />
+      <ErrorBoundary>
+        <CategoryEditor
+          category={route.category}
+          channels={channels}
+          categories={categories}
+          avatars={avatars}
+          onSave={handleSaveCategory}
+          onDelete={handleDeleteCategory}
+          onClose={() => setRoute({ name: 'categories' })}
+        />
+      </ErrorBoundary>
     );
   } else {
     screen = (
@@ -821,7 +796,44 @@ function AppContent() {
           onSubmit={handleAddSource}
         />
       ) : null}
-      <YouTubeRequestBridge ref={youtubeRequestBridgeRef} />
+      <ActionSheet
+        visible={categoryDeletePrompt?.mode === 'decision'}
+        title={t('categories:deleteDownloadsTitle')}
+        message={t('categories:deleteDownloadsMessage', {
+          count: categoryDeletePrompt?.records.length ?? 0,
+        })}
+        actions={[
+          ...(categories.some((category) => category.id !== categoryDeletePrompt?.categoryId)
+            ? [{
+                key: 'move-downloads',
+                label: t('categories:moveDownloads'),
+                hint: t('categories:moveDownloadsHint'),
+                onPress: () => setCategoryDeletePrompt((current) => ({ ...current, mode: 'move' })),
+              }]
+            : []),
+          {
+            key: 'delete-downloads',
+            label: t('categories:deleteDownloads'),
+            hint: t('categories:deleteDownloadsHint'),
+            destructive: true,
+            onPress: () => resolveCategoryDelete(),
+          },
+        ]}
+        onClose={() => setCategoryDeletePrompt(null)}
+      />
+      <ActionSheet
+        visible={categoryDeletePrompt?.mode === 'move'}
+        title={t('categories:moveDownloads')}
+        message={t('categories:selectDestination')}
+        actions={categories
+          .filter((category) => category.id !== categoryDeletePrompt?.categoryId)
+          .map((category) => ({
+            key: category.id,
+            label: category.name,
+            onPress: () => resolveCategoryDelete(category.id),
+          }))}
+        onClose={() => setCategoryDeletePrompt((current) => ({ ...current, mode: 'decision' }))}
+      />
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
     </View>
   );

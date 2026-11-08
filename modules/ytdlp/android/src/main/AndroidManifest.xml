@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- yt-dlp embarque ses bibliothèques natives sous forme de fichiers :
+       Android doit les extraire à l'installation (useLegacyPackaging). -->
+  <application android:extractNativeLibs="true" />
+</manifest>

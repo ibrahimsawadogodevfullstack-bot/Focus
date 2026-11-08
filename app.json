@@ -2,7 +2,7 @@
   "expo": {
     "name": "Focus",
     "slug": "youtube-filter-v2",
-    "version": "1.8.1",
+    "version": "1.8.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -31,7 +31,17 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-localization"
+      "expo-localization",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "useLegacyPackaging": true
+          }
+        }
+      ]
     ]
   }
 }

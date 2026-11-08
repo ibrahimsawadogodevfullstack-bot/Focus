@@ -30,15 +30,17 @@ export default function CategoryChips({ categories, activeId, onSelect, onCreate
         />
       ))}
 
-      <Pressable
-        onPress={onCreate}
-        hitSlop={4}
-        accessibilityRole="button"
-        accessibilityLabel={t('home:manageCategories')}
-        style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
-      >
-        <PlusIcon color={colors.textMuted} size={13} />
-      </Pressable>
+      {onCreate ? (
+        <Pressable
+          onPress={onCreate}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel={t('home:manageCategories')}
+          style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
+        >
+          <PlusIcon color={colors.textMuted} size={13} />
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
