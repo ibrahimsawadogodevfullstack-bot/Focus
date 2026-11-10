@@ -12,11 +12,10 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import BrandMark from '../src/shared/ui/BrandMark';
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../src/shared/ui/Icons';
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, icon, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function CategoryEditor({
@@ -102,7 +101,7 @@ export default function CategoryEditor({
           accessibilityLabel={t('common:close')}
           style={({ pressed }) => [styles.close, pressed && styles.closePressed]}
         >
-          <CloseIcon color={colors.text} size={13} />
+          <CloseIcon color={colors.text} size={icon.xs} />
         </Pressable>
 
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -110,8 +109,6 @@ export default function CategoryEditor({
             ? t('categories:editCategory', { name: category.name })
             : t('categories:createTitle')}
         </Text>
-
-        <BrandMark size={15} textSize={15} style={styles.headerBrand} />
       </View>
 
       <KeyboardAvoidingView
@@ -279,7 +276,7 @@ const baseStyles = StyleSheet.create({
   close: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -292,13 +289,10 @@ const baseStyles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
+    fontSize: fontSize.headline,
     fontWeight: '700',
     letterSpacing: -0.3,
-    textAlign: 'center',
-  },
-  headerBrand: {
-    marginLeft: 'auto',
+    textAlign: 'left',
   },
   content: {
     paddingHorizontal: spacing.xl,
@@ -307,7 +301,7 @@ const baseStyles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     fontWeight: '600',
   },
   nameInput: {
@@ -319,11 +313,11 @@ const baseStyles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     color: colors.text,
-    fontSize: 16,
+    fontSize: fontSize.body,
   },
   counter: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     marginTop: 6,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
@@ -338,7 +332,7 @@ const baseStyles = StyleSheet.create({
   },
   selection: {
     color: colors.accentText,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
   },
   searchInput: {
@@ -350,7 +344,7 @@ const baseStyles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     color: colors.text,
-    fontSize: 14,
+    fontSize: fontSize.body,
   },
   list: {
     gap: 2,
@@ -369,7 +363,7 @@ const baseStyles = StyleSheet.create({
   check: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
@@ -381,13 +375,13 @@ const baseStyles = StyleSheet.create({
   },
   avatarText: {
     color: colors.accentText,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '800',
   },
   rowTitle: {
     flex: 1,
     color: colors.textMuted,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     fontWeight: '500',
   },
   rowTitleActive: {
@@ -396,7 +390,7 @@ const baseStyles = StyleSheet.create({
   },
   noResult: {
     color: colors.textFaint,
-    fontSize: 13,
+    fontSize: fontSize.label,
     paddingVertical: spacing.lg,
   },
   delete: {
@@ -412,7 +406,7 @@ const baseStyles = StyleSheet.create({
   },
   deleteText: {
     color: colors.danger,
-    fontSize: 14,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   footer: {
@@ -425,12 +419,12 @@ const baseStyles = StyleSheet.create({
   },
   error: {
     color: colors.danger,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     textAlign: 'center',
   },
   saveHint: {
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     textAlign: 'center',
   },
   save: {
@@ -448,7 +442,7 @@ const baseStyles = StyleSheet.create({
   },
   saveText: {
     color: colors.onAccent,
-    fontSize: 15.5,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   saveTextDisabled: {

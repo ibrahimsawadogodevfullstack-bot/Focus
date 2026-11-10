@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
 import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
@@ -50,6 +50,7 @@ export default function VideoCard({
   channelAvatar,
   onPress,
   onMore,
+  onLongPress,
   width,
   pending = false,
   progress = 0,
@@ -69,6 +70,7 @@ export default function VideoCard({
     : 0;
 
   const details = [
+    isNew ? t('home:newVideo') : '',
     video.viewCount != null
       ? t('home:views', { count: video.viewCount })
       : '',
@@ -94,11 +96,18 @@ export default function VideoCard({
         dataSaver={dataSaver}
         fallbackText={initial}
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityLabel={label}
         radius={0}
         style={styles.thumbWrap}
       >
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {isNew && !pending ? (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>{t('home:newVideo')}</Text>
+            </View>
+          ) : null}
+
           {hasDuration && !pending ? (
             <View style={styles.durationBadge}>
               <Text style={styles.badgeText}>{formatClock(duration)}</Text>
@@ -116,6 +125,7 @@ export default function VideoCard({
       <View style={styles.row}>
         <Pressable
           onPress={onPress}
+          onLongPress={onLongPress}
           accessibilityRole="button"
           accessibilityLabel={t('home:openVideo', { title: video.title })}
           style={({ pressed }) => [styles.info, pressed && styles.pressed]}
@@ -127,7 +137,6 @@ export default function VideoCard({
               {video.title}
             </Text>
             <View style={styles.metaRow}>
-              {isNew && !pending ? <View style={styles.newDot} /> : null}
               <Text style={styles.meta} numberOfLines={1}>
                 {[video.channelTitle, video.viewCount != null ? t('home:views', { count: video.viewCount }) : null, timeAgo(video.publishedAt, locale)]
                   .filter(Boolean)
@@ -169,22 +178,33 @@ const baseStyles = StyleSheet.create({
     bottom: spacing.sm,
     height: 20,
     paddingHorizontal: 7,
-    borderRadius: 6,
+    borderRadius: radius.xs,
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     fontWeight: '700',
     letterSpacing: 0.1,
     fontVariant: ['tabular-nums'],
   },
-  newDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+  newBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    height: 20,
+    paddingHorizontal: 7,
+    borderRadius: radius.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.accent,
+  },
+  newBadgeText: {
+    color: colors.onAccent,
+    fontSize: fontSize.micro,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   progressTrack: {
     position: 'absolute',
@@ -217,7 +237,7 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '600',
     lineHeight: 20,
     letterSpacing: -0.2,
@@ -226,7 +246,7 @@ const baseStyles = StyleSheet.create({
   meta: {
     flex: 1,
     color: colors.textFaint,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '500',
     lineHeight: META_HEIGHT,
   },
@@ -238,7 +258,7 @@ const baseStyles = StyleSheet.create({
   more: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

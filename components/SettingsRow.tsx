@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export type SettingsRowKind = 'information' | 'choice' | 'action' | 'switch';
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     fontWeight: '600',
   },
   disabled: {
@@ -120,13 +120,13 @@ const styles = StyleSheet.create({
   },
   description: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     lineHeight: 16,
   },
   value: {
     maxWidth: '46%',
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: fontSize.label,
     fontWeight: '600',
     textAlign: 'right',
   },

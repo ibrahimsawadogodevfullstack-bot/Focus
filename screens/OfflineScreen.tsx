@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ComponentType } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import FeedScreen from './FeedScreen';
 
@@ -15,6 +16,7 @@ export default function OfflineScreen({
   onOpenDownload: (video: any) => void;
 }) {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const { t } = useTranslation('offline');
 
   return (
     <SharedFeedScreen
@@ -35,6 +37,7 @@ export default function OfflineScreen({
       trackingVideos={{}}
       shortsPosition="top"
       dataSaver
+      headerTitle={t('title')}
     />
   );
 }

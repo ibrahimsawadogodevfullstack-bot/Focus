@@ -1,13 +1,14 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import SectionLabel from '../src/shared/ui/SectionLabel';
 
 export default function SettingsSection({ title, children }) {
   const themedStyles = useThemeStyles(styles);
   return (
     <View style={themedStyles.section}>
-      <Text style={themedStyles.title}>{title}</Text>
+      <SectionLabel style={themedStyles.title}>{title}</SectionLabel>
       <View style={themedStyles.rows}>{children}</View>
     </View>
   );
@@ -18,15 +19,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.2,
     paddingHorizontal: spacing.xs,
   },
   rows: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     overflow: 'hidden',

@@ -10,7 +10,7 @@ import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import PageHeader from '../src/shared/ui/PageHeader';
 import SettingsRow from '../components/SettingsRow';
 import SettingsSection from '../components/SettingsSection';
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { clearThumbnailCache } from '../services/thumbnails';
 import { PLAYBACK_SPEEDS } from '../services/settings';
@@ -114,9 +114,9 @@ export default function SettingsScreen({
 
   return (
     <SafeAreaView edges={['top']} style={themedStyles.screen}>
-      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
-        <PageHeader title={t('title')} backLabel={backLabel} onBack={onBack} />
+      <PageHeader title={t('title')} backLabel={backLabel} onBack={onBack} />
 
+      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
         <SettingsSection title={t('generalSection')}>
           <SettingsRow
             kind="choice"
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.danger,
-    fontSize: 13,
+    fontSize: fontSize.label,
     textAlign: 'center',
   },
   notice: {
     color: colors.success,
-    fontSize: 13,
+    fontSize: fontSize.label,
     textAlign: 'center',
   },
 });

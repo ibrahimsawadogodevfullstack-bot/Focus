@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { saveCrash } from '../services/crashLog';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import BrandMark from '../src/shared/ui/BrandMark';
@@ -89,13 +89,13 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: fontSize.display,
     fontWeight: '800',
     letterSpacing: -0.6,
   },
   lead: {
     color: colors.textMuted,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     lineHeight: 20,
   },
   card: {
@@ -109,14 +109,14 @@ const baseStyles = StyleSheet.create({
   },
   cardLabel: {
     color: colors.textFaint,
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   message: {
     color: colors.danger,
-    fontSize: 14,
+    fontSize: fontSize.body,
     lineHeight: 20,
     fontWeight: '600',
   },
@@ -125,7 +125,7 @@ const baseStyles = StyleSheet.create({
   },
   stack: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     lineHeight: 16,
   },
   action: {
@@ -141,7 +141,7 @@ const baseStyles = StyleSheet.create({
   },
   actionText: {
     color: colors.onAccent,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
 });

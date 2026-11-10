@@ -19,6 +19,13 @@ export const DARK_COLORS = {
   successSoft: 'rgba(91, 217, 155, 0.13)',
   warn: '#FFC46B',
   warnSoft: 'rgba(255, 196, 107, 0.13)',
+  // Séries de graphiques (sparklines, anneau). Volontairement distinctes des
+  // couleurs sémantiques : `useThemeStyles` remappe par valeur exacte, deux
+  // jetons de même code hexadécimal se confondraient.
+  chart1: '#6EA8FF',
+  chart2: '#B49BFF',
+  chart3: '#57D6A6',
+  chart4: '#FFAE6B',
 };
 export const LIGHT_COLORS = {
   bg: '#F5F7FB',
@@ -41,6 +48,10 @@ export const LIGHT_COLORS = {
   successSoft: '#D1FADF',
   warn: '#875300',
   warnSoft: '#FEF0C7',
+  chart1: '#2563EB',
+  chart2: '#7C3AED',
+  chart3: '#0E9F6E',
+  chart4: '#C2410C',
 };
 export const colors = DARK_COLORS;
 export type ThemeColors = typeof DARK_COLORS;

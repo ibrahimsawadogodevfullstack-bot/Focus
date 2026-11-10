@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import type { DownloadRecord } from '../src/db/downloads';
 
@@ -95,11 +95,11 @@ const baseStyles = StyleSheet.create({
   },
   barFill: { height: '100%', backgroundColor: colors.accent },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  percent: { color: colors.text, fontWeight: '700', fontSize: 13, width: 44 },
-  title: { flex: 1, color: colors.textMuted, fontSize: 13 },
+  percent: { color: colors.text, fontWeight: '700', fontSize: fontSize.label, width: 44 },
+  title: { flex: 1, color: colors.textMuted, fontSize: fontSize.label },
   errorBox: { gap: 2 },
-  errorTitle: { color: colors.danger, fontSize: 12, fontWeight: '600' },
-  errorDetail: { color: colors.textFaint, fontSize: 11 },
+  errorTitle: { color: colors.danger, fontSize: fontSize.meta, fontWeight: '600' },
+  errorDetail: { color: colors.textFaint, fontSize: fontSize.caption },
   actions: { flexDirection: 'row', gap: spacing.sm },
   btn: {
     paddingHorizontal: spacing.md,
@@ -110,5 +110,5 @@ const baseStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnPressed: { opacity: 0.7 },
-  btnText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  btnText: { color: colors.text, fontSize: fontSize.label, fontWeight: '600' },
 });

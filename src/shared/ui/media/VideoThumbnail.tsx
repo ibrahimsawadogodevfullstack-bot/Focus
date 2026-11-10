@@ -11,7 +11,7 @@ import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import type { ImageLoadEventData } from 'expo-image';
 
-import { colors } from '../../theme/tokens';
+import { colors, radius } from '../../theme/tokens';
 import { netFetch } from '../../../../services/net';
 import {
   bestThumbnail,
@@ -71,6 +71,7 @@ interface VideoThumbnailProps {
   style?: StyleProp<ViewStyle>;
   radius?: number;
   onPress?: () => void;
+  onLongPress?: () => void;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   pending?: boolean;
@@ -167,6 +168,7 @@ export default function VideoThumbnail({
   style,
   radius = 12,
   onPress,
+  onLongPress,
   accessibilityLabel,
   accessibilityHint,
   pending = false,
@@ -594,6 +596,7 @@ export default function VideoThumbnail({
       {onPress ? (
         <Pressable
           onPress={onPress}
+          onLongPress={onLongPress}
           accessibilityRole="button"
           accessibilityLabel={accessibilityLabel}
           accessibilityHint={accessibilityHint}
@@ -629,13 +632,13 @@ const baseStyles = StyleSheet.create({
   skeletonBlock: {
     width: '46%',
     height: '18%',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     backgroundColor: colors.raised,
   },
   skeletonLine: {
     width: '28%',
     height: 3,
-    borderRadius: 2,
+    borderRadius: radius.pill,
     backgroundColor: colors.lineStrong,
   },
   press: {

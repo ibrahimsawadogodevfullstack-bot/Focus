@@ -1,7 +1,7 @@
 import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, spacing } from '../src/shared/theme/tokens';
 import { SHORT_ASPECT } from '../src/shared/media/thumbnailLayout';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { isShort } from '../src/domain/videoFormat';
@@ -43,6 +43,7 @@ export default function ShortsShelf({
   videos,
   onOpen,
   onMore,
+  onLongPress,
   seen,
   hasHistory,
   sidePadding = 0,
@@ -90,6 +91,7 @@ export default function ShortsShelf({
             dataSaver={dataSaver}
             onPress={() => onOpen(item, shorts)}
             onMore={onMore ? () => onMore(item) : undefined}
+            onLongPress={onLongPress ? () => onLongPress(item) : undefined}
           />
         )}
       />
@@ -110,14 +112,14 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: fontSize.title,
     lineHeight: TITLE_LINE_HEIGHT,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
   count: {
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },

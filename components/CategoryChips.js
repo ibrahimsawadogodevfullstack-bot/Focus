@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, icon, radius, spacing } from '../src/shared/theme/tokens';
+import Chip from '../src/shared/ui/Chip';
 import { PlusIcon } from '../src/shared/ui/Icons';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
@@ -18,11 +19,10 @@ export default function CategoryChips({ categories, activeId, onSelect, onCreate
       style={styles.scroll}
       contentContainerStyle={styles.content}
     >
-      <Chip styles={styles} label={t('home:allCategories')} active={activeId === null} onPress={() => onSelect(null)} />
+      <Chip label={t('home:allCategories')} active={activeId === null} onPress={() => onSelect(null)} />
 
       {categories.map((category) => (
         <Chip
-          styles={styles}
           key={category.id}
           label={category.name}
           active={activeId === category.id}
@@ -38,30 +38,10 @@ export default function CategoryChips({ categories, activeId, onSelect, onCreate
           accessibilityLabel={t('home:manageCategories')}
           style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
         >
-          <PlusIcon color={colors.textMuted} size={13} />
+          <PlusIcon color={colors.textMuted} size={icon.sm} />
         </Pressable>
       ) : null}
     </ScrollView>
-  );
-}
-
-function Chip({ label, active, onPress, styles }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={4}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={({ pressed }) => [
-        styles.chip,
-        active && styles.chipActive,
-        pressed && !active && styles.chipPressed,
-      ]}
-    >
-      <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -79,34 +59,10 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     height: 56,
   },
-  chip: {
-    height: 40,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    maxWidth: 220,
-  },
-  chipPressed: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  chipActive: {
-    backgroundColor: colors.text,
-  },
-  label: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: -0.1,
-  },
-  labelActive: {
-    color: colors.bg,
-  },
   add: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,

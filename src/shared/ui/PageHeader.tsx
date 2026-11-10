@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 
-import { colors, spacing } from '../theme/tokens';
+import { colors, fontSize, spacing } from '../theme/tokens';
 import { useTheme, useThemeStyles } from '../theme/ThemeProvider';
 import { Chevron } from './Icons';
 
@@ -47,12 +47,17 @@ export default function PageHeader({
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.bg,
     gap: spacing.xs,
   },
   bar: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -69,16 +74,16 @@ const styles = StyleSheet.create({
   backLabel: {
     flexShrink: 1,
     color: colors.text,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     fontWeight: '600',
   },
   title: {
     flex: 1,
     color: colors.text,
-    fontSize: 19,
+    fontSize: fontSize.headline,
     fontWeight: '800',
     letterSpacing: -0.5,
-    textAlign: 'right',
+    textAlign: 'left',
   },
   right: {
     alignItems: 'flex-end',
@@ -88,9 +93,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.textFaint,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '500',
-    textAlign: 'right',
+    textAlign: 'left',
   },
   pressed: {
     opacity: 0.6,

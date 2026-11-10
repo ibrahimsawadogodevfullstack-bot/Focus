@@ -6,6 +6,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -17,20 +18,29 @@ import AppBar from '../components/AppBar';
 import CategoryChips from '../components/CategoryChips';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import DownloadProgressRow from '../components/DownloadProgressRow';
+import DownloadRow, { DOWNLOAD_ROW_HEIGHT } from '../components/DownloadRow';
 import EmptyState from '../src/shared/ui/EmptyState';
+import FeedFilters from '../components/FeedFilters';
 import FeedSkeleton from '../components/FeedSkeleton';
 import ShortsShelf, { shortsShelfHeight } from '../components/ShortsShelf';
 import ScreenHeader from '../src/shared/ui/ScreenHeader';
 import SyncBar from '../components/SyncBar';
 import VideoCard, { videoCardHeight } from '../components/VideoCard';
-import { CheckIcon, Chevron, DownloadIcon, TrashIcon } from '../src/shared/ui/Icons';
-import { colors, layout, spacing } from '../src/shared/theme/tokens';
+import {
+  CheckIcon,
+  CloseIcon,
+  DownloadIcon,
+  SearchIcon,
+  TrashIcon,
+} from '../src/shared/ui/Icons';
+import { colors, fontSize, icon, layout, radius, spacing } from '../src/shared/theme/tokens';
 import { isFormatResolved, resolveFormats, splitByFormat } from '../src/domain/videoFormat';
 import { hasFailedFormat } from '../services/formats';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { timeAgo } from '../src/shared/utils/format';
 import { useDownloads } from '../hooks/useDownloads';
 import * as DM from '../services/downloadManager';
+import { formatBytes } from '../services/localVideos';
 import { toDownloadedFeedVideos } from '../services/downloadFeed';
 
 const GUTTER = layout.gridGutter; // 16 px
@@ -39,12 +49,25 @@ const GAP = layout.gridGap; // 16 px
 /** La rangée Shorts arrive après ce nombre de vidéos longues. */
 export const SHORTS_SHELF_POSITION = 2;
 
+const SORT_OPTIONS = [
+  { key: 'recent', labelKey: 'sortRecent' },
+  { key: 'views', labelKey: 'sortViews' },
+  { key: 'channel', labelKey: 'sortChannel' },
+];
+
 const normalize = (value) =>
   (value || '')
     .toString()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+
+/** Timestamp comparable quel que soit le format renvoyé par le flux. */
+function timeValue(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 /** Colonnes de la grille selon la largeur de l'écran. */
 function columnsFor(width) {
@@ -91,12 +114,17 @@ export default function FeedScreen({
   const { t, i18n } = useTranslation(['home', 'common', 'downloads', 'offline']);
   const downloadRecords = useDownloads();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
+  const isOffline = source === 'downloaded';
 
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [menuVideo, setMenuVideo] = useState(null);
   const [menuChannel, setMenuChannel] = useState(null);
   const [downloadToRemove, setDownloadToRemove] = useState(null);
+  const [unseenOnly, setUnseenOnly] = useState(false);
+  const [hideShorts, setHideShorts] = useState(false);
+  const [sort, setSort] = useState('recent');
+  const [sortOpen, setSortOpen] = useState(false);
 
   const columns = columnsFor(windowWidth);
 
@@ -134,6 +162,29 @@ export default function FeedScreen({
     [source, downloadRecords, activeCategoryId],
   );
 
+  const offlineSummary = useMemo(() => {
+    if (!isOffline) return null;
+    const list = downloadRecords.filter(
+      (download) =>
+        download.status === 'completed' &&
+        Boolean(download.filePath) &&
+        (activeCategoryId == null || download.categoryId === activeCategoryId),
+    );
+    return {
+      count: list.length,
+      size: list.reduce((sum, download) => sum + (download.sizeBytes || 0), 0),
+    };
+  }, [activeCategoryId, downloadRecords, isOffline]);
+
+  const offlineSubtitle = offlineSummary && offlineSummary.count > 0
+    ? [
+        t('home:video', { count: offlineSummary.count }),
+        offlineSummary.size > 0 ? formatBytes(offlineSummary.size) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined;
+
   const downloadByVideo = useMemo(() => {
     const records = new Map();
     for (const download of downloadRecords) {
@@ -163,7 +214,13 @@ export default function FeedScreen({
     [scopedVideos, formats],
   );
 
-  const visibleVideos = useMemo(() => {
+  const seen = useMemo(() => new Set(seenIds), [seenIds]);
+  const hasHistory = seenIds.length > 0;
+  // Les filtres éditoriaux ne concernent que le flux distant ; la liste des
+  // téléchargements garde son ordre de bibliothèque.
+  const filtersApply = source === 'remote';
+
+  const searchedVideos = useMemo(() => {
     const needle = normalize(query.trim());
     if (!needle) return formattedVideos;
     return formattedVideos.filter(
@@ -173,9 +230,51 @@ export default function FeedScreen({
     );
   }, [query, formattedVideos]);
 
+  const visibleVideos = useMemo(() => {
+    let list = searchedVideos;
+
+    if (filtersApply && unseenOnly && hasHistory) {
+      list = list.filter((video) => !seen.has(video.videoId));
+    }
+    if (!filtersApply) return list;
+
+    const sorted = [...list];
+    if (sort === 'views') {
+      sorted.sort(
+        (a, b) =>
+          (Number(b.viewCount) || 0) - (Number(a.viewCount) || 0) ||
+          timeValue(b.publishedAt) - timeValue(a.publishedAt),
+      );
+    } else if (sort === 'channel') {
+      sorted.sort(
+        (a, b) =>
+          normalize(a.channelTitle).localeCompare(normalize(b.channelTitle)) ||
+          timeValue(b.publishedAt) - timeValue(a.publishedAt),
+      );
+    } else {
+      sorted.sort((a, b) => timeValue(b.publishedAt) - timeValue(a.publishedAt));
+    }
+    return sorted;
+  }, [filtersApply, hasHistory, searchedVideos, seen, sort, unseenOnly]);
+
   // Les deux flux ne se mélangent jamais : les Shorts vont dans leur rangée,
   // les vidéos longues dans la grille.
-  const { shorts, long } = useMemo(() => splitByFormat(visibleVideos), [visibleVideos]);
+  const { shorts: detectedShorts, long } = useMemo(
+    () => splitByFormat(visibleVideos),
+    [visibleVideos],
+  );
+  const shorts = useMemo(
+    () => (filtersApply && hideShorts ? [] : detectedShorts),
+    [detectedShorts, filtersApply, hideShorts],
+  );
+
+  const unseenCount = useMemo(() => {
+    if (!hasHistory) return 0;
+    return formattedVideos.reduce(
+      (count, video) => count + (seen.has(video.videoId) ? 0 : 1),
+      0,
+    );
+  }, [formattedVideos, hasHistory, seen]);
 
   // Vidéos dont le format n'est encore prouvé par rien : on ne dessine pas leur
   // vignette (un Short pourrait apparaître dans un cadre 16:9). Elles gardent
@@ -197,6 +296,14 @@ export default function FeedScreen({
   // insertion de la rangée Shorts après la première ligne complète contenant
   // SHORTS_SHELF_POSITION vidéos (2 sur une colonne, 3 sur trois colonnes).
   const rows = useMemo(() => {
+    if (isOffline) {
+      return long.map((video, index) => ({
+        type: 'downloadVideo',
+        key: `download-video-${video.downloadId || video.videoId || index}`,
+        video,
+      }));
+    }
+
     const list = [];
     const at =
       shortsPosition === 'top'
@@ -229,7 +336,7 @@ export default function FeedScreen({
     if (!inserted) list.push({ type: 'shorts', key: `shorts-${columns}` });
 
     return list;
-  }, [long, shorts.length, columns, shortsPosition]);
+  }, [columns, isOffline, long, shorts.length, shortsPosition]);
 
   const listRows = useMemo(
     () => [
@@ -256,7 +363,9 @@ export default function FeedScreen({
         ? shortsRowHeight
         : row.type === 'download'
           ? 94
-          : rowHeight;
+          : row.type === 'downloadVideo'
+            ? DOWNLOAD_ROW_HEIGHT
+            : rowHeight;
       const frame = { index, length, offset };
       offset += length;
       return frame;
@@ -269,8 +378,6 @@ export default function FeedScreen({
     [rowOffsets, rowHeight],
   );
 
-  const seen = useMemo(() => new Set(seenIds), [seenIds]);
-  const hasHistory = seenIds.length > 0;
   const scopeChannelCount = scopeIds ? scopeIds.size : channels.length;
   const isFirstLoad = source === 'remote' && loading && videos.length === 0;
 
@@ -278,6 +385,18 @@ export default function FeedScreen({
   const syncLabel = syncActive
     ? `${sync.done ?? 0}/${sync.total ?? 0} · ${sync.percent ?? 0} %`
     : '';
+
+  const sortLabel = t(
+    `home:${SORT_OPTIONS.find((option) => option.key === sort)?.labelKey ?? 'sortRecent'}`,
+  );
+  const resetFilters = useCallback(() => {
+    setUnseenOnly(false);
+    setHideShorts(false);
+    setSort('recent');
+  }, []);
+
+  // Une carte ouvre le même menu que le bouton « ⋮ » : appui long inclus.
+  const canOpenMenu = Boolean(onRemoveChannel || onDownload || source === 'downloaded');
 
   const toggleSearch = useCallback(() => {
     setSearching((current) => {
@@ -307,6 +426,21 @@ export default function FeedScreen({
         );
       }
 
+      if (item.type === 'downloadVideo') {
+        const record = downloadByVideo.get(item.video.downloadId);
+        return (
+          <View style={[styles.downloadRowWrap, { paddingHorizontal: sidePadding + GUTTER }]}>
+            <DownloadRow
+              video={item.video}
+              sizeBytes={record?.sizeBytes}
+              onPress={() => onOpen(item.video, long)}
+              onMore={canOpenMenu ? () => setMenuVideo(item.video) : undefined}
+              onLongPress={canOpenMenu ? () => setMenuVideo(item.video) : undefined}
+            />
+          </View>
+        );
+      }
+
       if (item.type === 'shorts') {
         return (
           <ShortsShelf
@@ -316,7 +450,8 @@ export default function FeedScreen({
             sidePadding={sidePadding}
             dataSaver={dataSaver}
             onOpen={onOpen}
-            onMore={onRemoveChannel || onDownload ? setMenuVideo : undefined}
+            onMore={canOpenMenu ? setMenuVideo : undefined}
+            onLongPress={canOpenMenu ? setMenuVideo : undefined}
           />
         );
       }
@@ -341,9 +476,8 @@ export default function FeedScreen({
                   onPress={() => onOpen(video, long)}
                   dataSaver={dataSaver}
                   channelAvatar={avatars[video.channelId]}
-                  onMore={onRemoveChannel || onDownload || source === 'downloaded'
-                    ? () => setMenuVideo(video)
-                    : undefined}
+                  onMore={canOpenMenu ? () => setMenuVideo(video) : undefined}
+                  onLongPress={canOpenMenu ? () => setMenuVideo(video) : undefined}
                 />
               );
             })()
@@ -353,23 +487,23 @@ export default function FeedScreen({
     },
     [
       avatars,
+      canOpenMenu,
       cardWidth,
       dataSaver,
       hasHistory,
       long,
       onOpen,
-      onRemoveChannel,
       pendingIds,
       progressFor,
       seen,
       shorts,
       sidePadding,
       rowPadding,
+      styles.downloadRowWrap,
       styles.gridRow,
       trackingVideos,
       downloadByVideo,
       source,
-      onDownload,
     ],
   );
 
@@ -382,11 +516,24 @@ export default function FeedScreen({
       {headerTitle ? (
         <ScreenHeader
           title={headerTitle}
-          right={(
-            <Pressable onPress={onBack} hitSlop={8} accessibilityRole="button">
-              <Chevron direction="left" color={colors.text} size={11} />
-            </Pressable>
-          )}
+          onBack={onBack}
+          right={
+            isOffline ? (
+              <Pressable
+                onPress={toggleSearch}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={searching ? t('home:closeSearch') : t('home:searchAccessibility')}
+                style={({ pressed }) => [styles.headerAction, pressed && styles.headerActionPressed]}
+              >
+                {searching ? (
+                  <CloseIcon color={colors.text} size={icon.xs} />
+                ) : (
+                  <SearchIcon color={colors.text} size={icon.md} />
+                )}
+              </Pressable>
+            ) : null
+          }
         />
       ) : (
         <AppBar
@@ -396,8 +543,38 @@ export default function FeedScreen({
           onToggleSearch={toggleSearch}
           onOpenProfile={onOpenProfile}
           syncLabel={source === 'remote' ? syncLabel : ''}
+          offline={source === 'remote' && fromCache}
         />
       )}
+
+      {headerTitle && searching ? (
+        <View style={[styles.searchBar, { marginHorizontal: sidePadding + GUTTER }]}>
+          <SearchIcon color={colors.textFaint} size={icon.sm} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('home:searchPlaceholder')}
+            placeholderTextColor={colors.textFaint}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel={t('home:searchAccessibility')}
+            style={styles.searchInput}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t('common:clearSearch')}
+              style={({ pressed }) => [styles.searchClear, pressed && styles.pressedSoft]}
+            >
+              <CloseIcon color={colors.textMuted} size={icon.xs} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {source === 'remote' ? <SyncBar active={syncActive} percent={sync?.percent ?? 0} /> : null}
 
@@ -410,6 +587,22 @@ export default function FeedScreen({
         />
       ) : null}
 
+      {source === 'remote' ? (
+        <FeedFilters
+          unseenOnly={unseenOnly}
+          unseenCount={unseenCount}
+          hasHistory={hasHistory}
+          onToggleUnseen={() => setUnseenOnly((value) => !value)}
+          hideShorts={hideShorts}
+          shortsCount={detectedShorts.length}
+          onToggleShorts={() => setHideShorts((value) => !value)}
+          sort={sort}
+          sortLabel={sortLabel}
+          onOpenSort={() => setSortOpen(true)}
+          onReset={resetFilters}
+        />
+      ) : null}
+
       <FlatList
         style={styles.list}
         data={listRows}
@@ -418,18 +611,30 @@ export default function FeedScreen({
         extraData={`${columns}-${cardWidth}-${shortsPosition}-${rowPadding}`}
         renderItem={renderItem}
         ListHeaderComponent={
-          error ? (
-            <View style={[styles.banner, { marginHorizontal: sidePadding + GUTTER }]}>
-              <Text style={styles.bannerText}>
-                {fromCache
-                  ? t('home:offlineCacheMessage')
-                  : t('home:partialFailureMessage')}
+          <>
+            {isOffline && offlineSubtitle ? (
+              <Text
+                style={[
+                  styles.listMeta,
+                  { paddingHorizontal: sidePadding + GUTTER },
+                ]}
+              >
+                {offlineSubtitle}
               </Text>
-              <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
-                <Text style={styles.bannerAction}>{t('home:retry')}</Text>
-              </Pressable>
-            </View>
-          ) : null
+            ) : null}
+            {error ? (
+              <View style={[styles.banner, { marginHorizontal: sidePadding + GUTTER }]}>
+                <Text style={styles.bannerText}>
+                  {fromCache
+                    ? t('home:offlineCacheMessage')
+                    : t('home:partialFailureMessage')}
+                </Text>
+                <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
+                  <Text style={styles.bannerAction}>{t('home:retry')}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           visibleDownloadTasks.length > 0 ? null : isFirstLoad ? (
@@ -445,6 +650,13 @@ export default function FeedScreen({
               message={t('home:noSearchMatch', { query: query.trim() })}
               actionLabel={t('common:clearSearch')}
               onAction={toggleSearch}
+            />
+          ) : filtersApply && (unseenOnly || hideShorts) ? (
+            <EmptyState
+              title={t('home:filterEmptyTitle')}
+              message={t('home:filterEmptyMessage')}
+              actionLabel={t('home:filterReset')}
+              onAction={resetFilters}
             />
           ) : (
             source === 'downloaded' ? (
@@ -475,13 +687,12 @@ export default function FeedScreen({
           )
         }
         ListFooterComponent={
-          source === 'remote' ? <View style={styles.footer}>
-            {loading && visibleVideos.length > 0 ? (
-              <ActivityIndicator color={colors.accent} size="small" />
-            ) : null}
-            {visibleVideos.length > 0 ? (
-              <>
-              <Text style={styles.footerText}>
+          source === 'remote' && visibleVideos.length > 0 ? (
+            <View style={[styles.footer, { paddingHorizontal: sidePadding + GUTTER }]}>
+              {loading ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : null}
+              <Text style={styles.footerText} numberOfLines={1}>
                 {t('home:video', { count: long.length })}
                 {shorts.length > 0
                   ? ` · ${t('home:short', { count: shorts.length })}`
@@ -491,23 +702,20 @@ export default function FeedScreen({
                 {failedChannels.length > 0
                   ? ` · ${t('home:failedChannels', { count: failedChannels.length })}`
                   : ''}
-              </Text>
-              <Text style={styles.footerText}>
-                {savedAt
-                  ? t('home:lastSynced', { time: timeAgo(savedAt, locale) })
-                  : t('home:neverSynced')}
-                {fromCache ? ` · ${t('home:localCache')}` : ''}
+                {' · '}
+                {savedAt ? timeAgo(savedAt, locale) : t('home:neverSynced')}
               </Text>
               <Pressable
                 onPress={onRefresh}
                 accessibilityRole="button"
+                accessibilityLabel={t('home:refresh')}
+                hitSlop={8}
                 style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
               >
                 <Text style={styles.footerAction}>{t('home:refresh')}</Text>
               </Pressable>
-              </>
-            ) : null}
-          </View> : null
+            </View>
+          ) : null
         }
         refreshControl={
           source === 'remote' ? <RefreshControl
@@ -612,6 +820,25 @@ export default function FeedScreen({
         onClose={() => setMenuVideo(null)}
       />
 
+      <ActionSheet
+        visible={sortOpen}
+        title={t('home:sortTitle')}
+        message={sortLabel}
+        actions={SORT_OPTIONS.map((option) => ({
+          key: option.key,
+          label: t(`home:${option.labelKey}`),
+          icon:
+            sort === option.key ? (
+              <CheckIcon color={colors.accentText} size={14} />
+            ) : undefined,
+          onPress: () => {
+            setSort(option.key);
+            setSortOpen(false);
+          },
+        }))}
+        onClose={() => setSortOpen(false)}
+      />
+
       <ConfirmSheet
         visible={Boolean(menuChannel)}
         title={t('home:removeChannelConfirm')}
@@ -655,10 +882,22 @@ const baseStyles = StyleSheet.create({
     paddingTop: spacing.xs,
     flexGrow: 1,
   },
+  listMeta: {
+    paddingTop: 2,
+    paddingBottom: spacing.sm,
+    color: colors.textMuted,
+    fontSize: fontSize.meta,
+    fontWeight: '600',
+  },
   gridRow: {
     flexDirection: 'row',
     gap: GAP,
     alignItems: 'flex-start',
+  },
+  downloadRowWrap: {
+    width: '100%',
+    maxWidth: 720 + GUTTER * 2,
+    alignSelf: 'center',
   },
   banner: {
     flexDirection: 'row',
@@ -668,7 +907,7 @@ const baseStyles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
@@ -676,30 +915,70 @@ const baseStyles = StyleSheet.create({
   bannerText: {
     flex: 1,
     color: colors.textMuted,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     lineHeight: 17,
   },
   bannerAction: {
     color: colors.accentText,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '700',
   },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionPressed: {
+    backgroundColor: colors.surfaceAlt,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 44,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  searchInput: {
+    flex: 1,
+    padding: 0,
+    color: colors.text,
+    fontSize: fontSize.body,
+  },
+  searchClear: {
+    width: 20,
+    height: 20,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.raised,
+  },
+  pressedSoft: {
+    opacity: 0.6,
+  },
   footer: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
   },
   footerText: {
+    flex: 1,
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
   },
   footerButton: {
-    marginTop: spacing.xs,
-    height: 44,
-    paddingHorizontal: spacing.xl,
+    height: 32,
+    paddingHorizontal: spacing.md,
     justifyContent: 'center',
-    borderRadius: 22,
+    borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     backgroundColor: colors.surface,
@@ -709,7 +988,7 @@ const baseStyles = StyleSheet.create({
   },
   footerAction: {
     color: colors.accentText,
-    fontSize: 13,
+    fontSize: fontSize.label,
     fontWeight: '700',
   },
 });

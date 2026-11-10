@@ -1,6 +1,6 @@
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, icon, radius, spacing } from '../src/shared/theme/tokens';
 import { FocusMark } from '../src/shared/ui/FocusMark';
 import { Chevron, PersonIcon, SearchIcon } from '../src/shared/ui/Icons';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
@@ -17,6 +17,7 @@ export default function AppBar({
   onToggleSearch,
   onOpenProfile,
   syncLabel = '',
+  offline = false,
 }) {
   const { colors } = useTheme();
   const themedStyles = useThemeStyles(styles);
@@ -34,7 +35,7 @@ export default function AppBar({
         </Pressable>
 
         <View style={themedStyles.field}>
-          <SearchIcon color={colors.textFaint} size={15} thickness={2} />
+          <SearchIcon color={colors.textFaint} size={icon.sm} thickness={2} />
           <TextInput
             value={query}
             onChangeText={onChangeQuery}
@@ -64,6 +65,16 @@ export default function AppBar({
               {syncLabel}
             </Text>
           </View>
+        ) : offline ? (
+          <View
+            style={themedStyles.offlineTag}
+            accessibilityLabel={t('home:offlineBadge')}
+          >
+            <View style={themedStyles.offlineDot} />
+            <Text style={themedStyles.offlineText} numberOfLines={1}>
+              {t('home:offlineBadge')}
+            </Text>
+          </View>
         ) : null}
       </View>
 
@@ -75,7 +86,7 @@ export default function AppBar({
           hitSlop={8}
           style={({ pressed }) => [themedStyles.iconButton, pressed && themedStyles.pressed]}
         >
-          <SearchIcon color={colors.text} size={19} thickness={2} />
+          <SearchIcon color={colors.text} size={icon.md} thickness={2} />
         </Pressable>
 
         <Pressable
@@ -110,7 +121,7 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: fontSize.headline,
     fontWeight: '800',
     letterSpacing: -0.9,
   },
@@ -121,7 +132,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
@@ -129,14 +140,37 @@ const styles = StyleSheet.create({
   syncDot: {
     width: 5,
     height: 5,
-    borderRadius: 2.5,
+    borderRadius: radius.pill,
     backgroundColor: colors.accent,
   },
   syncText: {
     color: colors.textMuted,
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+  },
+  offlineTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginLeft: spacing.xs,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warnSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.warn,
+  },
+  offlineDot: {
+    width: 5,
+    height: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warn,
+  },
+  offlineText: {
+    color: colors.warn,
+    fontSize: fontSize.micro,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
@@ -155,14 +189,14 @@ const styles = StyleSheet.create({
   avatar: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: radius.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: colors.onAccent,
-    fontSize: 13,
+    fontSize: fontSize.label,
     fontWeight: '800',
   },
   backButton: {
@@ -178,7 +212,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.lineStrong,
@@ -186,7 +220,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: colors.text,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     paddingVertical: 0,
   },
   inputWeb: {

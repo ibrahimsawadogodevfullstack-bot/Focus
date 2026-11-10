@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '../theme/tokens';
+import { colors, fontSize, radius, spacing } from '../theme/tokens';
 import { FocusMark } from './FocusMark';
 import { useThemeStyles } from '../theme/ThemeProvider';
 
@@ -46,14 +46,14 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: fontSize.title,
     fontWeight: '700',
     letterSpacing: -0.3,
     marginTop: spacing.xs,
   },
   message: {
     color: colors.textFaint,
-    fontSize: 13,
+    fontSize: fontSize.label,
     lineHeight: 19,
     textAlign: 'center',
     maxWidth: 280,
@@ -72,7 +72,7 @@ const baseStyles = StyleSheet.create({
   },
   actionText: {
     color: colors.accentText,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     fontWeight: '700',
   },
 });

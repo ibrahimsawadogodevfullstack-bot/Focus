@@ -45,6 +45,7 @@ import {
 } from './src/db';
 import { loadFeed } from './services/feed';
 import { resolveChannelAvatars } from './services/channelAvatars';
+import { importChannels, splitChannelInput } from './services/channelImport';
 import { resolveChannelInput } from './services/channelResolver';
 import { FORMAT_SHORT, formatOf } from './src/domain/videoFormat';
 import {
@@ -488,22 +489,29 @@ function AppContent() {
     updateSettings({ autoplayNext: !settings.autoplayNext });
   }, [settings.autoplayNext, updateSettings]);
 
-  const handleAddChannel = useCallback(
-    async (channel) => {
-      const next = [...channels, channel];
-      setChannels(next);
-      await writeChannels(next);
+  // Import groupé : une seule écriture pour tout le lot, même si l'utilisateur
+  // colle vingt liens d'un coup. Les entrées déjà suivies sont classées comme
+  // doublons au lieu de faire échouer tout l'import.
+  const handleAddSources = useCallback(
+    async (input, options = {}) => {
+      const entries = splitChannelInput(input);
+      const report = await importChannels(entries, {
+        resolve: resolveChannelInput,
+        existingIds: channels.map((channel) => channel.id),
+        onProgress: options.onProgress,
+        isCancelled: options.isCancelled,
+      });
+
+      if (report.added.length > 0) {
+        const next = [...channels, ...report.added];
+        setChannels(next);
+        await writeChannels(next);
+      }
+
+      return report;
     },
     [channels],
   );
-
-  const handleAddSource = useCallback(async (input) => {
-    const channel = await resolveChannelInput(input);
-    if (channels.some((entry) => entry.id === channel.id)) {
-      throw new Error('Channel already added');
-    }
-    await handleAddChannel(channel);
-  }, [channels, handleAddChannel]);
 
   const handleRemoveChannel = useCallback(
     async (channelId) => {
@@ -657,7 +665,7 @@ function AppContent() {
       <ChannelsScreen
         channels={channels}
         avatars={avatars}
-        onAddChannel={handleAddChannel}
+        onAddSources={handleAddSources}
         onRemoveChannel={handleRemoveChannel}
       />
     );
@@ -712,6 +720,9 @@ function AppContent() {
           categories={categories ?? []}
           onCreate={() => setRoute({ name: 'editor', category: null })}
           onEdit={(category) => setRoute({ name: 'editor', category })}
+          onDelete={(category) => {
+            handleDeleteCategory(category.id);
+          }}
           onOpenCategory={(id) => {
             const c = (categories ?? []).find((x) => x.id === id);
             setRoute({ name: 'categoryDetail', categoryId: id, categoryName: c?.name ?? '' });
@@ -809,7 +820,7 @@ function AppContent() {
       {addChannelVisible ? (
         <AddChannelSheet
           onClose={() => setAddChannelVisible(false)}
-          onSubmit={handleAddSource}
+          onSubmit={handleAddSources}
         />
       ) : null}
       <ActionSheet

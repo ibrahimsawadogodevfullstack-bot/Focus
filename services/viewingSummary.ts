@@ -23,6 +23,10 @@ export interface DayPoint {
   seconds: number;
   videos: number;
   isToday: boolean;
+  /** Séances démarrées ce jour-là (série des sparklines « séances »). */
+  sessions: number;
+  /** Vidéos menées à la fin ce jour-là (série des sparklines « terminées »). */
+  completed: number;
 }
 
 export interface CategorySlice {
@@ -391,6 +395,8 @@ export function buildPeriodSummary({
       seconds: day?.seconds ?? 0,
       videos: day?.videos ?? 0,
       isToday: key === dayKey(now),
+      sessions: day?.sessions ?? 0,
+      completed: day?.completed ?? 0,
     };
   });
 

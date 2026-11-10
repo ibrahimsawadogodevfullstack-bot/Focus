@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors } from '../../theme/tokens';
+import { colors, fontSize, radius } from '../../theme/tokens';
 import { thumbnailRatio } from '../../media/thumbnailLayout';
 import { PlayIcon } from '../Icons';
 import { useTheme, useThemeStyles } from '../../theme/ThemeProvider';
@@ -44,12 +44,12 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 22,
+    borderRadius: radius.pill,
     backgroundColor: colors.raised,
   },
   label: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '700',
   },
 });

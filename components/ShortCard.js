@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
 import { MoreIcon } from '../src/shared/ui/Icons';
@@ -21,6 +21,7 @@ export default function ShortCard({
   width = SHORT_CARD_WIDTH,
   onPress,
   onMore,
+  onLongPress,
   isNew,
   dataSaver = false,
 }) {
@@ -34,13 +35,18 @@ export default function ShortCard({
         format="short"
         dataSaver={dataSaver}
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityLabel={t('home:shortAccessibility', {
           title: video.title,
           channel: video.channelTitle,
         })}
         style={styles.thumbWrap}
       >
-        {isNew ? <View pointerEvents="none" style={styles.newDot} /> : null}
+        {isNew ? (
+          <View pointerEvents="none" style={styles.newBadge}>
+            <Text style={styles.newBadgeText}>{t('home:newVideo')}</Text>
+          </View>
+        ) : null}
 
         {onMore ? (
           <Pressable
@@ -57,6 +63,7 @@ export default function ShortCard({
 
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityRole="button"
         accessibilityLabel={t('home:openVideo', { title: video.title })}
         style={({ pressed }) => [styles.titlePress, pressed && styles.pressed]}
@@ -79,14 +86,22 @@ const baseStyles = StyleSheet.create({
   thumbWrap: {
     width: '100%',
   },
-  newDot: {
+  newBadge: {
     position: 'absolute',
     top: spacing.sm,
     left: spacing.sm,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    height: 18,
+    paddingHorizontal: 6,
+    borderRadius: radius.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.accent,
+  },
+  newBadgeText: {
+    color: colors.onAccent,
+    fontSize: fontSize.micro,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   more: {
     position: 'absolute',
@@ -94,7 +109,7 @@ const baseStyles = StyleSheet.create({
     right: 2,
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(5, 7, 14, 0.52)',
@@ -107,7 +122,7 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     lineHeight: 17,
     minHeight: 34,

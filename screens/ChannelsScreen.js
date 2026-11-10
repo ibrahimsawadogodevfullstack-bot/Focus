@@ -1,55 +1,79 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import ChannelImportReportView from '../src/shared/ui/ChannelImportReport';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import EmptyState from '../src/shared/ui/EmptyState';
 import { TrashIcon } from '../src/shared/ui/Icons';
-import ScreenHeader from '../src/shared/ui/ScreenHeader';
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
-import { resolveChannelInput } from '../services/channelResolver';
+import ScreenShell from '../src/shared/ui/ScreenShell';
+import SectionLabel from '../src/shared/ui/SectionLabel';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
+import { splitChannelInput } from '../services/channelImport';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
-export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, onRemoveChannel }) {
+export default function ChannelsScreen({
+  channels,
+  avatars = {},
+  onAddSources,
+  onRemoveChannel,
+}) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const { t } = useTranslation();
+  const scrollRef = useRef(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [report, setReport] = useState(null);
+  const [revealTarget, setRevealTarget] = useState(null);
   const [error, setError] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
 
-  const canSubmit = draft.trim().length > 0 && !busy;
+  // La liste est mise à jour par le parent : on attend donc que le nouveau
+  // nombre de chaînes soit atteint pour défiler jusqu'aux lignes ajoutées.
+  useEffect(() => {
+    if (revealTarget == null || channels.length < revealTarget) return;
+    setRevealTarget(null);
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [channels.length, revealTarget]);
+
+  const entries = splitChannelInput(draft);
+  const canSubmit = entries.length > 0 && !busy;
 
   const handleAdd = async () => {
     if (!canSubmit) return;
 
     setBusy(true);
     setError(null);
+    setReport(null);
+    setProgress({ done: 0, total: entries.length });
     try {
-      const resolved = await resolveChannelInput(draft.trim());
-      if (channels.some((channel) => channel.id === resolved.id)) {
-        setError(t('channels:alreadyAdded'));
-      } else {
-        await onAddChannel(resolved);
+      const result = await onAddSources(entries.join(','), {
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
+      setReport(result);
+      if (result.added.length > 0) {
         setDraft('');
         Keyboard.dismiss();
+        // La liste suivie est juste en dessous : on y amène l'utilisateur pour
+        // qu'il voie immédiatement les chaînes qui viennent d'arriver.
+        setRevealTarget(channels.length + result.added.length);
       }
     } catch {
       setError(t('channels:addFailed'));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -60,39 +84,55 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.content}
+    <>
+      <ScreenShell
+        title={t('channels:title')}
+        meta={t('channels:followed', { count: channels.length })}
+        scrollRef={scrollRef}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator={false}
       >
-        <ScreenHeader
-          title={t('channels:title')}
-          subtitle={t('channels:followed', { count: channels.length })}
-        />
 
         <View style={styles.addCard}>
-          <Text style={styles.fieldLabel}>{t('channels:addTitle')}</Text>
+          <Text style={styles.fieldLabel}>
+            {entries.length > 1
+              ? t('channels:addTitleMany')
+              : t('channels:addTitle')}
+          </Text>
           <TextInput
             value={draft}
             onChangeText={(value) => {
               setDraft(value);
+              if (report) setReport(null);
               if (error) setError(null);
             }}
-            onSubmitEditing={handleAdd}
-            placeholder={t('channels:inputPlaceholder')}
+            placeholder={t('channels:inputPlaceholderMany')}
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
-            returnKeyType="done"
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
             editable={!busy}
-            accessibilityLabel={t('channels:inputAccessibility')}
+            accessibilityLabel={t('channels:inputAccessibilityMany')}
             style={styles.input}
           />
-          <Text style={styles.helper}>
-            {t('channels:addHint')}
-          </Text>
+
+          <View style={styles.metaRow}>
+            <Text style={styles.helper}>
+              {entries.length > 0
+                ? t('channels:detected', { count: entries.length })
+                : t('channels:addHintMany')}
+            </Text>
+            {progress ? (
+              <Text style={styles.progress}>
+                {t('channels:importProgress', {
+                  done: progress.done,
+                  total: progress.total,
+                })}
+              </Text>
+            ) : null}
+          </View>
 
           {error ? (
             <Text style={styles.error} accessibilityLiveRegion="polite">
@@ -104,7 +144,11 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
             onPress={handleAdd}
             disabled={!canSubmit}
             accessibilityRole="button"
-            accessibilityLabel={t('channels:add')}
+            accessibilityLabel={
+              entries.length > 1
+                ? t('channels:addMany', { count: entries.length })
+                : t('channels:add')
+            }
             accessibilityState={{ disabled: !canSubmit, busy }}
             style={({ pressed }) => [
               styles.submit,
@@ -116,14 +160,24 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
               <ActivityIndicator color={colors.onAccent} size="small" />
             ) : (
               <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>
-                {t('channels:add')}
+                {entries.length > 1
+                  ? t('channels:addMany', { count: entries.length })
+                  : t('channels:add')}
               </Text>
             )}
           </Pressable>
+
+          {report ? (
+            <ChannelImportReportView
+              report={report}
+              avatars={avatars}
+              maxListed={8}
+            />
+          ) : null}
         </View>
 
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>{t('channels:followedSection')}</Text>
+          <SectionLabel>{t('channels:followedSection')}</SectionLabel>
           <View style={styles.sectionRule} />
         </View>
 
@@ -164,7 +218,7 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
             message={t('channels:emptyMessage')}
           />
         ) : null}
-      </ScrollView>
+      </ScreenShell>
 
       <ConfirmSheet
         visible={Boolean(pendingRemove)}
@@ -177,20 +231,12 @@ export default function ChannelsScreen({ channels, avatars = {}, onAddChannel, o
         onConfirm={handleRemove}
         onCancel={() => setPendingRemove(null)}
       />
-    </SafeAreaView>
+    </>
   );
 }
 
 const baseStyles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  content: {
-    paddingBottom: spacing.xxxl,
-  },
   addCard: {
-    marginHorizontal: spacing.xl,
     padding: spacing.lg,
     gap: spacing.sm,
     borderRadius: radius.lg,
@@ -200,27 +246,43 @@ const baseStyles = StyleSheet.create({
   },
   fieldLabel: {
     color: colors.text,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     fontWeight: '600',
   },
   input: {
-    height: 48,
+    minHeight: 84,
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     color: colors.text,
-    fontSize: 15,
+    fontSize: fontSize.body,
+    lineHeight: 20,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   helper: {
+    flex: 1,
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     lineHeight: 17,
+  },
+  progress: {
+    color: colors.accentText,
+    fontSize: fontSize.meta,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   error: {
     color: colors.danger,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '500',
     lineHeight: 17,
   },
@@ -240,7 +302,7 @@ const baseStyles = StyleSheet.create({
   },
   submitText: {
     color: colors.onAccent,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   submitTextDisabled: {
@@ -250,15 +312,8 @@ const baseStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.md,
     paddingBottom: spacing.sm,
-  },
-  sectionLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
   },
   sectionRule: {
     flex: 1,
@@ -269,8 +324,6 @@ const baseStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingLeft: spacing.xl,
-    paddingRight: spacing.md,
     paddingVertical: 9,
   },
   rowTexts: {
@@ -279,18 +332,18 @@ const baseStyles = StyleSheet.create({
   },
   rowTitle: {
     color: colors.text,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     fontWeight: '600',
   },
   rowId: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     letterSpacing: 0.2,
   },
   remove: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.dangerSoft,

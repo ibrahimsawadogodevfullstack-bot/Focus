@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   AppState,
   FlatList,
   Platform,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import {
   Chevron,
@@ -21,9 +23,10 @@ import {
   PlayIcon,
 } from '../src/shared/ui/Icons';
 import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
+import Chip from '../src/shared/ui/Chip';
 import VideoThumbnail from '../src/shared/ui/media/VideoThumbnail';
 import YoutubePlayer from '../components/YoutubePlayer';
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { FORMAT_SHORT, FORMAT_VIDEO, formatOf } from '../src/domain/videoFormat';
 import { resolveVideoCategory } from '../src/domain/categories';
@@ -49,7 +52,29 @@ const RATINGS = [
 ];
 
 const FLUSH_EVERY = 5;
-const CONTROLS_HIDE_DELAY = 2000;
+// Assez long pour lire le titre et viser un bouton sans que l'overlay
+// disparaisse sous le doigt.
+const CONTROLS_HIDE_DELAY = 4000;
+// Fenêtre du double-tap « ±10 s » sur la zone vidéo.
+const DOUBLE_TAP_DELAY = 320;
+const KEEP_AWAKE_TAG = 'focus-player';
+
+/**
+ * Position à laquelle reprendre une vidéo.
+ *
+ * On ignore le tout début (moins de 5 s vus) et la fin (à moins de 10 s du
+ * générique), sinon « reprendre » ramènerait au même point qu'un démarrage
+ * normal. `fallbackPosition` sert quand la position courante n'a pas encore été
+ * écrite dans le stockage (page quittée avant le prochain flush).
+ */
+function readResumeAt(videoId, fallbackPosition = null, fallbackDuration = 0) {
+  const entry = getTracking().videos?.[videoId];
+  const position = fallbackPosition ?? entry?.position ?? 0;
+  const total = entry?.duration || fallbackDuration || 0;
+  if (!Number.isFinite(position) || position < 5) return 0;
+  if (total > 0 && position > total - 10) return 0;
+  return Math.floor(position);
+}
 
 // Une page = une vidéo. Le lecteur n'est monté que pour la page visible ; les
 // autres affichent la miniature (une seule WebView à la fois).
@@ -71,6 +96,7 @@ function VideoPage({
   subtitles = false,
   dataSaver = false,
   onEnded,
+  onNext,
   onSeen,
 }) {
   const { colors } = useTheme();
@@ -88,9 +114,19 @@ function VideoPage({
   const playerRef = useRef(null);
   const trackRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [trackWidth, setTrackWidth] = useState(0);
+  const [playerAreaHeight, setPlayerAreaHeight] = useState(0);
+  const [controlsHeight, setControlsHeight] = useState(0);
+  // Position de reprise lue au montage : elle est rafraîchie à chaque sortie
+  // de page pour que revenir en arrière reprenne où on s'était arrêté.
+  const [resumeAt, setResumeAt] = useState(() => readResumeAt(video.videoId));
+  const [seekFeedback, setSeekFeedback] = useState(null);
+  const lastTapRef = useRef({ at: 0, x: 0 });
+  const feedbackTimerRef = useRef(null);
   const [errorCode, setErrorCode] = useState(null);
   const [playerKey, setPlayerKey] = useState(0);
   const [blocked, setBlocked] = useState(false);
@@ -108,34 +144,39 @@ function VideoPage({
   const playingRef = useRef(false);
   const pendingRef = useRef(0);
 
-  const showControls = useCallback(() => {
+  const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-    setControlsVisible(true);
-    controlsTimerRef.current = setTimeout(
-      () => setControlsVisible(false),
-      CONTROLS_HIDE_DELAY,
-    );
+    controlsTimerRef.current = null;
   }, []);
 
-  useEffect(() => {
-    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-
-    if (!active) {
-      setControlsVisible(true);
-      return undefined;
-    }
-
+  const showControls = useCallback(() => {
     setControlsVisible(true);
+    clearControlsTimer();
+    // Hors immersif, les contrôles et les détails restent affichés. En pause
+    // aussi : on ne cache jamais l'interface sous le doigt de l'utilisateur.
+    if (immersive && playingRef.current) {
+      controlsTimerRef.current = setTimeout(
+        () => setControlsVisible(false),
+        CONTROLS_HIDE_DELAY,
+      );
+    }
+  }, [clearControlsTimer, immersive]);
+
+  const mediaActive = isPlaying || buffering;
+
+  useEffect(() => {
+    clearControlsTimer();
+    setControlsVisible(true);
+
+    if (!active || !immersive || !mediaActive) return undefined;
+
     controlsTimerRef.current = setTimeout(
       () => setControlsVisible(false),
       CONTROLS_HIDE_DELAY,
     );
 
-    return () => {
-      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-      controlsTimerRef.current = null;
-    };
-  }, [active, video.videoId]);
+    return clearControlsTimer;
+  }, [active, clearControlsTimer, immersive, mediaActive, video.videoId]);
 
   const flush = useCallback(
     (completed = false) => {
@@ -160,11 +201,33 @@ function VideoPage({
     // Le lecteur n'est monté que sur la page visible : on solde le temps vu
     // en quittant la page, et on repart de zéro quand on y revient.
     if (!active) {
+      const lastPosition = lastTimeRef.current;
       flush(false);
       playingRef.current = false;
+      setBuffering(false);
+      setPlayerReady(false);
+      setResumeAt(readResumeAt(video.videoId, lastPosition, durationRef.current));
     }
     lastTimeRef.current = null;
-  }, [active, flush]);
+  }, [active, flush, video.videoId]);
+
+  // L'écran ne doit pas s'éteindre pendant une vidéo : c'est le seul cas où
+  // l'utilisateur reste les mains loin du téléphone. Le tag est partagé, donc
+  // deux pages ne peuvent pas se désactiver mutuellement.
+  useEffect(() => {
+    if (!active) return undefined;
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [active, video.videoId]);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!active) return;
@@ -220,6 +283,7 @@ function VideoPage({
           const playing = event.state === 'playing';
           playingRef.current = playing;
           setIsPlaying(playing);
+          setBuffering(event.state === 'buffering');
           viewingSetPlaying(playing, playbackSpeed);
           if (event.state === 'paused' || event.state === 'ended') flush(false);
           if (event.state === 'ended') {
@@ -231,6 +295,7 @@ function VideoPage({
         case 'progress': {
           const current = event.currentTime ?? 0;
           const previous = lastTimeRef.current;
+          setPlayerReady(true);
 
           if (previous !== null) {
             const delta = current - previous;
@@ -259,6 +324,7 @@ function VideoPage({
           break;
         }
         case 'ready':
+          setPlayerReady(true);
           playerRef.current?.setRate(playbackSpeed);
           if (event.duration) {
             durationRef.current = event.duration;
@@ -266,6 +332,7 @@ function VideoPage({
           }
           break;
         case 'error':
+          setPlayerReady(false);
           setErrorCode(event.code);
           break;
         case 'exitBlocked':
@@ -317,29 +384,70 @@ function VideoPage({
     setRating(video, nextRating);
   };
 
+  const flashSeek = (amount) => {
+    setSeekFeedback(amount);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 650);
+  };
+
+  // Un appui simple révèle les contrôles ; deux appuis rapprochés du même côté
+  // avancent ou reculent de 10 s. Cette couche est une vue React Native
+  // au-dessus de la WebView : les gestes ne dépendent donc pas du lecteur.
+  const handleScreenTap = (event) => {
+    if (!active) {
+      showControls();
+      return;
+    }
+
+    const now = Date.now();
+    const { locationX } = event.nativeEvent ?? {};
+    const x = typeof locationX === 'number' ? locationX : windowWidth / 2;
+    const last = lastTapRef.current;
+    const sameSide = (x < windowWidth / 2) === (last.x < windowWidth / 2);
+
+    if (now - last.at < DOUBLE_TAP_DELAY && sameSide) {
+      const amount = x < windowWidth / 2 ? -10 : 10;
+      playerRef.current?.seekBy(amount);
+      flashSeek(amount);
+      lastTapRef.current = { at: 0, x };
+      return;
+    }
+
+    lastTapRef.current = { at: now, x };
+    showControls();
+  };
+
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
   const notice = blocked ? t('player:blockedNotice') : null;
 
-  // Hauteur du lecteur horizontal : 16:9 quand la place le permet, sinon ce
-  // qui reste au-dessus des contrôles (aucun débordement sur petit écran).
-  const stageHeight = Math.min((windowWidth * 9) / 16, Math.max(160, height - 330));
+  // Le lecteur et ses contrôles forment un seul bloc, centré verticalement
+  // dans l'espace laissé libre par les détails (même principe que le lecteur
+  // hors ligne). La hauteur du lecteur ne dépasse jamais cet espace : plus de
+  // constante magique du type « hauteur de l'écran moins 330 ».
+  const idealStageHeight = (windowWidth * 9) / 16;
+  const availableStageHeight =
+    playerAreaHeight > 0 ? Math.max(120, playerAreaHeight - controlsHeight) : idealStageHeight;
+  const stageHeight = Math.min(idealStageHeight, availableStageHeight);
+  const showResume = resumeAt > 0 && time < resumeAt + 5;
 
   return (
     <View style={[styles.page, { height }]}>
       <View
-        style={[
-          styles.stage,
-          immersive ? styles.stageImmersive : { height: stageHeight },
-        ]}
-        onTouchStart={() => {
-          if (controlsVisible) showControls();
-        }}
+        style={styles.playerArea}
+        onLayout={(event) => setPlayerAreaHeight(event.nativeEvent.layout.height)}
       >
+        <View
+          style={[
+            styles.stage,
+            immersive ? styles.stageImmersive : { height: stageHeight },
+          ]}
+        >
         {active && !errorCode ? (
           <YoutubePlayer
             key={playerKey}
             ref={playerRef}
             videoId={video.videoId}
+            startSeconds={resumeAt}
             subtitles={subtitles}
             onEvent={handleEvent}
             style={styles.player}
@@ -366,6 +474,7 @@ function VideoPage({
                 <Pressable
                   onPress={() => {
                     setErrorCode(null);
+                    setPlayerReady(false);
                     setPlayerKey((value) => value + 1);
                   }}
                   accessibilityRole="button"
@@ -377,13 +486,34 @@ function VideoPage({
             ) : null}
           </>
         )}
-        {!controlsVisible ? (
+        {buffering && active && !errorCode ? (
+          <View style={styles.buffering} pointerEvents="none">
+            <ActivityIndicator color="#fff" />
+          </View>
+        ) : null}
+
+        {active && !errorCode && playerReady ? (
           <Pressable
-            onPress={showControls}
+            onPress={handleScreenTap}
+            accessible={immersive && !controlsVisible}
             accessibilityRole="button"
             accessibilityLabel={t('player:showControls')}
             style={StyleSheet.absoluteFill}
           />
+        ) : null}
+
+        {seekFeedback ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.seekFeedback,
+              seekFeedback < 0 ? styles.seekFeedbackLeft : styles.seekFeedbackRight,
+            ]}
+          >
+            <Text style={styles.seekFeedbackText}>
+              {seekFeedback < 0 ? '−10' : '+10'}
+            </Text>
+          </View>
         ) : null}
 
         {immersive && controlsVisible ? (
@@ -470,41 +600,43 @@ function VideoPage({
               {RATINGS.map((option) => {
                 const selected = rating === option.key;
                 return (
-                  <Pressable
+                  <Chip
                     key={option.key}
-                    onPress={() => handleRate(option.key)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
+                    size="sm"
+                    tone="overlay"
+                    active={selected}
+                    label={t(`player:${option.labelKey}`)}
                     accessibilityLabel={`${t(`player:${option.labelKey}`)} — ${t(`player:${option.hintKey}`)}`}
-                    style={({ pressed }) => [
-                      styles.overlayChip,
-                      selected && styles.overlayChipActive,
-                      pressed && styles.ratingPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[styles.overlayChipText, selected && styles.overlayChipTextActive]}
-                      numberOfLines={1}
-                    >
-                      {t(`player:${option.labelKey}`)}
-                    </Text>
-                  </Pressable>
+                    onPress={() => handleRate(option.key)}
+                    style={{ flex: 1 }}
+                  />
                 );
               })}
             </View>
           </View>
         ) : null}
-      </View>
+        </View>
 
-      {immersive || !controlsVisible ? null : (
-      <>
-      <View style={styles.controls}>
+        {immersive ? null : (
+          <View
+            style={styles.controls}
+            onLayout={(event) => setControlsHeight(event.nativeEvent.layout.height)}
+          >
         <Pressable
           ref={trackRef}
           onPress={handleTrackPress}
           onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
           accessibilityRole="adjustable"
           accessibilityLabel={t('player:progress')}
+          accessibilityActions={[
+            { name: 'increment', label: t('player:forward10') },
+            { name: 'decrement', label: t('player:back10') },
+          ]}
+          onAccessibilityAction={(event) => {
+            const action = event.nativeEvent?.actionName;
+            if (action === 'increment') playerRef.current?.seekBy(10);
+            else if (action === 'decrement') playerRef.current?.seekBy(-10);
+          }}
           accessibilityValue={{
             min: 0,
             max: Math.round(duration),
@@ -568,8 +700,13 @@ function VideoPage({
             <FullscreenIcon color={colors.text} size={15} />
           </Pressable>
         </View>
+          </View>
+        )}
+
       </View>
 
+      {immersive ? null : (
+      <>
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={2}>
           {video.title}
@@ -588,6 +725,27 @@ function VideoPage({
           <Text style={styles.meta}>{timeAgo(video.publishedAt, locale)}</Text>
 
         </View>
+
+        {showResume ? (
+          <View style={styles.resumeRow}>
+            <Text style={styles.resumeText} numberOfLines={1}>
+              {t('player:resumeAt', { time: formatClock(resumeAt) })}
+            </Text>
+            <Pressable
+              onPress={() => {
+                playerRef.current?.seekTo(0);
+                setTime(0);
+                setResumeAt(0);
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('player:restart')}
+              style={({ pressed }) => [styles.resumeAction, pressed && styles.ratingPressed]}
+            >
+              <Text style={styles.resumeActionText}>{t('player:restart')}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.ratingBlock}>
           <Text style={styles.ratingQuestion}>{t('player:ratingQuestion')}</Text>
@@ -667,16 +825,21 @@ function VideoPage({
           </Text>
         </View>
 
-        <View style={styles.swipeRow}>
-          {!isLast ? (
-            <>
-              <Chevron direction="up" color={colors.accentText} size={8} thickness={2} />
-              <Text style={styles.swipeText}>{t('player:swipeMore')}</Text>
-            </>
-          ) : (
+        {!isLast ? (
+          <Pressable
+            onPress={onNext}
+            accessibilityRole="button"
+            accessibilityLabel={t('player:swipeMore')}
+            style={({ pressed }) => [styles.swipeRow, pressed && styles.ratingPressed]}
+          >
+            <Chevron direction="up" color={colors.accentText} size={8} thickness={2} />
+            <Text style={styles.swipeText}>{t('player:swipeMore')}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.swipeRow}>
             <Text style={styles.swipeText}>{t('player:endOfList')}</Text>
-          )}
-        </View>
+          </View>
+        )}
       </View>
       </>
       )}
@@ -701,8 +864,7 @@ export default function PlayerScreen({
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
-  const { t, i18n } = useTranslation();
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
+  const { t } = useTranslation();
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
   const listRef = useRef(null);
@@ -823,6 +985,7 @@ export default function PlayerScreen({
                   // la fin d'une vidéo enchaînait sur tout le flux.
                   if (autoplayNext) goToIndex(itemIndex + 1);
                 }}
+                onNext={() => goToIndex(itemIndex + 1)}
                 onSeen={onVideoChange}
               />
             )}
@@ -875,12 +1038,12 @@ const baseStyles = StyleSheet.create({
   },
   backLabel: {
     color: colors.text,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     fontWeight: '600',
   },
   counter: {
     color: colors.textFaint,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     minWidth: 64,
@@ -892,7 +1055,7 @@ const baseStyles = StyleSheet.create({
     gap: 5,
     height: 30,
     paddingHorizontal: spacing.sm,
-    borderRadius: 15,
+    borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },
@@ -902,7 +1065,7 @@ const baseStyles = StyleSheet.create({
   },
   autoplayText: {
     color: colors.textFaint,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     fontWeight: '700',
   },
   autoplayTextOn: {
@@ -914,6 +1077,14 @@ const baseStyles = StyleSheet.create({
   page: {
     width: '100%',
     backgroundColor: colors.bg,
+    overflow: 'hidden',
+  },
+  // Zone qui reçoit toute la hauteur restante : le lecteur y est centré
+  // verticalement, comme dans le lecteur hors ligne.
+  playerArea: {
+    flex: 1,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   // Boîte du lecteur : hauteur imposée par le format (16:9 en présentation
   // normale, tout l'écran en immersif). Elle ne dépend plus de ce qui reste.
@@ -925,6 +1096,33 @@ const baseStyles = StyleSheet.create({
   stageImmersive: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
+  },
+  buffering: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seekFeedback: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -26,
+    width: 64,
+    height: 52,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5, 7, 14, 0.62)',
+  },
+  seekFeedbackLeft: {
+    left: 28,
+  },
+  seekFeedbackRight: {
+    right: 28,
+  },
+  seekFeedbackText: {
+    color: '#fff',
+    fontSize: fontSize.body,
+    fontWeight: '700',
   },
   player: {
     flex: 1,
@@ -941,13 +1139,13 @@ const baseStyles = StyleSheet.create({
   },
   overlayTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '700',
     lineHeight: 20,
   },
   overlayMeta: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     marginTop: 3,
   },
@@ -967,7 +1165,7 @@ const baseStyles = StyleSheet.create({
   },
   overlayTrack: {
     height: 3,
-    borderRadius: 2,
+    borderRadius: radius.pill,
     overflow: 'hidden',
     backgroundColor: 'rgba(233, 241, 255, 0.3)',
   },
@@ -977,7 +1175,7 @@ const baseStyles = StyleSheet.create({
   },
   overlayTime: {
     color: colors.text,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -990,7 +1188,7 @@ const baseStyles = StyleSheet.create({
   overlayRound: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(233, 241, 255, 0.14)',
@@ -998,28 +1196,9 @@ const baseStyles = StyleSheet.create({
   overlayRating: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  overlayChip: {
-    flex: 1,
-    height: 32,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(233, 241, 255, 0.12)',
-    paddingHorizontal: 4,
-  },
-  overlayChipActive: {
-    backgroundColor: colors.accent,
-  },
-  overlayChipText: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  overlayChipTextActive: {
-    color: colors.onAccent,
-    fontWeight: '700',
+    // La zone tactile fait 44 px sans déplacer les puces de 32 px.
+    paddingVertical: 6,
+    marginVertical: -6,
   },
   posterWrap: {
     ...StyleSheet.absoluteFillObject,
@@ -1039,7 +1218,7 @@ const baseStyles = StyleSheet.create({
   },
   offlineText: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: fontSize.label,
     lineHeight: 19,
     fontWeight: '600',
     textAlign: 'center',
@@ -1057,7 +1236,7 @@ const baseStyles = StyleSheet.create({
   },
   retryText: {
     color: colors.onAccent,
-    fontSize: 13,
+    fontSize: fontSize.label,
     fontWeight: '700',
   },
   notice: {
@@ -1067,7 +1246,7 @@ const baseStyles = StyleSheet.create({
     gap: 6,
     height: 28,
     paddingHorizontal: spacing.md,
-    borderRadius: 14,
+    borderRadius: radius.pill,
     backgroundColor: colors.accentSoft,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.accentLine,
@@ -1077,7 +1256,7 @@ const baseStyles = StyleSheet.create({
   },
   noticeText: {
     color: colors.accentText,
-    fontSize: 11,
+    fontSize: fontSize.caption,
     fontWeight: '700',
   },
   noticeTextBlocked: {
@@ -1088,18 +1267,20 @@ const baseStyles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   trackHit: {
-    height: 30,
+    // Cible de 44 px, sans changer la position du trait de 3 px.
+    height: 44,
+    marginVertical: -7,
     justifyContent: 'center',
   },
   track: {
     height: 3,
-    borderRadius: 2,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     overflow: 'visible',
   },
   trackFill: {
     height: 3,
-    borderRadius: 2,
+    borderRadius: radius.pill,
     backgroundColor: colors.accent,
     justifyContent: 'center',
   },
@@ -1108,7 +1289,7 @@ const baseStyles = StyleSheet.create({
     right: -5,
     width: 11,
     height: 11,
-    borderRadius: 6,
+    borderRadius: radius.pill,
     backgroundColor: colors.accent,
     borderWidth: 2,
     borderColor: colors.bg,
@@ -1119,7 +1300,7 @@ const baseStyles = StyleSheet.create({
   },
   timeText: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
@@ -1134,7 +1315,7 @@ const baseStyles = StyleSheet.create({
   round: {
     width: 50,
     height: 50,
-    borderRadius: 25,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -1146,14 +1327,14 @@ const baseStyles = StyleSheet.create({
   },
   roundText: {
     color: colors.text,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
   play: {
     width: 62,
     height: 62,
-    borderRadius: 31,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
@@ -1170,7 +1351,7 @@ const baseStyles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 19,
+    fontSize: fontSize.headline,
     fontWeight: '700',
     lineHeight: 26,
     letterSpacing: -0.4,
@@ -1179,9 +1360,40 @@ const baseStyles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
+  resumeRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 30,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.accentLine,
+  },
+  resumeText: {
+    color: colors.accentText,
+    fontSize: fontSize.caption,
+    fontWeight: '600',
+  },
+  resumeAction: {
+    height: 24,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  resumeActionText: {
+    color: colors.onAccent,
+    fontSize: fontSize.caption,
+    fontWeight: '700',
+  },
   ratingQuestion: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
   },
   ratingRow: {
@@ -1191,7 +1403,7 @@ const baseStyles = StyleSheet.create({
   ratingChip: {
     flex: 1,
     height: 34,
-    borderRadius: 9,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -1216,7 +1428,7 @@ const baseStyles = StyleSheet.create({
   },
   ratingLabel: {
     color: colors.textMuted,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1226,7 +1438,7 @@ const baseStyles = StyleSheet.create({
   },
   ratingInsight: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     lineHeight: 16,
   },
   metaRow: {
@@ -1236,17 +1448,17 @@ const baseStyles = StyleSheet.create({
   },
   channel: {
     color: colors.textMuted,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     flexShrink: 1,
   },
   dot: {
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
   },
   meta: {
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
   },
   errorCard: {
     marginTop: spacing.md,
@@ -1259,17 +1471,17 @@ const baseStyles = StyleSheet.create({
   },
   errorTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   errorText: {
     color: colors.textMuted,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     lineHeight: 18,
   },
   errorHint: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
   },
   pageFoot: {
     marginTop: 'auto',
@@ -1285,7 +1497,7 @@ const baseStyles = StyleSheet.create({
   lockNoteText: {
     flex: 1,
     color: colors.textFaint,
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     lineHeight: 15,
   },
   swipeRow: {
@@ -1297,13 +1509,13 @@ const baseStyles = StyleSheet.create({
   },
   swipeText: {
     color: colors.accentText,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
   empty: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: fontSize.body,
     padding: spacing.xl,
   },
 });

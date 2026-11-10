@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PageHeader from '../src/shared/ui/PageHeader';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useSettings } from '../services/SettingsProvider';
 import { useViewingStats } from '../src/shared/hooks/useViewingStats';
 import { buildPeriodSummary, formatWatchTime } from '../services/viewingSummary';
@@ -113,18 +113,18 @@ export default function StatsDetailScreen({
 
   return (
     <SafeAreaView edges={['top']} style={themedStyles.screen}>
+      <PageHeader
+        title={t('detailTitle')}
+        backLabel={t('backToYou')}
+        onBack={onBack}
+      />
+
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={themedStyles.content}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={scrollToInitial}
       >
-        <PageHeader
-          title={t('detailTitle')}
-          backLabel={t('backToYou')}
-          onBack={onBack}
-        />
-
         {!summary ? (
           <View style={themedStyles.loadingStack}>
             <LoadingBlock label={t('common:loading')} height={44} />
@@ -364,29 +364,29 @@ const styles = StyleSheet.create({
   comparisonBasis: {
     marginTop: -spacing.xs,
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '500',
   },
   bodyText: {
     color: colors.textMuted,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     lineHeight: 19,
   },
   sentences: {
     gap: spacing.xs,
     padding: spacing.md,
-    borderRadius: 14,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
   sentence: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: fontSize.label,
     lineHeight: 19,
     fontWeight: '500',
   },
   estimated: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     lineHeight: 16,
     textAlign: 'center',
   },

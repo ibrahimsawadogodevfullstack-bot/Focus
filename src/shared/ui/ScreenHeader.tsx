@@ -1,79 +1,93 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../theme/tokens';
-import { useThemeStyles } from '../theme/ThemeProvider';
-import BrandMark from './BrandMark';
+import { colors, fontSize, layout, radius, spacing } from '../theme/tokens';
+import { useTheme, useThemeStyles } from '../theme/ThemeProvider';
+import { Chevron } from './Icons';
 
 /**
- * En-tête d'onglet : la marque à gauche, le titre aligné à droite sur la même
- * ligne, puis une ligne de contexte discrète sous le titre.
+ * Barre de titre des pages secondaires, sans marque.
+ *
+ * Hauteur fixe (56 px, comme l'`AppBar` de l'accueil) et titre seul : aucun
+ * sous-titre ne vient décaler la ligne de base d'un onglet à l'autre. Les
+ * informations secondaires sont passées au contenu via `ScreenShell`.
  */
 export default function ScreenHeader({
   title,
-  subtitle,
+  onBack,
   right,
 }: {
   title: string;
-  subtitle?: string;
+  onBack?: () => void;
   right?: ReactNode;
 }) {
   const themedStyles = useThemeStyles(styles);
+  const { colors: theme } = useTheme();
+  const { t } = useTranslation('common');
+
   return (
     <View style={themedStyles.wrap}>
       <View style={themedStyles.bar}>
-        <BrandMark size={16} textSize={16} />
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('back')}
+            style={({ pressed }) => [themedStyles.back, pressed && themedStyles.pressed]}
+          >
+            <Chevron direction="left" color={theme.text} size={11} thickness={2} />
+          </Pressable>
+        ) : null}
 
-        <View style={themedStyles.center} pointerEvents="none">
-          <Text style={themedStyles.title} numberOfLines={1}>
-            {title}
-          </Text>
-        </View>
+        <Text style={themedStyles.title} numberOfLines={1}>
+          {title}
+        </Text>
 
         {right ? <View style={themedStyles.right}>{right}</View> : null}
       </View>
-
-      {subtitle ? (
-        <Text style={themedStyles.subtitle}>
-          {subtitle}
-        </Text>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    gap: spacing.xs,
+    height: layout.tabBar,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.bg,
   },
   bar: {
-    height: 44,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  center: {
-    flex: 1,
-    alignItems: 'flex-end',
+  back: {
+    width: 36,
+    height: 36,
+    marginLeft: -spacing.sm,
+    borderRadius: radius.pill,
+    alignItems: 'center',
     justifyContent: 'center',
   },
+  pressed: {
+    opacity: 0.6,
+  },
   title: {
+    flex: 1,
     color: colors.text,
-    fontSize: 20,
+    fontSize: fontSize.display,
     fontWeight: '800',
-    letterSpacing: -0.6,
-    textAlign: 'right',
+    letterSpacing: -0.8,
+    textAlign: 'left',
   },
   right: {
-    alignItems: 'flex-end',
-  },
-  subtitle: {
-    color: colors.textFaint,
-    fontSize: 12.5,
-    fontWeight: '500',
-    textAlign: 'right',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
 });

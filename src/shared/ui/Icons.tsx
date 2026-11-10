@@ -286,6 +286,36 @@ export function MoreIcon({ color, size = 16 }: IconProps) {
   );
 }
 
+export function PencilIcon({ color, size = 16, thickness = 2 }: IconProps) {
+  const length = size * 0.82;
+  const tip = Math.max(2, size * 0.18);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: length,
+          height: thickness,
+          borderRadius: thickness,
+          backgroundColor: color,
+          transform: [{ rotate: '-45deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          right: 0,
+          bottom: 0,
+          width: tip,
+          height: tip,
+          borderRightWidth: thickness,
+          borderBottomWidth: thickness,
+          borderColor: color,
+        }}
+      />
+    </View>
+  );
+}
+
 export function DownloadIcon({ color, size = 20, thickness = 2 }: IconProps) {
   const t = thickness;
   const apexY = size * 0.58;

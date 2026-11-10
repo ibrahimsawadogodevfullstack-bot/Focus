@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { colors, spacing } from '../src/shared/theme/tokens';
+import { colors, radius, spacing } from '../src/shared/theme/tokens';
 import { useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { SHORT_CARD_WIDTH } from './ShortCard';
 
@@ -109,7 +109,7 @@ const baseStyles = StyleSheet.create({
   thumb: {
     width: '100%',
     aspectRatio: 16 / 9,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
   textRow: {
@@ -121,7 +121,7 @@ const baseStyles = StyleSheet.create({
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
   },
   texts: {
@@ -130,13 +130,13 @@ const baseStyles = StyleSheet.create({
   },
   lineWide: {
     height: 13,
-    borderRadius: 7,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     width: '92%',
   },
   lineShort: {
     height: 13,
-    borderRadius: 7,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     width: '58%',
   },
@@ -147,7 +147,7 @@ const baseStyles = StyleSheet.create({
   shelfTitle: {
     width: 84,
     height: 16,
-    borderRadius: 8,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     marginBottom: spacing.md,
   },
@@ -161,14 +161,14 @@ const baseStyles = StyleSheet.create({
   shortThumb: {
     width: '100%',
     aspectRatio: 9 / 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     backgroundColor: colors.surfaceAlt,
   },
   shortText: {
     marginTop: spacing.sm,
     height: 13,
     width: '80%',
-    borderRadius: 7,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
   },
 });

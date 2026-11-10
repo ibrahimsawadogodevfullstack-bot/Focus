@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { layout } from '../src/shared/theme/tokens';
+import { fontSize, layout, radius } from '../src/shared/theme/tokens';
 import { DownloadIcon, FolderIcon, GridIcon, PersonIcon, PlusIcon } from '../src/shared/ui/Icons';
 import { useTheme } from '../src/shared/theme/ThemeProvider';
 
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    borderRadius: 12,
+    borderRadius: radius.md,
   },
   centerButton: {
     flex: 1,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   plusWrap: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -152,12 +152,12 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 44,
     height: 28,
-    borderRadius: 14,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    fontSize: 10,
+    fontSize: fontSize.caption,
     fontWeight: '600',
     letterSpacing: 0,
     maxWidth: '100%',

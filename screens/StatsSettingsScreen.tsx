@@ -16,7 +16,7 @@ import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import PageHeader from '../src/shared/ui/PageHeader';
 import SettingsRow from '../components/SettingsRow';
 import SettingsSection from '../components/SettingsSection';
-import { colors, radius, spacing } from '../src/shared/theme/tokens';
+import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { useSettings, useUpdateSettings } from '../services/SettingsProvider';
 import {
@@ -108,13 +108,13 @@ export default function StatsSettingsScreen({
 
   return (
     <SafeAreaView edges={['top']} style={themedStyles.screen}>
-      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
-        <PageHeader
-          title={t('statsSettingsTitle')}
-          backLabel={backLabel}
-          onBack={onBack}
-        />
+      <PageHeader
+        title={t('statsSettingsTitle')}
+        backLabel={backLabel}
+        onBack={onBack}
+      />
 
+      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
         <SettingsSection title={t('goalSection')}>
           <SettingsRow
             kind="choice"
@@ -296,14 +296,14 @@ const styles = StyleSheet.create({
   },
   privacy: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     lineHeight: 16,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
   },
   notice: {
     color: colors.success,
-    fontSize: 13,
+    fontSize: fontSize.label,
     textAlign: 'center',
   },
   backdrop: {
@@ -325,13 +325,13 @@ const styles = StyleSheet.create({
   },
   dialogTitle: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: fontSize.title,
     fontWeight: '700',
     textAlign: 'center',
   },
   dialogHint: {
     color: colors.textMuted,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     lineHeight: 17,
     textAlign: 'center',
   },
@@ -342,14 +342,14 @@ const styles = StyleSheet.create({
     borderColor: colors.lineStrong,
     backgroundColor: colors.surfaceAlt,
     color: colors.text,
-    fontSize: 18,
+    fontSize: fontSize.headline,
     fontWeight: '700',
     textAlign: 'center',
     paddingHorizontal: spacing.md,
   },
   error: {
     color: colors.danger,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     textAlign: 'center',
   },
   dialogActions: {
@@ -369,12 +369,12 @@ const styles = StyleSheet.create({
   },
   dialogCancel: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: fontSize.body,
     fontWeight: '600',
   },
   dialogSave: {
     color: colors.onAccent,
-    fontSize: 14,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   pressed: {

@@ -1,8 +1,9 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, spacing } from '../theme/tokens';
+import { colors, fontSize, radius } from '../theme/tokens';
 import { useThemeStyles } from '../theme/ThemeProvider';
+import Sheet from './Sheet';
 
 interface ConfirmSheetProps {
   visible: boolean;
@@ -23,100 +24,54 @@ export default function ConfirmSheet({
   visible,
   title,
   message,
-  confirmLabel = 'Confirmer',
-  cancelLabel = 'Annuler',
+  confirmLabel,
+  cancelLabel,
   destructive = false,
   onConfirm,
   onCancel,
 }: ConfirmSheetProps) {
-  const insets = useSafeAreaInsets();
   const themedStyles = useThemeStyles(styles);
+  const { t } = useTranslation('common');
+  const confirmText = confirmLabel ?? t('confirm');
+  const cancelText = cancelLabel ?? t('cancel');
 
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-      statusBarTranslucent
+      title={title}
+      message={message}
+      titleAlign="center"
+      messageAlign="center"
+      onClose={onCancel}
     >
-      <View style={themedStyles.backdrop}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onCancel}
-          accessible={false}
-          importantForAccessibility="no"
-        />
+      <Pressable
+        onPress={onConfirm}
+        accessibilityRole="button"
+        accessibilityLabel={confirmText}
+        style={({ pressed }) => [
+          themedStyles.action,
+          destructive && themedStyles.actionDanger,
+          pressed && themedStyles.actionPressed,
+        ]}
+      >
+        <Text style={[themedStyles.actionText, destructive && themedStyles.actionTextDanger]}>
+          {confirmText}
+        </Text>
+      </Pressable>
 
-        <View style={[themedStyles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-          <View style={themedStyles.grabber} />
-          <Text style={themedStyles.title}>{title}</Text>
-          {message ? <Text style={themedStyles.message}>{message}</Text> : null}
-
-          <Pressable
-            onPress={onConfirm}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              themedStyles.action,
-              destructive && themedStyles.actionDanger,
-              pressed && themedStyles.actionPressed,
-            ]}
-          >
-            <Text style={[themedStyles.actionText, destructive && themedStyles.actionTextDanger]}>
-              {confirmLabel}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={onCancel}
-            accessibilityRole="button"
-            style={({ pressed }) => [themedStyles.cancel, pressed && themedStyles.cancelPressed]}
-          >
-            <Text style={themedStyles.cancelText}>{cancelLabel}</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
+      <Pressable
+        onPress={onCancel}
+        accessibilityRole="button"
+        accessibilityLabel={cancelText}
+        style={({ pressed }) => [themedStyles.cancel, pressed && themedStyles.cancelPressed]}
+      >
+        <Text style={themedStyles.cancelText}>{cancelText}</Text>
+      </Pressable>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(2, 4, 10, 0.72)',
-  },
-  sheet: {
-    gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.lineStrong,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.lineStrong,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-    textAlign: 'center',
-  },
-  message: {
-    color: colors.textMuted,
-    fontSize: 13.5,
-    lineHeight: 19,
-    textAlign: 'center',
-    marginTop: -spacing.xs,
-  },
   action: {
     height: 50,
     borderRadius: radius.md,
@@ -134,7 +89,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: colors.onAccent,
-    fontSize: 15,
+    fontSize: fontSize.body,
     fontWeight: '700',
   },
   actionTextDanger: {
@@ -151,7 +106,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     color: colors.textMuted,
-    fontSize: 14.5,
+    fontSize: fontSize.body,
     fontWeight: '600',
   },
 });

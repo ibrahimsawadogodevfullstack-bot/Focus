@@ -5,9 +5,10 @@ import type { ReactNode } from 'react';
 import type { ViewingPeriod } from '../../../domain/viewing';
 import type { DayPoint } from '../../../../services/viewingSummary';
 import { formatPercent, formatVariation, formatWatchTime } from '../../../../services/viewingSummary';
-import { colors, radius, spacing } from '../../theme/tokens';
+import { colors, fontSize, radius, spacing } from '../../theme/tokens';
 import { useTheme, useThemeStyles } from '../../theme/ThemeProvider';
 import { Chevron } from '../Icons';
+import { Sparkline } from './Sparkline';
 
 interface StatsCardProps {
   title?: string;
@@ -100,10 +101,15 @@ export function StatTile({
   label,
   value,
   comparison,
+  series,
+  color,
 }: {
   label: string;
   value: string;
   comparison?: number | null;
+  /** Série quotidienne de la métrique ; affiche une sparkline si fournie. */
+  series?: number[];
+  color?: string;
 }) {
   const { t, i18n } = useTranslation('viewing');
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
@@ -130,6 +136,17 @@ export function StatTile({
       <Text style={themedStyles.tileComparison} numberOfLines={1}>
         {comparisonText || '\u00A0'}
       </Text>
+      {series && color ? (
+        <View style={themedStyles.tileSparkline}>
+          <Sparkline
+            values={series}
+            color={color}
+            height={28}
+            strokeWidth={1.8}
+            accessibilityLabel={label}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -216,7 +233,7 @@ export function ShareRow({
           style={{
             width: `${Math.max(share > 0 ? 2 : 0, share * 100)}%`,
             height: '100%',
-            borderRadius: 3,
+            borderRadius: radius.pill,
             backgroundColor: color,
           }}
         />
@@ -319,7 +336,9 @@ export function GoalBar({
 }) {
   const themedStyles = useThemeStyles(styles);
   const { colors: theme } = useTheme();
-  const ratio = target > 0 ? current / target : 0;
+  // `current` est en secondes, `target` en minutes : sans le ×60, la barre
+  // atteignait l'objectif 60 fois trop tôt.
+  const ratio = target > 0 ? current / (target * 60) : 0;
   const over = ratio > 1.0001;
   const reached = !over && ratio >= 0.9999;
   const fillColor = over ? theme.warn : reached ? theme.success : theme.accent;
@@ -432,13 +451,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: colors.text,
-    fontSize: 15.5,
+    fontSize: fontSize.body,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
   cardSubtitle: {
     color: colors.textFaint,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     lineHeight: 16,
   },
   cardBody: {
@@ -470,7 +489,7 @@ const styles = StyleSheet.create({
   },
   periodLabel: {
     color: colors.textMuted,
-    fontSize: 12.5,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -495,23 +514,26 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     justifyContent: 'center',
   },
+  tileSparkline: {
+    marginTop: spacing.xs,
+  },
   tileValue: {
     color: colors.text,
-    fontSize: 23,
+    fontSize: fontSize.display,
     fontWeight: '800',
     letterSpacing: -0.7,
     fontVariant: ['tabular-nums'],
   },
   tileLabel: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     lineHeight: 16,
   },
   tileComparison: {
     minHeight: 15,
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -536,17 +558,17 @@ const styles = StyleSheet.create({
   swatch: {
     width: 10,
     height: 10,
-    borderRadius: 3,
+    borderRadius: radius.pill,
   },
   legendLabel: {
     flex: 1,
     color: colors.text,
-    fontSize: 13,
+    fontSize: fontSize.label,
     fontWeight: '600',
   },
   legendValue: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -567,18 +589,18 @@ const styles = StyleSheet.create({
   shareName: {
     flexShrink: 1,
     color: colors.text,
-    fontSize: 13.5,
+    fontSize: fontSize.label,
     fontWeight: '600',
   },
   shareValue: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: fontSize.meta,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   badge: {
     color: colors.textFaint,
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     fontWeight: '700',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -587,7 +609,7 @@ const styles = StyleSheet.create({
   },
   shareMiniTrack: {
     height: 5,
-    borderRadius: 3,
+    borderRadius: radius.pill,
     overflow: 'hidden',
     backgroundColor: colors.surfaceAlt,
   },
@@ -610,11 +632,11 @@ const styles = StyleSheet.create({
   bar: {
     width: '78%',
     maxWidth: 26,
-    borderRadius: 4,
+    borderRadius: radius.xs,
   },
   barLabel: {
     color: colors.textFaint,
-    fontSize: 9.5,
+    fontSize: fontSize.micro,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -624,7 +646,7 @@ const styles = StyleSheet.create({
   },
   barWeekday: {
     color: colors.textFaint,
-    fontSize: 9.5,
+    fontSize: fontSize.micro,
     fontWeight: '600',
     textTransform: 'uppercase',
   },
@@ -635,7 +657,7 @@ const styles = StyleSheet.create({
   },
   captionText: {
     color: colors.textFaint,
-    fontSize: 10.5,
+    fontSize: fontSize.micro,
     fontWeight: '500',
   },
   goalBlock: {
@@ -649,12 +671,12 @@ const styles = StyleSheet.create({
   },
   goalValue: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: fontSize.body,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   goalState: {
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     fontWeight: '700',
   },
   goalTrack: {
@@ -678,7 +700,7 @@ const styles = StyleSheet.create({
   },
   linkButtonText: {
     color: colors.onAccent,
-    fontSize: 14,
+    fontSize: fontSize.body,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -687,12 +709,12 @@ const styles = StyleSheet.create({
   },
   emptyNote: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: fontSize.label,
     lineHeight: 18,
   },
   privacyNote: {
     color: colors.textFaint,
-    fontSize: 11.5,
+    fontSize: fontSize.caption,
     lineHeight: 16,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
