@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  BackHandler,
   FlatList,
   Platform,
   Pressable,
@@ -13,6 +14,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { setStatusBarHidden } from 'expo-status-bar';
 
 import {
   Chevron,
@@ -84,6 +87,10 @@ function readResumeAt(videoId, fallbackPosition = null, fallbackDuration = 0) {
 //     contrôles en surimpression — comme Reels/Shorts ;
 //   - horizontale : lecteur 16:9, puis contrôles et détails, avec un bouton
 //     plein écran qui bascule dans la présentation immersive.
+//
+// Le mode plein écran appartient à `PlayerScreen`, pas à la page : il pilote
+// l'en-tête, la barre d'état et la rotation, et il doit rester le même quand on
+// passe d'une vidéo à l'autre au doigt.
 function VideoPage({
   video,
   height,
@@ -92,6 +99,8 @@ function VideoPage({
   avatars,
   categories = [],
   formats = {},
+  immersive = false,
+  onImmersiveChange,
   playbackSpeed = 1,
   subtitles = false,
   dataSaver = false,
@@ -107,8 +116,6 @@ function VideoPage({
   const { width: windowWidth } = useWindowDimensions();
 
   const vertical = formatOf(video, formats) === FORMAT_SHORT;
-  // Plein écran par défaut pour le vertical, sur demande pour l'horizontal.
-  const [immersive, setImmersive] = useState(vertical);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimerRef = useRef(null);
   const playerRef = useRef(null);
@@ -116,6 +123,9 @@ function VideoPage({
   const [isPlaying, setIsPlaying] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+  // La vignette reste par-dessus la WebView tant que l'image n'est pas là :
+  // sans elle, l'écran est noir le temps que l'embed YouTube démarre.
+  const [mediaStarted, setMediaStarted] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -206,6 +216,7 @@ function VideoPage({
       playingRef.current = false;
       setBuffering(false);
       setPlayerReady(false);
+      setMediaStarted(false);
       setResumeAt(readResumeAt(video.videoId, lastPosition, durationRef.current));
     }
     lastTimeRef.current = null;
@@ -283,6 +294,7 @@ function VideoPage({
           const playing = event.state === 'playing';
           playingRef.current = playing;
           setIsPlaying(playing);
+          if (playing) setMediaStarted(true);
           setBuffering(event.state === 'buffering');
           viewingSetPlaying(playing, playbackSpeed);
           if (event.state === 'paused' || event.state === 'ended') flush(false);
@@ -296,6 +308,7 @@ function VideoPage({
           const current = event.currentTime ?? 0;
           const previous = lastTimeRef.current;
           setPlayerReady(true);
+          if (current > 0) setMediaStarted(true);
 
           if (previous !== null) {
             const delta = current - previous;
@@ -430,6 +443,21 @@ function VideoPage({
   const stageHeight = Math.min(idealStageHeight, availableStageHeight);
   const showResume = resumeAt > 0 && time < resumeAt + 5;
 
+  // Miniature affichée sous/avant l'image du lecteur (chargement, page
+  // inactive, erreur) : elle évite l'écran noir à l'ouverture.
+  const poster = (
+    <View style={styles.posterWrap} pointerEvents="none">
+      <VideoThumbnail
+        videoId={video.videoId}
+        thumbnail={video.thumbnail}
+        format={vertical ? FORMAT_SHORT : FORMAT_VIDEO}
+        dataSaver={dataSaver}
+        radius={0}
+        style={styles.poster}
+      />
+    </View>
+  );
+
   return (
     <View style={[styles.page, { height }]}>
       <View
@@ -443,27 +471,21 @@ function VideoPage({
           ]}
         >
         {active && !errorCode ? (
-          <YoutubePlayer
-            key={playerKey}
-            ref={playerRef}
-            videoId={video.videoId}
-            startSeconds={resumeAt}
-            subtitles={subtitles}
-            onEvent={handleEvent}
-            style={styles.player}
-          />
+          <>
+            <YoutubePlayer
+              key={playerKey}
+              ref={playerRef}
+              videoId={video.videoId}
+              startSeconds={resumeAt}
+              subtitles={subtitles}
+              onEvent={handleEvent}
+              style={styles.player}
+            />
+            {mediaStarted ? null : poster}
+          </>
         ) : (
           <>
-            <View style={styles.posterWrap}>
-              <VideoThumbnail
-                videoId={video.videoId}
-                thumbnail={video.thumbnail}
-                format={vertical ? FORMAT_SHORT : FORMAT_VIDEO}
-                dataSaver={dataSaver}
-                radius={0}
-                style={styles.poster}
-              />
-            </View>
+            {poster}
             {errorCode ? (
               <View style={styles.posterOverlay}>
                 <Text style={styles.offlineText}>
@@ -517,7 +539,17 @@ function VideoPage({
         ) : null}
 
         {immersive && controlsVisible ? (
-          <View style={styles.overlayTop} pointerEvents="none">
+          <View
+            style={[
+              styles.overlayTop,
+              {
+                paddingTop: spacing.lg + insets.top,
+                paddingLeft: spacing.lg + insets.left,
+                paddingRight: spacing.lg + insets.right,
+              },
+            ]}
+            pointerEvents="none"
+          >
             <Text style={styles.overlayTitle} numberOfLines={2}>
               {video.title}
             </Text>
@@ -539,12 +571,45 @@ function VideoPage({
           <View
             style={[
               styles.overlayBottom,
-              { paddingBottom: spacing.lg + insets.bottom },
+              {
+                paddingBottom: spacing.lg + insets.bottom,
+                paddingLeft: spacing.lg + insets.left,
+                paddingRight: spacing.lg + insets.right,
+              },
             ]}
           >
-            <View style={styles.overlayTrack}>
-              <View style={[styles.trackFill, { width: `${progressRatio * 100}%` }]} />
-            </View>
+            <Pressable
+              ref={trackRef}
+              onPress={handleTrackPress}
+              onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+              accessibilityRole="adjustable"
+              accessibilityLabel={t('player:progress')}
+              accessibilityActions={[
+                { name: 'increment', label: t('player:forward10') },
+                { name: 'decrement', label: t('player:back10') },
+              ]}
+              onAccessibilityAction={(event) => {
+                const action = event.nativeEvent?.actionName;
+                if (action === 'increment') playerRef.current?.seekBy(10);
+                else if (action === 'decrement') playerRef.current?.seekBy(-10);
+              }}
+              accessibilityValue={{
+                min: 0,
+                max: Math.round(duration),
+                now: Math.round(time),
+                text: t('player:progressValue', {
+                  current: formatClock(time),
+                  duration: formatClock(duration),
+                }),
+              }}
+              style={styles.overlayTrackHit}
+            >
+              <View style={styles.overlayTrack}>
+                <View style={[styles.trackFill, { width: `${progressRatio * 100}%` }]}>
+                  <View style={styles.overlayThumb} />
+                </View>
+              </View>
+            </Pressable>
 
             <View style={styles.overlayTimeRow}>
               <Text style={styles.overlayTime}>{formatClock(time)}</Text>
@@ -585,7 +650,7 @@ function VideoPage({
               </Pressable>
 
               <Pressable
-                onPress={() => setImmersive(false)}
+                onPress={() => onImmersiveChange?.(false)}
                 accessibilityRole="button"
                 accessibilityLabel={
                   vertical ? t('player:showDetails') : t('player:exitFullscreen')
@@ -692,7 +757,7 @@ function VideoPage({
           </Pressable>
 
           <Pressable
-            onPress={() => setImmersive(true)}
+            onPress={() => onImmersiveChange?.(true)}
             accessibilityRole="button"
             accessibilityLabel={t('player:fullscreen')}
             style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
@@ -867,8 +932,25 @@ export default function PlayerScreen({
   const { t } = useTranslation();
   const [index, setIndex] = useState(initialIndex);
   const [pageHeight, setPageHeight] = useState(0);
+  // Plein écran : un Short s'ouvre directement en immersif, une vidéo longue
+  // attend le bouton. Le mode appartient à l'écran (et non à la page) pour
+  // rester le même quand on passe d'une vidéo à l'autre au doigt.
+  const [immersive, setImmersive] = useState(
+    () =>
+      formatOf(
+        queue?.[Math.min(initialIndex, Math.max(0, (queue?.length ?? 1) - 1))],
+        formats,
+      ) === FORMAT_SHORT,
+  );
+  const indexRef = useRef(initialIndex);
+  const pageHeightRef = useRef(0);
+  // Décalage à appliquer dès que la liste a fini de se remettre en page
+  // (rotation, entrée/sortie du plein écran).
+  const pendingOffsetRef = useRef(null);
   const listRef = useRef(null);
   const snapTimer = useRef(null);
+
+  const vertical = formatOf(queue?.[index], formats) === FORMAT_SHORT;
 
   const goToIndex = useCallback(
     (target) => {
@@ -910,6 +992,75 @@ export default function PlayerScreen({
     [],
   );
 
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
+  // La hauteur d'une page change quand l'en-tête disparaît ou quand l'écran
+  // tourne : sans recalage, l'offset resterait calculé avec l'ancienne hauteur
+  // et la liste afficherait le bas d'une page et le haut de la suivante.
+  //
+  // Le décalage n'est appliqué qu'une fois la liste remise en page
+  // (`onContentSizeChange`) : avant, l'offset serait écrêté à l'ancienne
+  // hauteur de contenu et atterrirait sur la mauvaise page.
+  const handleListLayout = useCallback((event) => {
+    const next = Math.round(event.nativeEvent.layout.height);
+    if (next <= 0 || next === pageHeightRef.current) return;
+    const previous = pageHeightRef.current;
+    pageHeightRef.current = next;
+    setPageHeight(next);
+    if (previous > 0) pendingOffsetRef.current = indexRef.current * next;
+  }, []);
+
+  const handleContentSizeChange = useCallback(() => {
+    const offset = pendingOffsetRef.current;
+    if (offset == null) return;
+    pendingOffsetRef.current = null;
+    listRef.current?.scrollToOffset({ offset, animated: false });
+  }, []);
+
+  // Barre d'état masquée en plein écran, restaurée en sortant (et au démontage).
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+    setStatusBarHidden(immersive, 'fade');
+    return () => setStatusBarHidden(false, 'fade');
+  }, [immersive]);
+
+  // Vidéo longue en plein écran : on tourne l'écran pour que l'image occupe
+  // vraiment la dalle. Un Short reste en portrait, il est déjà vertical.
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+    const lock =
+      immersive && !vertical
+        ? ScreenOrientation.OrientationLock.LANDSCAPE
+        : ScreenOrientation.OrientationLock.PORTRAIT_UP;
+    ScreenOrientation.lockAsync(lock).catch(() => {});
+    return undefined;
+  }, [immersive, vertical]);
+
+  // L'application est verrouillée en portrait au lancement : on rend la main
+  // en quittant le lecteur.
+  useEffect(
+    () => () => {
+      if (Platform.OS === 'web') return;
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      ).catch(() => {});
+    },
+    [],
+  );
+
+  // En plein écran, le retour système sort d'abord du plein écran au lieu de
+  // refermer le lecteur.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !immersive) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setImmersive(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [immersive]);
+
   if (!queue || queue.length === 0) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -919,8 +1070,9 @@ export default function PlayerScreen({
   }
 
   return (
-    <SafeAreaView edges={['top']} style={styles.screen}>
-      <View style={styles.header}>
+    <SafeAreaView edges={immersive ? [] : ['top']} style={styles.screen}>
+      {immersive ? null : (
+        <View style={styles.header}>
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
@@ -957,12 +1109,10 @@ export default function PlayerScreen({
         <Text style={styles.counter}>
           {index + 1} / {queue.length}
         </Text>
-      </View>
+        </View>
+      )}
 
-      <View
-        style={styles.listWrap}
-        onLayout={(event) => setPageHeight(event.nativeEvent.layout.height)}
-      >
+      <View style={styles.listWrap} onLayout={handleListLayout}>
         {pageHeight > 0 ? (
           <FlatList
             ref={listRef}
@@ -977,6 +1127,8 @@ export default function PlayerScreen({
                 avatars={avatars}
                 formats={formats}
                 categories={categories}
+                immersive={immersive}
+                onImmersiveChange={setImmersive}
                 playbackSpeed={playbackSpeed}
                 subtitles={subtitles}
                 dataSaver={dataSaver}
@@ -1005,6 +1157,7 @@ export default function PlayerScreen({
             decelerationRate="fast"
             disableIntervalMomentum
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={handleContentSizeChange}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           />
@@ -1163,11 +1316,27 @@ const baseStyles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: 'rgba(5, 7, 14, 0.62)',
   },
+  overlayTrackHit: {
+    // Cible tactile de 44 px autour du trait de 3 px, sans décaler l'overlay.
+    height: 44,
+    marginVertical: -14,
+    justifyContent: 'center',
+  },
   overlayTrack: {
     height: 3,
     borderRadius: radius.pill,
-    overflow: 'hidden',
+    // Le curseur dépasse du trait : il doit rester visible.
+    overflow: 'visible',
     backgroundColor: 'rgba(233, 241, 255, 0.3)',
+  },
+  overlayThumb: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    width: 11,
+    height: 11,
+    borderRadius: radius.pill,
+    backgroundColor: '#fff',
   },
   overlayTimeRow: {
     flexDirection: 'row',
