@@ -17,6 +17,7 @@ import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import { CheckIcon, CloseIcon } from '../src/shared/ui/Icons';
 import { colors, fontSize, icon, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
+import { sortChannelsByTitle } from '../services/channelSort';
 
 export default function CategoryEditor({
   category,
@@ -44,9 +45,12 @@ export default function CategoryEditor({
   const canSave = trimmedName.length > 0 && !saving;
 
   const filtered = useMemo(() => {
+    // Même ordre que l'écran « Chaînes » : parcourir deux listes différentes
+    // pour la même chose est déroutant.
+    const sorted = sortChannelsByTitle(channels);
     const term = query.trim().toLowerCase();
-    if (!term) return channels;
-    return channels.filter((channel) =>
+    if (!term) return sorted;
+    return sorted.filter((channel) =>
       `${channel.title ?? ''} ${channel.id}`.toLowerCase().includes(term),
     );
   }, [channels, query]);

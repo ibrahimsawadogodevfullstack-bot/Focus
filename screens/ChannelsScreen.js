@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -19,6 +19,7 @@ import ScreenShell from '../src/shared/ui/ScreenShell';
 import SectionLabel from '../src/shared/ui/SectionLabel';
 import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
 import { splitChannelInput } from '../services/channelImport';
+import { sortChannelsByTitle } from '../services/channelSort';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 
 export default function ChannelsScreen({
@@ -36,17 +37,23 @@ export default function ChannelsScreen({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
   const [report, setReport] = useState(null);
-  const [revealTarget, setRevealTarget] = useState(null);
   const [error, setError] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
 
-  // La liste est mise à jour par le parent : on attend donc que le nouveau
-  // nombre de chaînes soit atteint pour défiler jusqu'aux lignes ajoutées.
-  useEffect(() => {
-    if (revealTarget == null || channels.length < revealTarget) return;
-    setRevealTarget(null);
-    scrollRef.current?.scrollToEnd({ animated: true });
-  }, [channels.length, revealTarget]);
+  // La liste est toujours présentée par ordre alphabétique, quel que soit
+  // l'ordre d'ajout ou de chargement du stockage.
+  const sortedChannels = useMemo(() => sortChannelsByTitle(channels), [channels]);
+
+  // Après un import, la liste défile jusqu'à la première chaîne ajoutée. Elle
+  // n'est plus forcément en bas désormais : on retient son identifiant et on
+  // attend sa mise en page pour connaître sa position.
+  const pendingReveal = useRef(new Set());
+
+  const revealIfPending = (id, y) => {
+    if (!pendingReveal.current.has(id)) return;
+    pendingReveal.current.delete(id);
+    scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+  };
 
   const entries = splitChannelInput(draft);
   const canSubmit = entries.length > 0 && !busy;
@@ -70,7 +77,9 @@ export default function ChannelsScreen({
         Keyboard.dismiss();
         // La liste suivie est juste en dessous : on y amène l'utilisateur pour
         // qu'il voie immédiatement les chaînes qui viennent d'arriver.
-        setRevealTarget(channels.length + result.added.length);
+        for (const channel of result.added) {
+          pendingReveal.current.add(channel.id);
+        }
       }
     } catch {
       setError(t('channels:addFailed'));
@@ -184,7 +193,7 @@ export default function ChannelsScreen({
           <View style={styles.sectionRule} />
         </View>
 
-        {channels.map((channel) => (
+        {sortedChannels.map((channel) => (
           <Pressable
             key={channel.id}
             onPress={() => onOpenChannel?.(channel)}
@@ -192,6 +201,7 @@ export default function ChannelsScreen({
             accessibilityLabel={t('channels:openChannel', {
               title: channel.title || channel.id,
             })}
+            onLayout={(event) => revealIfPending(channel.id, event.nativeEvent.layout.y)}
             style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
           >
             <ChannelAvatar

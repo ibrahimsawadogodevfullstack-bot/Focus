@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DEFAULT_CHANNELS } from '../src/domain/defaultChannels';
+import { sortChannelsByTitle } from './channelSort';
 
 const FEED_KEY = 'focus.feed.v1';
 const SEEN_KEY = 'focus.seen.v1';
@@ -62,7 +63,7 @@ function sanitizeChannels(value) {
     }
   }
 
-  return [...byId.values()];
+  return sortChannelsByTitle([...byId.values()]);
 }
 
 /** Chaînes suivies (fournies au premier lancement, puis personnalisées). */
@@ -77,12 +78,19 @@ export async function readChannels() {
     // Stockage illisible : on repart des chaînes par défaut.
   }
 
-  return DEFAULT_CHANNELS.map((channel) => ({ ...channel }));
+  return sortChannelsByTitle(
+    DEFAULT_CHANNELS.map((channel) => ({ ...channel })),
+  );
 }
 
 export async function writeChannels(channels) {
   try {
-    await AsyncStorage.setItem(CHANNELS_KEY, JSON.stringify(channels));
+    // L'ordre alphabétique est la référence : il est enregistré tel quel pour
+    // que la liste ne dépende pas de l'ordre d'ajout.
+    await AsyncStorage.setItem(
+      CHANNELS_KEY,
+      JSON.stringify(sortChannelsByTitle(channels)),
+    );
   } catch {
     // ignore
   }
