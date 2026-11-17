@@ -104,6 +104,19 @@ export async function getDownload(id: string): Promise<DownloadRecord | null> {
   return row ? rowToRecord(row) : null;
 }
 
+/** Un seul téléchargement par vidéo et par catégorie (index unique v2). */
+export async function findDownloadByVideo(
+  videoId: string,
+  categoryId: string,
+): Promise<DownloadRecord | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<any>(
+    `SELECT ${COLUMNS} FROM downloads WHERE videoId = ? AND categoryId = ? LIMIT 1`,
+    [videoId, categoryId],
+  );
+  return row ? rowToRecord(row) : null;
+}
+
 export async function listDownloads(): Promise<DownloadRecord[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<any>(
@@ -126,11 +139,18 @@ export async function moveDownloadsCategory(fromId: string, toId: string): Promi
   await db.runAsync('UPDATE downloads SET categoryId = ? WHERE categoryId = ?', [toId, fromId]);
 }
 
-export async function startupReconcile(): Promise<void> {
+export async function startupReconcile(): Promise<{ interruptedIds: string[] }> {
   const db = await getDatabase();
-  // Anything left as `downloading` after a crash becomes `failed` with retry.
+  // Une ligne encore `downloading` au démarrage signifie que le processus a été
+  // tué (mémoire, gestionnaire constructeur, redémarrage). On garde la liste
+  // pour pouvoir reprendre automatiquement : sans cela, une vidéo d'une heure
+  // interrompue à 80 % restait en échec et devait être relancée à la main.
+  const interrupted = await db.getAllAsync<{ id: string; progress: number | null }>(
+    `SELECT id, progress FROM downloads WHERE status = 'downloading'`,
+  );
   await db.runAsync(
-    `UPDATE downloads SET status = 'failed', errorCode = COALESCE(errorCode, 'ERR_INTERRUPTED'),
+    `UPDATE downloads SET status = 'failed', progress = 0,
+     errorCode = COALESCE(errorCode, 'ERR_INTERRUPTED'),
      errorMessage = COALESCE(errorMessage, 'Interrupted') WHERE status = 'downloading'`,
   );
   // Mark completed entries whose file disappeared as missing.
@@ -143,11 +163,31 @@ export async function startupReconcile(): Promise<void> {
     const file = new File(toFileUri(row.filePath));
     if (!file.exists) {
       await db.runAsync(
-        `UPDATE downloads SET status = 'failed', errorCode = 'missing_file', errorMessage = 'File missing' WHERE id = ?`,
+        `UPDATE downloads SET status = 'failed', progress = 0, errorCode = 'missing_file', errorMessage = 'File missing' WHERE id = ?`,
         [row.id],
       );
     }
   }
+  // Seuls les téléchargements qui avaient réellement commencé sont repris :
+  // une ligne tout juste créée n'a rien à reprendre.
+  return {
+    interruptedIds: interrupted
+      .filter((row) => Number(row.progress ?? 0) > 0)
+      .map((row) => row.id),
+  };
 }
+
+/** Remet des téléchargements interrompus en file, sans toucher à leurs fichiers. */
+export async function requeueDownloads(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDatabase();
+  const placeholders = ids.map(() => '?').join(', ');
+  await db.runAsync(
+    `UPDATE downloads SET status = 'queued', progress = 0, errorCode = NULL, errorMessage = NULL
+     WHERE id IN (${placeholders})`,
+    ids,
+  );
+}
+
 
 

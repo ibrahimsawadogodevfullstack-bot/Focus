@@ -2,7 +2,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { Alert, AppState, BackHandler, PermissionsAndroid, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { applyLanguage, i18nReady } from './i18n';
@@ -19,8 +19,8 @@ import {
 import { ThemeProvider, useTheme } from './src/shared/theme/ThemeProvider';
 import ActionSheet from './components/ActionSheet';
 import CategoriesScreen from './screens/CategoriesScreen.tsx';
-import CategoryDetailScreen from './screens/CategoryDetailScreen.tsx';
 import CategoryEditor from './screens/CategoryEditor';
+import ChannelDetailScreen from './screens/ChannelDetailScreen.tsx';
 import OfflineScreen from './screens/OfflineScreen.tsx';
 import OfflinePlayerScreen from './screens/OfflinePlayerScreen.tsx';
 import ChannelsScreen from './screens/ChannelsScreen';
@@ -31,6 +31,7 @@ import StatsDetailScreen from './screens/StatsDetailScreen';
 import StatsSettingsScreen from './screens/StatsSettingsScreen';
 import YouScreen from './screens/YouScreen';
 import { saveCrash } from './services/crashLog';
+import { maybeUpdateYtdlp } from './services/ytdlpUpdater';
 import {
   cancelDownload,
   getDownloadsSnapshot,
@@ -226,6 +227,16 @@ function AppContent() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state !== 'active') flushViewingStats();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // yt-dlp : nouvelle vérification de version au retour au premier plan.
+  // L'appel est throttle à une fois par jour (AsyncStorage), donc la plupart
+  // des retours ne déclenchent aucun travail.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void maybeUpdateYtdlp().catch(() => {});
     });
     return () => subscription.remove();
   }, []);
@@ -435,21 +446,30 @@ function AppContent() {
       );
       if (existing) return;
       try {
-        const { Ytdlp } = await import('./modules/ytdlp');
-        if (!Ytdlp) throw new Error(t('downloads:errorPlatform'));
-        const url = `https://www.youtube.com/watch?v=${videoId}`;
-        const meta = await Ytdlp.getMetadata(url);
+        // Notification du service de premier plan (Android 13+). Sans elle le
+        // téléchargement continue, mais la progression reste invisible : le
+        // service est justement ce qui empêche Android de geler une vidéo
+        // longue. Un refus n'est pas bloquant.
+        if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+          await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          ).catch(() => undefined);
+        }
+        // Pas d'appel réseau bloquant ici : on utilise les infos déjà connues
+        // du flux (titre, chaîne, miniature) pour démarrer yt-dlp tout de
+        // suite. La durée exacte est renvoyée par le module à la fin du
+        // téléchargement (voir onComplete).
         await (await import('./services/downloadManager')).enqueueDownload({
-          url,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
           categoryId,
           format: 'video',
           quality: '720p',
           metadata: {
-            videoId: meta.videoId || videoId,
-            title: meta.title || video.title || 'Vidéo',
-            channelName: meta.channelName || video.channelTitle || '',
-            durationSec: meta.durationSec || 0,
-            thumbnailUrl: meta.thumbnailUrl || '',
+            videoId,
+            title: video.title || 'Vidéo',
+            channelName: video.channelTitle || '',
+            durationSec: video.duration || 0,
+            thumbnailUrl: video.thumbnail || '',
           },
         });
       } catch (error) {
@@ -623,7 +643,7 @@ function AppContent() {
   }, [categoryDeletePrompt, finalizeDeleteCategory, t]);
 
   const showTabBar = TAB_ROUTES.has(route.name);
-  const activeTab = ['channels', 'categories', 'editor', 'categoryDetail'].includes(route.name)
+  const activeTab = ['channels', 'channelDetail', 'categories', 'editor'].includes(route.name)
     ? 'categories'
     : route.name;
 
@@ -667,6 +687,48 @@ function AppContent() {
         avatars={avatars}
         onAddSources={handleAddSources}
         onRemoveChannel={handleRemoveChannel}
+        onOpenChannel={(channel) =>
+          setRoute({ name: 'channelDetail', channelId: channel.id })
+        }
+      />
+    );
+  } else if (route.name === 'channelDetail') {
+    const channel =
+      (channels ?? []).find((entry) => entry.id === route.channelId) ?? {
+        id: route.channelId,
+        title: '',
+      };
+    screen = (
+      <ChannelDetailScreen
+        channel={channel}
+        videos={(feedVideos ?? []).filter(
+          (video) => video.channelId === route.channelId,
+        )}
+        formats={formats}
+        seenIds={seenIds}
+        avatars={avatars}
+        trackingVideos={tracking.videos}
+        dataSaver={settings.dataSaver}
+        loading={loading}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onOpen={handleOpen}
+        onBack={() => setRoute({ name: 'channels' })}
+        categories={categories}
+        onDownload={(video) => {
+          const cats = (categories ?? []).filter((c) =>
+            (c.channelIds ?? []).includes(route.channelId),
+          );
+          if (cats.length === 0) {
+            Alert.alert(
+              t('offline:downloadFailed'),
+              "La chaîne n'appartient à aucune catégorie, la vidéo ne peut pas être téléchargée.",
+            );
+            return;
+          }
+          const categoryId = cats[0].id;
+          handleDownloadVideo(video, categoryId);
+        }}
       />
     );
   } else if (route.name === 'you') {
@@ -723,30 +785,8 @@ function AppContent() {
           onDelete={(category) => {
             handleDeleteCategory(category.id);
           }}
-          onOpenCategory={(id) => {
-            const c = (categories ?? []).find((x) => x.id === id);
-            setRoute({ name: 'categoryDetail', categoryId: id, categoryName: c?.name ?? '' });
-          }}
         />
       </ErrorBoundary>
-    );
-  } else if (route.name === 'categoryDetail') {
-    screen = (
-      <CategoryDetailScreen
-        categoryId={route.categoryId}
-        categoryName={route.categoryName}
-        categories={categories}
-        videos={feedVideos}
-        formats={formats}
-        channels={channels}
-        seenIds={seenIds}
-        avatars={avatars}
-        trackingVideos={tracking.videos}
-        dataSaver={settings.dataSaver}
-        onOpen={handleOpen}
-        onDownload={handleDownloadVideo}
-        onBack={() => setRoute({ name: 'categories' })}
-      />
     );
   } else if (route.name === 'offlinePlayer') {
     screen = (
@@ -813,6 +853,10 @@ function AppContent() {
           onChange={handleOpenTab}
           onCenterPress={() => {
             setCrash(null);
+            // La liste des chaînes reste visible derrière le panneau : en
+            // annulant l'ajout, on retombe sur cette page, pas sur l'onglet
+            // d'où venait l'utilisateur.
+            setRoute({ name: 'channels' });
             setAddChannelVisible(true);
           }}
         />

@@ -66,7 +66,11 @@ export default function AddChannelSheet({ onClose, onSubmit }: AddChannelSheetPr
         onProgress: (done, total) => setProgress({ done, total }),
       });
       setReport(result);
-      if (result.added.length > 0) setSource('');
+      if (result.added.length > 0) {
+        // On ne garde que les entrées en échec : elles restent modifiables dans
+        // le champ au lieu de disparaître avec le reste de la liste.
+        setSource(result.failed.map((failure) => failure.input).join('\n'));
+      }
     } catch {
       setError(t('channels:addFailed'));
     } finally {

@@ -18,31 +18,26 @@ import {
 } from '../src/shared/ui/Icons';
 import { colors, fontSize, icon, radius, spacing } from '../src/shared/theme/tokens';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
-import { useDownloads } from '../hooks/useDownloads';
-import { formatBytes } from '../services/localVideos';
 
 /** Au-delà de ce nombre de catégories, la recherche devient utile. */
 const SEARCH_THRESHOLD = 5;
 
-type CategoryRef = { id: string; name: string };
+type CategoryRef = { id: string; name: string; channelIds?: string[] };
 
 export default function CategoriesScreen({
   categories,
   onCreate,
   onEdit,
-  onOpenCategory,
   onDelete,
 }: {
   categories: CategoryRef[];
   onCreate: () => void;
   onEdit: (c: any) => void;
-  onOpenCategory: (id: string) => void;
   onDelete: (category: CategoryRef) => void;
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
-  const { t } = useTranslation(['categories', 'downloads', 'common']);
-  const downloads = useDownloads();
+  const { t } = useTranslation(['categories', 'common']);
 
   const [query, setQuery] = useState('');
   const [menuFor, setMenuFor] = useState<{ id: string; name: string } | null>(null);
@@ -56,33 +51,18 @@ export default function CategoriesScreen({
     return categories.filter((category) => category.name.toLowerCase().includes(term));
   }, [categories, term]);
 
-  const totalSize = useMemo(
-    () => downloads.reduce((sum, download) => sum + (download.sizeBytes || 0), 0),
-    [downloads],
-  );
   const summary = categories.length > 0
-    ? [
-        t('categories:summaryCount', { count: categories.length }),
-        totalSize > 0 ? formatBytes(totalSize) : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+    ? t('categories:summaryCount', { count: categories.length })
     : undefined;
-
-  const statsFor = (id: string) => {
-    const list = downloads.filter((d) => d.categoryId === id);
-    const size = list.reduce((s, d) => s + (d.sizeBytes || 0), 0);
-    return { count: list.length, size };
-  };
 
   const closeMenu = () => setMenuFor(null);
 
   const actions = menuFor
     ? [
         {
-          key: 'rename',
-          label: t('categories:rename'),
-          hint: t('categories:renameHint', { name: menuFor.name }),
+          key: 'edit',
+          label: t('categories:edit'),
+          hint: t('categories:editHint', { name: menuFor.name }),
           icon: <PencilIcon color={colors.text} size={16} />,
           onPress: () => {
             const target = menuFor;
@@ -169,14 +149,14 @@ export default function CategoriesScreen({
             <SectionLabel style={styles.sectionTitle}>{t('categories:sectionTitle')}</SectionLabel>
             <View style={styles.group}>
               {visible.map((category, index) => {
-                const { count, size } = statsFor(category.id);
+                const channelCount = category.channelIds?.length ?? 0;
                 return (
                   <View key={category.id}>
                     {index > 0 ? <View style={styles.separator} /> : null}
                     <Pressable
-                      onPress={() => onOpenCategory(category.id)}
+                      onPress={() => onEdit(category)}
                       accessibilityRole="button"
-                      accessibilityLabel={`${category.name}, ${t('categories:videoCount', { count })}, ${formatBytes(size)}`}
+                      accessibilityLabel={`${category.name}, ${t('categories:members', { count: channelCount })}`}
                       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                     >
                       <View style={styles.rowIcon}>
@@ -187,7 +167,7 @@ export default function CategoriesScreen({
                           {category.name}
                         </Text>
                         <Text style={styles.rowMeta} numberOfLines={1}>
-                          {t('categories:videoCount', { count })} · {formatBytes(size)}
+                          {t('categories:members', { count: channelCount })}
                         </Text>
                       </View>
                       <Pressable

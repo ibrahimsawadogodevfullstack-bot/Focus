@@ -9,8 +9,49 @@
 /** Séparateurs acceptés : virgule, point-virgule, retour à la ligne. */
 const SEPARATORS = /[,;\r\n]+/;
 
+/** Puce de liste copiée depuis un document ou un assistant (« - », « 1. »…). */
+const LIST_MARKER = /^(?:[-*•]|\d+[.)])\s+/;
+
+/** Lien Markdown : `[libellé](https://…)`, éventuellement `<url>`. */
+const MARKDOWN_LINK = /^\[[^\]]*]\(\s*(?:<([^>]+)>|([^)\s]+))\s*\)$/;
+
+/** Lien automatique Markdown : `<https://…>`. */
+const AUTOLINK = /^<([^>\s]+)>$/;
+
+/** Paramètres de suivi inutiles pour identifier une chaîne. */
+const TRACKING_PARAM = /^(?:si|utm_[^=]*)=/i;
+
 /** Nombre de résolutions simultanées : assez rapide, sans déclencher de 429. */
 export const IMPORT_CONCURRENCY = 3;
+
+/**
+ * Nettoie une entrée : retire les puces de liste, déballe les liens Markdown et
+ * supprime les paramètres de suivi (`si`, `utm_*`). Sans cela, un lien collé
+ * sous la forme `[https://…](https://…?si=…)` n'est pas reconnu comme une URL.
+ *
+ * @param {string} part
+ * @returns {string}
+ */
+function normalizeEntry(part) {
+  let value = part.replace(LIST_MARKER, '').trim();
+
+  const markdown = value.match(MARKDOWN_LINK);
+  if (markdown) value = (markdown[1] ?? markdown[2]).trim();
+
+  const autolink = value.match(AUTOLINK);
+  if (autolink) value = autolink[1].trim();
+
+  // Les identifiants UC… et les @handles ne portent pas de paramètres.
+  const url = value.match(/^([^?#]*)\?([^#]*)(#.*)?$/);
+  if (url) {
+    const params = url[2]
+      .split('&')
+      .filter((param) => param && !TRACKING_PARAM.test(param));
+    value = `${url[1]}${params.length > 0 ? `?${params.join('&')}` : ''}${url[3] ?? ''}`;
+  }
+
+  return value;
+}
 
 /**
  * Découpe une saisie libre en entrées uniques, dans l'ordre d'apparition.
@@ -26,7 +67,7 @@ export function splitChannelInput(raw) {
 
   String(raw ?? '')
     .split(SEPARATORS)
-    .map((part) => part.trim())
+    .map((part) => normalizeEntry(part.trim()))
     .filter(Boolean)
     .forEach((part) => {
       const key = part.toLowerCase();

@@ -106,7 +106,7 @@ export default function CategoryEditor({
 
         <Text style={styles.headerTitle} numberOfLines={1}>
           {category
-            ? t('categories:editCategory', { name: category.name })
+            ? t('categories:channelsTitle', { name: category.name })
             : t('categories:createTitle')}
         </Text>
       </View>

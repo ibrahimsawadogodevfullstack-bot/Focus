@@ -8,8 +8,8 @@ import { useTheme } from '../src/shared/theme/ThemeProvider';
 
 const TABS = [
   { key: 'feed', label: 'feed', Icon: GridIcon },
-  { key: 'offline', label: 'offline', Icon: DownloadIcon },
   { key: 'categories', label: 'categories', Icon: FolderIcon },
+  { key: 'offline', label: 'offline', Icon: DownloadIcon },
   { key: 'you', label: 'you', Icon: PersonIcon },
 ] as const;
 

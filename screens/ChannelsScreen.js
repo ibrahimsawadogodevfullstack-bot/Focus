@@ -14,7 +14,7 @@ import ChannelAvatar from '../src/shared/ui/ChannelAvatar';
 import ChannelImportReportView from '../src/shared/ui/ChannelImportReport';
 import ConfirmSheet from '../src/shared/ui/ConfirmSheet';
 import EmptyState from '../src/shared/ui/EmptyState';
-import { TrashIcon } from '../src/shared/ui/Icons';
+import { Chevron, TrashIcon } from '../src/shared/ui/Icons';
 import ScreenShell from '../src/shared/ui/ScreenShell';
 import SectionLabel from '../src/shared/ui/SectionLabel';
 import { colors, fontSize, radius, spacing } from '../src/shared/theme/tokens';
@@ -26,6 +26,7 @@ export default function ChannelsScreen({
   avatars = {},
   onAddSources,
   onRemoveChannel,
+  onOpenChannel,
 }) {
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
@@ -63,7 +64,9 @@ export default function ChannelsScreen({
       });
       setReport(result);
       if (result.added.length > 0) {
-        setDraft('');
+        // Seules les entrées en échec restent dans le champ, pour permettre de
+        // les corriger puis de relancer sans recoller toute la liste.
+        setDraft(result.failed.map((failure) => failure.input).join('\n'));
         Keyboard.dismiss();
         // La liste suivie est juste en dessous : on y amène l'utilisateur pour
         // qu'il voie immédiatement les chaînes qui viennent d'arriver.
@@ -182,7 +185,15 @@ export default function ChannelsScreen({
         </View>
 
         {channels.map((channel) => (
-          <View key={channel.id} style={styles.row}>
+          <Pressable
+            key={channel.id}
+            onPress={() => onOpenChannel?.(channel)}
+            accessibilityRole="button"
+            accessibilityLabel={t('channels:openChannel', {
+              title: channel.title || channel.id,
+            })}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+          >
             <ChannelAvatar
               uri={avatars[channel.id]}
               name={channel.title || channel.id}
@@ -198,6 +209,8 @@ export default function ChannelsScreen({
               </Text>
             </View>
 
+            <Chevron direction="right" color={colors.textFaint} size={9} thickness={2} />
+
             <Pressable
               onPress={() => setPendingRemove(channel)}
               accessibilityRole="button"
@@ -209,7 +222,7 @@ export default function ChannelsScreen({
             >
               <TrashIcon color={colors.danger} size={16} />
             </Pressable>
-          </View>
+          </Pressable>
         ))}
 
         {channels.length === 0 ? (
@@ -325,6 +338,12 @@ const baseStyles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: 9,
+    paddingHorizontal: spacing.xs,
+    marginHorizontal: -spacing.xs,
+    borderRadius: radius.md,
+  },
+  rowPressed: {
+    backgroundColor: colors.surface,
   },
   rowTexts: {
     flex: 1,

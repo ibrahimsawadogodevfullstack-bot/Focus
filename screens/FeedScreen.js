@@ -38,7 +38,7 @@ import { isFormatResolved, resolveFormats, splitByFormat } from '../src/domain/v
 import { hasFailedFormat } from '../services/formats';
 import { useTheme, useThemeStyles } from '../src/shared/theme/ThemeProvider';
 import { timeAgo } from '../src/shared/utils/format';
-import { useDownloads } from '../hooks/useDownloads';
+import { useDownloads, useDownloadQueueState } from '../hooks/useDownloads';
 import * as DM from '../services/downloadManager';
 import { formatBytes } from '../services/localVideos';
 import { toDownloadedFeedVideos } from '../services/downloadFeed';
@@ -105,14 +105,21 @@ export default function FeedScreen({
   showCategoryChips = true,
   headerTitle,
   onBack,
+  headerContent = null,
   shortsPosition = 'after-first-row',
   dataSaver = false,
+  onEndReached,
+  loadingMore = false,
+  hasMore = false,
+  loadMoreError = null,
+  onLoadMoreRetry,
 }) {
   const { width: windowWidth, fontScale } = useWindowDimensions();
   const { colors } = useTheme();
   const styles = useThemeStyles(baseStyles);
   const { t, i18n } = useTranslation(['home', 'common', 'downloads', 'offline']);
   const downloadRecords = useDownloads();
+  const queueState = useDownloadQueueState();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'fr';
   const isOffline = source === 'downloaded';
 
@@ -395,6 +402,10 @@ export default function FeedScreen({
     setSort('recent');
   }, []);
 
+  const handleRetryAll = useCallback(() => {
+    void DM.retryAllFailed();
+  }, []);
+
   // Une carte ouvre le même menu que le bouton « ⋮ » : appui long inclus.
   const canOpenMenu = Boolean(onRemoveChannel || onDownload || source === 'downloaded');
 
@@ -472,7 +483,14 @@ export default function FeedScreen({
                   pending={pendingIds.has(video.videoId)}
                   progress={isDownloading ? record.progress : source === 'downloaded' ? 0 : progressFor(video)}
                   duration={video.duration ?? trackingVideos?.[video.videoId]?.duration}
-                  isNew={source === 'remote' && hasHistory && !seen.has(video.videoId)}
+                  isNew={
+                    source === 'remote' &&
+                    hasHistory &&
+                    !seen.has(video.videoId) &&
+                    // Les pages chargées par yt-dlp n'ont pas de date :
+                    // « Nouveau » n'aurait aucun sens pour une vidéo ancienne.
+                    Boolean(video.publishedAt)
+                  }
                   onPress={() => onOpen(video, long)}
                   dataSaver={dataSaver}
                   channelAvatar={avatars[video.channelId]}
@@ -607,11 +625,14 @@ export default function FeedScreen({
         style={styles.list}
         data={listRows}
         keyExtractor={(item) => item.key}
-        getItemLayout={getItemLayout}
+        getItemLayout={headerContent ? undefined : getItemLayout}
         extraData={`${columns}-${cardWidth}-${shortsPosition}-${rowPadding}`}
         renderItem={renderItem}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.6}
         ListHeaderComponent={
           <>
+            {headerContent}
             {isOffline && offlineSubtitle ? (
               <Text
                 style={[
@@ -631,6 +652,16 @@ export default function FeedScreen({
                 </Text>
                 <Pressable onPress={onRefresh} hitSlop={10} accessibilityRole="button">
                   <Text style={styles.bannerAction}>{t('home:retry')}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {isOffline && queueState.paused ? (
+              <View style={[styles.banner, { marginHorizontal: sidePadding + GUTTER }]}>
+                <Text style={styles.bannerText}>
+                  {t('downloads:connectionPaused')}
+                </Text>
+                <Pressable onPress={handleRetryAll} hitSlop={10} accessibilityRole="button">
+                  <Text style={styles.bannerAction}>{t('downloads:retryAll')}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -689,31 +720,69 @@ export default function FeedScreen({
         ListFooterComponent={
           source === 'remote' && visibleVideos.length > 0 ? (
             <View style={[styles.footer, { paddingHorizontal: sidePadding + GUTTER }]}>
-              {loading ? (
-                <ActivityIndicator color={colors.accent} size="small" />
+              <View style={styles.footerRow}>
+                {loading ? (
+                  <ActivityIndicator color={colors.accent} size="small" />
+                ) : null}
+                <Text style={styles.footerText} numberOfLines={1}>
+                  {t('home:video', { count: long.length })}
+                  {shorts.length > 0
+                    ? ` · ${t('home:short', { count: shorts.length })}`
+                    : ''}
+                  {' · '}
+                  {t('home:channel', { count: scopeChannelCount })}
+                  {failedChannels.length > 0
+                    ? ` · ${t('home:failedChannels', { count: failedChannels.length })}`
+                    : ''}
+                  {' · '}
+                  {savedAt ? timeAgo(savedAt, locale) : t('home:neverSynced')}
+                </Text>
+              </View>
+              {onEndReached ? (
+                <View style={styles.loadMore}>
+                  {loadMoreError != null ? (
+                    <>
+                      <Text style={[styles.footerText, styles.loadMoreText]}>
+                        {t('home:loadMoreError')}
+                      </Text>
+                      <Pressable
+                        onPress={onLoadMoreRetry ?? onEndReached}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home:loadMoreRetry')}
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          styles.footerButton,
+                          pressed && styles.footerButtonPressed,
+                        ]}
+                      >
+                        <Text style={styles.footerAction}>{t('home:loadMoreRetry')}</Text>
+                      </Pressable>
+                    </>
+                  ) : loadingMore ? (
+                    <>
+                      <ActivityIndicator color={colors.accent} size="small" />
+                      <Text style={[styles.footerText, styles.loadMoreText]}>
+                        {t('home:loadingMore')}
+                      </Text>
+                    </>
+                  ) : !hasMore ? (
+                    <Text style={[styles.footerText, styles.loadMoreText]}>
+                      {t('home:endOfVideos')}
+                    </Text>
+                  ) : null}
+                </View>
               ) : null}
-              <Text style={styles.footerText} numberOfLines={1}>
-                {t('home:video', { count: long.length })}
-                {shorts.length > 0
-                  ? ` · ${t('home:short', { count: shorts.length })}`
-                  : ''}
-                {' · '}
-                {t('home:channel', { count: scopeChannelCount })}
-                {failedChannels.length > 0
-                  ? ` · ${t('home:failedChannels', { count: failedChannels.length })}`
-                  : ''}
-                {' · '}
-                {savedAt ? timeAgo(savedAt, locale) : t('home:neverSynced')}
-              </Text>
-              <Pressable
-                onPress={onRefresh}
-                accessibilityRole="button"
-                accessibilityLabel={t('home:refresh')}
-                hitSlop={8}
-                style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
-              >
-                <Text style={styles.footerAction}>{t('home:refresh')}</Text>
-              </Pressable>
+              <View style={styles.footerRefresh}>
+                <Pressable
+                  onPress={onRefresh}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('home:refresh')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.footerButton, pressed && styles.footerButtonPressed]}
+                >
+                  <Text style={styles.footerAction}>{t('home:refresh')}</Text>
+                </Pressable>
+              </View>
             </View>
           ) : null
         }
@@ -963,11 +1032,29 @@ const baseStyles = StyleSheet.create({
     opacity: 0.6,
   },
   footer: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+  },
+  loadMore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 24,
+  },
+  footerRefresh: {
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+  },
+  loadMoreText: {
+    flex: 0,
+    textAlign: 'center',
   },
   footerText: {
     flex: 1,

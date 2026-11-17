@@ -1,5 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
+import { duplicateDownloadIds } from './downloadDedupe';
+
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export const DB_NAME = 'focus-downloads.db';
@@ -55,6 +57,32 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       PRAGMA user_version = 1;
     `);
     version = 1;
+  }
+
+  if (version < 2) {
+    // Fusionne les doublons (videoId, categoryId) créés avant l'index unique.
+    // On garde la ligne la plus avancée et on supprime les autres lignes, sans
+    // toucher aux fichiers : les anciennes tentatives partagent le même nom.
+    const rows = await db.getAllAsync<{
+      id: string;
+      videoId: string;
+      categoryId: string;
+      status: string;
+      progress: number | null;
+      createdAt: number;
+      filePath: string | null;
+    }>(
+      'SELECT id, videoId, categoryId, status, progress, createdAt, filePath FROM downloads',
+    );
+    for (const id of duplicateDownloadIds(rows)) {
+      await db.runAsync('DELETE FROM downloads WHERE id = ?', [id]);
+    }
+    await db.execAsync(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_downloads_unique
+        ON downloads(videoId, categoryId);
+      PRAGMA user_version = 2;
+    `);
+    version = 2;
   }
 
   // Phase 1: seed the uncategorized system category.

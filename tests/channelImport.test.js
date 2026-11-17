@@ -27,6 +27,30 @@ test('splitChannelInput renvoie un tableau vide sans saisie', () => {
   assert.deepEqual(splitChannelInput(null), []);
 });
 
+test('splitChannelInput déballe les liens Markdown et retire le suivi', () => {
+  const entries = splitChannelInput(
+    [
+      '[https://youtube.com/@qvema?si=valpv4j9PWjWK9TS](https://youtube.com/@qvema?si=valpv4j9PWjWK9TS&utm_source=chatgpt.com)',
+      '- [https://youtube.com/@finance-data](https://youtube.com/@finance-data?si=abc)',
+      '<https://youtube.com/@neurotradeapex?si=xyz>',
+    ].join(', '),
+  );
+
+  assert.deepEqual(entries, [
+    'https://youtube.com/@qvema',
+    'https://youtube.com/@finance-data',
+    'https://youtube.com/@neurotradeapex',
+  ]);
+});
+
+test('splitChannelInput garde les paramètres utiles et déduplique après nettoyage', () => {
+  const entries = splitChannelInput(
+    '1. [vidéo](https://www.youtube.com/watch?v=abc123&si=track), https://www.youtube.com/watch?v=abc123',
+  );
+
+  assert.deepEqual(entries, ['https://www.youtube.com/watch?v=abc123']);
+});
+
 test('importChannels classe ajouts, doublons et échecs dans l’ordre de saisie', async () => {
   const resolved = {
     a: { id: 'UCa', title: 'A' },
