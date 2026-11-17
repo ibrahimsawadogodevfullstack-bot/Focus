@@ -427,7 +427,16 @@ function VideoPage({
     }
 
     lastTapRef.current = { at: now, x };
-    showControls();
+
+    // Un appui simple bascule les commandes : elles disparaissent pour laisser
+    // voir l'image, et reviennent au toucher suivant. Hors immersif, la barre
+    // reste à sa place (opacité nulle) pour ne pas faire sauter la vidéo.
+    if (controlsVisible) {
+      clearControlsTimer();
+      setControlsVisible(false);
+    } else {
+      showControls();
+    }
   };
 
   const progressRatio = duration > 0 ? Math.min(1, time / duration) : 0;
@@ -517,9 +526,10 @@ function VideoPage({
         {active && !errorCode && playerReady ? (
           <Pressable
             onPress={handleScreenTap}
-            accessible={immersive && !controlsVisible}
             accessibilityRole="button"
-            accessibilityLabel={t('player:showControls')}
+            accessibilityLabel={
+              controlsVisible ? t('player:hideControls') : t('player:showControls')
+            }
             style={StyleSheet.absoluteFill}
           />
         ) : null}
@@ -684,7 +694,10 @@ function VideoPage({
 
         {immersive ? null : (
           <View
-            style={styles.controls}
+            style={[styles.controls, !controlsVisible && styles.controlsHidden]}
+            pointerEvents={controlsVisible ? 'auto' : 'none'}
+            accessibilityElementsHidden={!controlsVisible}
+            importantForAccessibility={controlsVisible ? 'auto' : 'no-hide-descendants'}
             onLayout={(event) => setControlsHeight(event.nativeEvent.layout.height)}
           >
         <Pressable
@@ -1434,6 +1447,11 @@ const baseStyles = StyleSheet.create({
   controls: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
+  },
+  // Barre masquée : elle garde sa place pour que la vidéo et les détails ne
+  // sautent pas à chaque appui sur l'image.
+  controlsHidden: {
+    opacity: 0,
   },
   trackHit: {
     // Cible de 44 px, sans changer la position du trait de 3 px.

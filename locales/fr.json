@@ -307,6 +307,7 @@
     "offlineVideo": "Hors ligne : cette vidéo n’est pas enregistrée sur l’appareil.",
     "embedUnavailable": "Lecture intégrée indisponible.",
     "retry": "Réessayer",
+    "hideControls": "Masquer les commandes du lecteur",
     "showControls": "Afficher les commandes du lecteur",
     "back10": "Reculer de dix secondes",
     "pause": "Mettre en pause",

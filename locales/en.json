@@ -307,6 +307,7 @@
     "offlineVideo": "Offline: this video is not saved on your device.",
     "embedUnavailable": "Embedded playback is unavailable.",
     "retry": "Retry",
+    "hideControls": "Hide player controls",
     "showControls": "Show player controls",
     "back10": "Rewind ten seconds",
     "pause": "Pause",
